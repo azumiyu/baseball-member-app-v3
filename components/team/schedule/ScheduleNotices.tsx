@@ -42,7 +42,7 @@ function ChangeComparison({ game }: { game: ScheduleGame }) {
   </div>;
 }
 
-/** 回答中も対象一覧を保持し、保存失敗をポップアップ内で確認できるようにする。 */
+/** 回答中・保存中は対象一覧を保持し、全件の回答・変更確認が保存されたら閉じる。 */
 export function ScheduleNotices({ games, initialGames, memberId, suspended, saveState, error, onResponse, onRetry, onOpenSchedule }: {
   games: ScheduleGame[];
   initialGames: ScheduleGame[];
@@ -67,14 +67,20 @@ export function ScheduleNotices({ games, initialGames, memberId, suspended, save
     const game = games.find((game) => game.id === entry.id && game.date >= japanDate());
     return game && (!entry.changed || game.changedBy !== memberId) ? [{ game, changed: entry.changed }] : [];
   }) ?? [];
+  const allConfirmed = rows.every(({ game }) => {
+    const response = game.responses[memberId];
+    return response && response.confirmedRevision >= game.detailsRevision;
+  });
 
   useEffect(() => {
-    if (notice || suspended || saveState !== "saved" || error) return;
-    const next = noticeFor(changedGames(games, memberId, dismissed), true);
-    // 外部から取得した試合の更新に応じて、未確認の変更だけを通知する。
+    if (suspended || saveState !== "saved" || error) return;
+    const next = notice
+      ? allConfirmed ? null : notice
+      : noticeFor(changedGames(games, memberId, dismissed), true);
+    // 保存結果・外部更新に合わせて通知を開閉する。失敗時は回答と再試行を残す。
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (next) setNotice(next);
-  }, [games, memberId, dismissed, notice, suspended, saveState, error]);
+    if (next !== notice) setNotice(next);
+  }, [games, memberId, dismissed, notice, suspended, saveState, error, allConfirmed]);
 
   const close = () => {
     if (notice) setDismissed((current) => ({ ...current, ...Object.fromEntries(notice.games.map((game) => [game.id, game.version])) }));

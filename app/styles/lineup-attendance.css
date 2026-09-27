@@ -9,7 +9,12 @@
 }
 
 .order-panel .lineup-player-meta .jersey {
+  /* #9・#60・#999 で出欠の位置が動かないよう、背番号の列幅を固定する。 */
+  flex: 0 0 4.5ch;
+  width: 4.5ch;
   margin-left: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .lineup-attendance-badge {
@@ -17,7 +22,7 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  min-width: 41px;
+  width: 42px;
   border: 1px solid transparent;
   border-radius: 5px;
   padding: 3px 5px;
@@ -58,7 +63,7 @@
   }
 
   .lineup-attendance-badge {
-    min-width: 38px;
+    width: 38px;
     padding: 2px 3px;
   }
 }

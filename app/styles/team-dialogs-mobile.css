@@ -1,23 +1,13 @@
 @media (max-width: 760px) {
-  .team-dialog {
-    top: var(--dialog-top, 0px);
-    left: 0;
-    transform: none;
-    width: 100%;
-    height: var(--dialog-height, 100dvh);
-    max-height: var(--dialog-height, 100dvh);
-    border: 0;
-    border-radius: 0;
-  }
   .team-dialog-header {
-    padding: calc(env(safe-area-inset-top) + 14px) 68px 14px 18px;
+    padding: 16px 64px 14px 16px;
   }
   .team-dialog-close {
-    top: calc(env(safe-area-inset-top) + 12px);
-    right: 14px;
+    top: 12px;
+    right: 10px;
   }
   .team-dialog-body {
-    padding: 16px 18px calc(env(safe-area-inset-bottom) + 20px);
+    padding: 16px 16px calc(20px + var(--dialog-bottom-inset, 0px));
   }
   .team-dialog-body [data-slot="command-input-wrapper"] {
     top: -16px;
@@ -33,5 +23,11 @@
     flex: 1;
     min-width: 0;
     padding: 10px 6px;
+  }
+}
+@media (max-width: 420px) {
+  .team-dialog-body .schedule-date-time-fields,
+  .team-dialog-body .schedule-form-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

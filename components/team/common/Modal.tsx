@@ -12,6 +12,7 @@ import {
  *
  * スマホでソフトキーボードが出たときにダイアログがはみ出さないよう、
  * visualViewport の高さ・位置を CSS 変数（--dialog-height / --dialog-top）に流し込みます。
+ * preserveSize の場合は開いた時のサイズを維持し、キーボードの分だけ本文のスクロール余白を増やします。
  * 開いたときのフォーカスは入力欄ではなくタイトルへ移します（勝手にキーボードが出ないように）。
  */
 export function Modal({
@@ -19,16 +20,20 @@ export function Modal({
   onClose,
   title,
   description,
+  onEscapeKeyDown,
+  preserveSize = false,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description?: string;
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
+  preserveSize?: boolean;
   children: ReactNode;
 }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(
+  const [viewport, setViewport] = useState<{ height: number; top: number; bottomInset: number } | null>(
     null,
   );
 
@@ -36,7 +41,11 @@ export function Modal({
     if (!open) return;
     const view = window.visualViewport;
     if (!view) return;
-    const update = () => setViewport({ height: view.height, top: view.offsetTop });
+    const initial = { height: view.height, top: view.offsetTop };
+    const update = () => setViewport(preserveSize ? {
+      ...initial,
+      bottomInset: Math.max(0, initial.top + initial.height - view.offsetTop - view.height),
+    } : { height: view.height, top: view.offsetTop, bottomInset: 0 });
     update();
     view.addEventListener("resize", update);
     view.addEventListener("scroll", update);
@@ -44,12 +53,13 @@ export function Modal({
       view.removeEventListener("resize", update);
       view.removeEventListener("scroll", update);
     };
-  }, [open]);
+  }, [open, preserveSize]);
 
   const style = viewport
     ? ({
         "--dialog-height": `${viewport.height}px`,
         "--dialog-top": `${viewport.top}px`,
+        "--dialog-bottom-inset": `${viewport.bottomInset}px`,
       } as CSSProperties)
     : undefined;
 
@@ -58,6 +68,7 @@ export function Modal({
       <DialogContent
         layout="app"
         style={style}
+        onEscapeKeyDown={onEscapeKeyDown}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           titleRef.current?.focus({ preventScroll: true });

@@ -17,11 +17,11 @@ import {
 import { LoadingState } from "../common/LoadingState";
 import { Modal } from "../common/Modal";
 import { SaveStateLabel } from "../common/SaveStateLabel";
-import { NamePickerModal } from "../modals/NamePickerModal";
 import { scheduleNameOptions, type ScheduleNameOptions } from "../lib/schedule-options";
 import { useScheduleData } from "../hooks/useScheduleData";
 import type { SaveState } from "../types";
 import { ScheduleNotices } from "./ScheduleNotices";
+import { ScheduleNameField } from "./ScheduleNameField";
 
 const ATTENDANCE = [
   { status: "attending", label: "参加", symbol: "○" },
@@ -136,7 +136,7 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
       <h2 className="schedule-game-heading">
         <button type="button" id={`${detailsId}-toggle`} className="schedule-game-summary" aria-expanded={expanded} aria-controls={detailsId} onClick={onToggle}>
           <span className="schedule-game-heading-copy">
-            {featured && <span className="schedule-featured-label">次の土曜日</span>}
+            {featured && <span className="schedule-featured-label">{game.date === japanDate() ? "本日の試合" : "次の土曜日"}</span>}
             <span className="schedule-game-date"><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time>{game.startTime && <span>{game.startTime}</span>}</span>
             <span className="schedule-game-title"><strong>{game.title || "大会名未設定"}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span></span>
             <span className="schedule-game-summary-info">{game.opponent ? `vs ${game.opponent}` : "対戦相手未定"}{game.location && ` ／ ${game.location}`}</span>
@@ -225,8 +225,6 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
   onClose: () => void;
 }) {
   const [id] = useState(() => game?.id ?? createEntityId());
-  const [picker, setPicker] = useState<keyof ScheduleNameOptions | null>(null);
-  const pickerField = NAME_FIELDS.find(({ field }) => field === picker);
   const [draft, setDraft] = useState<GameFields>(() => game ? gameFields(game) : defaults ?? {
     date: defaultDate, startTime: "", title: "", opponent: "", location: "", status: "unconfirmed",
   });
@@ -261,22 +259,38 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
     onSave(id, values);
   };
 
-  return (<>
-    <Modal open={visible} onClose={close} title={game ? "予定を編集" : "予定を追加"} description="試合日だけで登録できます。同じ日に複数の予定も追加できます。">
+  return (
+    <Modal
+      open={visible}
+      preserveSize
+      onClose={close}
+      title={game ? "予定を編集" : "予定を追加"}
+      description="試合日だけで登録できます。同じ日に複数の予定も追加できます。"
+      onEscapeKeyDown={(event) => {
+        // Radix は capture 時に Escape を処理するため、入力側より先に閉じないようにする。
+        if (event.isComposing || event.keyCode === 229 ||
+            (event.target instanceof HTMLInputElement && event.target.getAttribute("aria-expanded") === "true")) event.preventDefault();
+      }}
+    >
       <form className="schedule-game-form" onSubmit={submit}>
         <div className="schedule-date-time-fields">
           <label htmlFor="schedule-date">試合日 <span className="schedule-required">必須</span><input id="schedule-date" type="date" required value={draft.date} onChange={(event) => update("date", event.target.value)} /></label>
           <label htmlFor="schedule-time">開始時刻 <span>任意</span><select id="schedule-time" value={draft.startTime} onChange={(event) => update("startTime", event.target.value)}><option value="">時刻未定</option>{draft.startTime && !START_TIMES.includes(draft.startTime) && <option value={draft.startTime}>{draft.startTime}（登録済み）</option>}{START_TIMES.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
         </div>
         <div className="schedule-status-field"><span>予定の状況</span><div className="schedule-game-status-buttons" role="group" aria-label="予定の状況">{GAME_STATUSES.map(({ status, label }) => <button key={status} type="button" className={status} aria-pressed={draft.status === status} onClick={() => update("status", status)}>{label}{draft.status === status && <Check size={14} aria-hidden="true" />}</button>)}</div></div>
-        {NAME_FIELDS.map(({ field, label, placeholder }) => (
-          <label key={field} htmlFor={`schedule-${field}`}>{label} <span>任意</span>
-            <button type="button" id={`schedule-${field}`} className="combobox-trigger schedule-name-trigger" aria-haspopup="dialog" aria-expanded={picker === field} onClick={() => setPicker(field)}>
-              <span className={draft[field] ? "" : "placeholder"}>{draft[field] || placeholder}</span><ChevronDown size={16} aria-hidden="true" />
-            </button>
-            {field === "title" && <small>選んだ大会名はオーダーにも反映されます。</small>}
-            {field === "location" && <small>球場名や住所から地図を開けます。</small>}
-          </label>
+        {NAME_FIELDS.map(({ field, label, placeholder, maxLength }) => (
+          <ScheduleNameField
+            key={field}
+            label={label}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            value={draft[field]}
+            options={nameOptions[field]}
+            disabled={blocked}
+            mapSearch={field === "location"}
+            description={field === "title" ? "大会名はオーダーにも反映されます。" : undefined}
+            onChange={(name) => update(field, name)}
+          />
         ))}
         {formError && <p className="schedule-form-error" role="alert">{formError}</p>}
         {saveError && <div className="schedule-form-error" role="alert"><p>{saveError}</p><p>入力内容はこの画面に残っています。{blocked ? "閉じて再読み込みの案内を確認してください。" : "もう一度「予定を保存」を押してください。"}</p></div>}
@@ -288,22 +302,7 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
         {(game || (submitted && saveState === "saved")) && <button type="button" className="schedule-delete-button" disabled={blocked || pending} onClick={() => onDelete(id)}>この予定を削除</button>}
       </form>
     </Modal>
-    {pickerField && <NamePickerModal
-      key={pickerField.field}
-      open={visible}
-      onClose={() => setPicker(null)}
-      title={`${pickerField.label}を選択`}
-      description="登録済みの候補を検索、または新しい名前を入力して追加できます。"
-      placeholder={pickerField.placeholder}
-      searchLabel={`${pickerField.label}を検索`}
-      emptyMessage={`${pickerField.label}を入力すると追加できます。`}
-      options={[...new Set([...nameOptions[pickerField.field], draft[pickerField.field]].filter(Boolean))]}
-      maxLength={pickerField.maxLength}
-      mapSearch={pickerField.field === "location"}
-      allowClear
-      onSelect={(name) => { update(pickerField.field, name); setPicker(null); }}
-    />}
-  </>);
+  );
 }
 
 export function ScheduleView({ players, member, nameOptions, appNavigation, onSaveStateChange, onSaved, onOpenSchedule, remoteRevision, editorRequest, isVisible = true }: {

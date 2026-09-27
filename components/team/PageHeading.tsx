@@ -19,7 +19,7 @@ export function PageHeading({
     <div className="page-heading">
       <div>
         <p className="eyebrow">GAME DAY</p>
-        <h1>メンバー表をつくる</h1>
+        <h1>オーダー</h1>
         <p>
           {teamName} <span className="heading-separator">/</span> 公式戦オーダー
         </p>

@@ -3,12 +3,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "../common/Modal";
 
 import { Input } from "@/components/ui/input";
 import type { Player } from "@/lib/model";
@@ -32,30 +27,23 @@ export function EquipmentEditorModal({
   onDelete,
 }: Props) {
   return (
-    <Dialog open={target !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent layout="app">
-        <div className="team-dialog-header">
-          <DialogTitle className="modal-title">
-            {target === "new" ? "道具を登録" : "道具を編集"}
-          </DialogTitle>
-          <DialogDescription className="modal-description">
-            チーム道具の情報・担当者・LINE通知を設定します。
-          </DialogDescription>
-        </div>
-        <div className="team-dialog-body">
-          {target !== null && (
-            <EquipmentEditorForm
-              key={target === "new" ? "new" : target.id}
-              target={target}
-              players={players}
-              onClose={onClose}
-              onSave={onSave}
-              onDelete={onDelete}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <Modal
+      open={target !== null}
+      onClose={onClose}
+      title={target === "new" ? "道具を登録" : "道具を編集"}
+      description="チーム道具の情報・担当者・LINE通知を設定します。"
+    >
+      {target !== null && (
+        <EquipmentEditorForm
+          key={target === "new" ? "new" : target.id}
+          target={target}
+          players={players}
+          onClose={onClose}
+          onSave={onSave}
+          onDelete={onDelete}
+        />
+      )}
+    </Modal>
   );
 }
 
