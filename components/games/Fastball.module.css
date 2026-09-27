@@ -1,0 +1,80 @@
+.heading > p { color: #e7b583; }
+.heading h1 > span { color: #f7aa65; }
+.machine { border-color: #657477; background: #223136; }
+.scoreboard { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px; border-bottom: 1px solid #4c6267; background: #101b22; }
+.scoreboard > div { min-width: 0; }
+.scoreboard span { display: block; margin-bottom: 7px; font-size: 9px; font-weight: 800; letter-spacing: .12em; color: #9bb1b5; }
+.scoreboard strong { color: #f7d394; font-size: clamp(31px, 8vw, 47px); line-height: 1; letter-spacing: -.065em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.scoreboard strong small { margin-left: 7px; font-size: 12px; color: #c2cdca; letter-spacing: -.03em; }
+.limit { text-align: right; padding-left: 15px; border-left: 1px solid #3c5259; }
+.limit strong { font-size: 19px; color: #bac7bb; }
+.stage { --needle: 0%; --body-angle: 0deg; --arm-angle: -60deg; --elbow-angle: -80deg; --knee-angle: 0deg; }
+.stadium { height: 318px; position: relative; overflow: hidden; background: linear-gradient(#182837 0, #2d434c 39%, #435750 40%, #1e3530 50%, #395849 51%, #2b4337 100%); isolation: isolate; }
+.stadium::before { content: ""; position: absolute; inset: 40% 0 auto; height: 37px; background: repeating-linear-gradient(90deg, transparent, transparent 7px, #b9b9a7aa 7px, #b9b9a7aa 9px); mask-image: repeating-linear-gradient(0deg, #000, #000 2px, transparent 2px, transparent 6px); opacity: .35; }
+.stadium::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent, transparent 3px, #070f1812 3px, #070f1812 4px); z-index: 5; }
+.stadiumLabel { position: absolute; top: 19px; left: 0; right: 0; color: #95a9a9; text-align: center; font-size: 9px; letter-spacing: .19em; font-weight: 800; }
+.floodlight { position: absolute; top: 49px; left: 11%; width: 41px; height: 18px; background: repeating-linear-gradient(90deg, #eee8b6, #eee8b6 5px, #5b726c 5px, #5b726c 7px); border: 2px solid #69817b; box-shadow: 0 0 25px #d5d3a433; transform: rotate(-7deg); }
+.floodlight::after { content: ""; position: absolute; height: 69px; width: 4px; background: #748380; top: 16px; left: 17px; }
+.floodlight:nth-child(2) { left: auto; right: 11%; transform: rotate(7deg); }
+.diamond { position: absolute; left: 50%; top: 54%; width: 242px; height: 242px; transform: translateX(-50%) rotate(45deg) scale(.9, .45); border: 2px solid #c3c9a46b; background: #86765c44; }
+.mound { position: absolute; left: 50%; bottom: 51px; width: 165px; height: 38px; transform: translateX(-50%); background: #967952; border-radius: 50%; box-shadow: 0 5px 0 #65583b; }
+.mound::after { content: ""; position: absolute; top: 8px; left: 60px; width: 40px; height: 7px; border-radius: 1px; background: #e4dac0; }
+.pitcher { position: absolute; left: calc(50% - 52px); bottom: 67px; width: 110px; height: 183px; }
+.body { position: absolute; top: 33px; left: 25px; width: 63px; height: 80px; transform-origin: 50% 100%; transform: rotate(var(--body-angle)); }
+.jersey { position: absolute; inset: 0; padding: 20px 0 0; text-align: center; background: repeating-linear-gradient(90deg, #172331, #172331 9px, #47535e 9px, #47535e 10px); color: #f3dbb4; border: 2px solid #70818a; border-bottom-color: #e7e4cc; border-radius: 13px 13px 7px 7px; box-shadow: 3px 4px 0 #15212955; font-size: 20px; font-weight: 900; letter-spacing: -.09em; }
+.jersey span { display: block; font-size: 7px; letter-spacing: .06em; }
+.head { position: absolute; top: -35px; left: 7px; width: 49px; height: 53px; overflow: hidden; border-radius: 15px 15px 20px 20px; background: #202c38; border: 1px solid #b9b097; z-index: 3; }
+.head img { position: absolute; width: 273px; max-width: none; height: auto; left: -222px; top: -65px; }
+.rearLeg, .frontLeg { position: absolute; top: 103px; width: 25px; height: 78px; border: 2px solid #bcc2b8; background: #e6e5cf; border-radius: 6px; transform-origin: 50% 5px; }
+.rearLeg { left: 50px; transform: rotate(-9deg); }
+.rearLeg::after, .frontLeg > i::after { content: ""; position: absolute; left: -1px; bottom: -5px; width: 35px; height: 15px; background: #c2543c; border: 2px solid #e1aa87; border-radius: 8px 7px 3px 3px; }
+.frontLeg { left: 24px; height: 45px; transform: rotate(var(--knee-angle)); }
+.frontLeg > i { position: absolute; top: 32px; left: -2px; width: 25px; height: 40px; background: #1e303b; border: 2px solid #788f94; border-radius: 5px; }
+.throwArm { position: absolute; top: 10px; left: 49px; width: 39px; height: 19px; border-radius: 9px; background: #263e4c; border: 2px solid #6e858d; transform-origin: 8px 50%; transform: rotate(var(--arm-angle)); z-index: 4; }
+.forearm { position: absolute; left: 24px; top: -2px; width: 37px; height: 17px; border-radius: 8px; background: #d8ad8d; border: 2px solid #6d6760; transform-origin: 6px 50%; transform: rotate(var(--elbow-angle)); }
+.heldBall { position: absolute; top: -3px; right: -7px; width: 15px; height: 15px; border-radius: 50%; background: #f3efda; border: 1px solid #b94e47; box-shadow: 1px 1px 2px #15252c88; }
+.gloveArm { position: absolute; left: -23px; top: 14px; width: 40px; height: 22px; background: #263e4c; border: 2px solid #6e858d; transform: rotate(34deg); border-radius: 8px; }
+.gloveArm > i { position: absolute; left: -12px; top: -6px; width: 28px; height: 29px; background: repeating-linear-gradient(75deg, #886445, #886445 5px, #4d4337 5px, #4d4337 7px); border: 2px solid #af8b5f; border-radius: 9px 12px 8px 10px; }
+.oshinoArt { position: absolute; height: 294px; width: auto; max-width: none; left: 50%; bottom: 16px; transform: translateX(-50%); opacity: 0; pointer-events: none; }
+.fieldCallout { position: absolute; left: 0; right: 0; bottom: 16px; z-index: 6; text-align: center; color: #f5e4be; text-shadow: 2px 2px #132c26; font-size: 14px; font-weight: 900; letter-spacing: .03em; }
+.flyingBall { position: absolute; top: 46%; left: 56%; width: 17px; height: 17px; border-radius: 50%; background: #fffbdf; border: 2px solid #c55f47; opacity: 0; z-index: 7; }
+.stage[data-phase="flight"] .flyingBall { animation: pitchFlight .5s ease-in both; }
+.stage[data-phase="flight"] .heldBall { visibility: hidden; }
+.stage[data-phase="result"] .pitcher { opacity: 0; }
+.stage[data-phase="result"] .oshinoArt { opacity: 1; }
+.stage[data-phase="result"] .stadium { background: radial-gradient(ellipse at 50% 70%, #6e4430, #192d37 75%); }
+.timingPanel { padding: 19px 24px 14px; border-top: 1px solid #536363; background: #1a2d32; }
+.timingTitle { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 22px; color: #c3cec2; font-size: 10px; font-weight: 700; line-height: 1.7; }
+.timingTitle svg { flex-shrink: 0; color: #e7c279; }
+.gauge { height: 23px; position: relative; margin: 0 10px; border: 1px solid #6e8587; background: repeating-linear-gradient(90deg, #243e44, #243e44 calc(10% - 1px), #51666c calc(10% - 1px), #51666c 10%); border-radius: 3px; box-shadow: inset 0 2px 6px #091b2466; }
+.releaseZone { position: absolute; left: 75%; top: 0; bottom: 0; width: 6%; background: #e9c88226; }
+.releaseLine { position: absolute; left: 78%; top: -9px; bottom: -9px; width: 2px; background: #f3cd72; box-shadow: 0 0 8px #f2d18966; transform: translateX(-50%); z-index: 2; }
+.releaseLine::before { content: ""; position: absolute; top: -2px; left: -4px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #f3cd72; }
+.needle { position: absolute; top: 50%; left: var(--needle); width: 19px; height: 19px; border-radius: 50%; background: #f6f1db; border: 2px solid #e4927e; transform: translate(-50%, -50%); box-shadow: 0 1px 4px #061619; z-index: 3; }
+.needle::after { content: ""; position: absolute; inset: 1px 5px; border-left: 1px dashed #ae5245; border-radius: 50%; transform: rotate(-25deg); }
+.gaugeLabels { position: relative; margin: 14px 10px 0; min-height: 14px; color: #9eafb0; font-size: 9px; }
+.gaugeLabels strong { position: absolute; left: 78%; transform: translateX(-50%); color: #edcb7b; font-size: 8px; letter-spacing: .06em; }
+.status { display: grid; justify-items: center; align-content: center; min-height: 83px; padding: 0 0 15px; text-align: center; }
+.status strong { color: #a6542f; font-size: 21px; font-weight: 900; }
+.status p { margin: 6px 0; color: #465b53; font-size: 12px; font-weight: 700; line-height: 1.7; font-variant-numeric: tabular-nums; }
+.status small { font-size: 10px; color: #667360; line-height: 1.7; }
+.pitchButton { min-height: 69px; background: #db7749; color: #fff7da; font-size: 23px; letter-spacing: .06em; border-color: #763e2b; box-shadow: 0 4px 0 #763e2b; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.pitchButton:not(:disabled):active { box-shadow: 0 1px 0 #763e2b; }
+.startButton { min-height: 60px; touch-action: manipulation; }
+@keyframes pitchFlight { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(30px, 15px) scale(15); } }
+@media (max-width: 430px) {
+  .scoreboard { padding: 19px 16px; }
+  .scoreboard strong small { font-size: 10px; margin-left: 5px; }
+  .scoreboard span { font-size: 8px; letter-spacing: .06em; }
+  .limit { padding-left: 10px; }
+  .limit strong { font-size: 17px; }
+  .stadium { height: 292px; }
+  .oshinoArt { height: 270px; }
+  .timingPanel { padding-right: 17px; padding-left: 17px; }
+  .timingTitle { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pitcher { --body-angle: 0deg; --arm-angle: -90deg; --elbow-angle: -80deg; --knee-angle: 0deg; }
+  .stage[data-phase="flight"] .flyingBall { animation: none; }
+  .pitchButton:not(:disabled):active { transform: none; }
+}

@@ -6,13 +6,15 @@ export function formatGameMoney(value: number) {
   return `${value.toLocaleString("ja-JP")} 円`;
 }
 
-export function GameLeaderboard({ entries, personalBest, memberId, scoreUnit = "円" }: {
+export function GameLeaderboard({ entries, personalBest, memberId, scoreUnit = "円", scoreScale = 1, precision = 0 }: {
   entries: LeaderboardEntry[];
   personalBest: LeaderboardEntry | null;
   memberId: string;
   scoreUnit?: string;
+  scoreScale?: number;
+  precision?: number;
 }) {
-  const formatScore = (score: number) => `${score.toLocaleString("ja-JP")} ${scoreUnit}`;
+  const formatScore = (score: number) => `${(score / scoreScale).toLocaleString("ja-JP", { minimumFractionDigits: precision, maximumFractionDigits: precision })} ${scoreUnit}`;
   return (
     <section className={styles.leaderboard} aria-label="上位スコアランキング">
       <div className={styles.sectionTitle}><Trophy size={18} aria-hidden="true" /><h2>チームランキング</h2><span>TOP 10</span></div>

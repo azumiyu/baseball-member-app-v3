@@ -1,10 +1,11 @@
 import type { AuthMember } from "../auth-types";
 import { db, digest, token, validToken } from "../server";
-import type { GameRequest, GameRun, GameSnapshot, LeaderboardEntry } from "./api-types";
+import type { GameRequest, GameRun, GameSnapshot, LeaderboardEntry, GameResult } from "./api-types";
 import { gameEngine } from "./registry";
+import { MAX_ELAPSED_MS } from "./fastball";
 
 type Score = Omit<LeaderboardEntry, "rank">;
-type GameContext = { member: AuthMember; sessionHash: string; run: GameRun | null; scores: Score[] };
+type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
 type ContextRow = {
   id: string; name: string; number: string; is_admin: number; can_edit_lineup: number;
   run_json: string | null; scores_json: string;
@@ -35,12 +36,12 @@ export async function readGameContext(req: Request, gameId: string): Promise<Gam
   if (!row) return null;
   return {
     member: { id: row.id, name: row.name, number: row.number, isAdmin: row.is_admin === 1, canEditLineup: row.can_edit_lineup === 1 },
-    sessionHash, run: row.run_json ? JSON.parse(row.run_json) as GameRun : null,
+    sessionHash, run: row.run_json ? JSON.parse(row.run_json) as GameRun<GameResult> : null,
     scores: JSON.parse(row.scores_json) as Score[],
   };
 }
 
-export function gameSnapshot(context: GameContext, gameId: string): GameSnapshot {
+export function gameSnapshot(context: GameContext, gameId: string): GameSnapshot<GameResult> {
   const scores = [...context.scores].sort((a, b) => b.score - a.score || a.achievedAt - b.achievedAt || (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0));
   const ranked = scores.map((score, index) => ({ ...score, rank: index + 1 }));
   return { member: context.member, gameId, run: context.run, leaderboard: ranked.slice(0, 10), personalBest: ranked.find((score) => score.playerId === context.member.id) ?? null };
@@ -58,55 +59,76 @@ export function parseGameRequest(value: unknown): GameRequest {
     throw new GameInputError("ゲームの操作を確認してください。");
   }
   if (body.action === "start") return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null, turn: body.turn as number };
-  if (body.action === "turn" && isId(body.runId) && Number.isSafeInteger(body.bet) && (body.bet as number) > 0) {
+  const engine = gameEngine(body.gameId)!;
+  if (body.action === "turn" && engine.kind === "chinchiro" && isId(body.runId) && Number.isSafeInteger(body.bet) && (body.bet as number) > 0) {
     return { action: "turn", gameId: body.gameId, requestId: body.requestId, runId: body.runId, turn: body.turn as number, bet: body.bet as number };
   }
-  throw new GameInputError("賭け金とゲームの操作を確認してください。");
+  if (body.action === "pitch" && engine.kind === "fastball" && isId(body.runId) && typeof body.elapsedMs === "number"
+    && Number.isFinite(body.elapsedMs) && body.elapsedMs >= 0 && body.elapsedMs <= MAX_ELAPSED_MS) {
+    return { action: "pitch", gameId: body.gameId, requestId: body.requestId, runId: body.runId, turn: body.turn as number, elapsedMs: body.elapsedMs };
+  }
+  throw new GameInputError("入力内容とゲームの操作を確認してください。");
 }
 
 const authGuard = `EXISTS (SELECT 1 FROM sessions s
   JOIN member_devices d ON d.hash=s.device_hash JOIN players p ON p.id=d.player_id
   WHERE s.hash=? AND (s.expires=0 OR s.expires>?) AND p.id=? AND p.sort_order IS NOT NULL)`;
 
-/** Each click resolves one whole turn on the server (at most six throws).
- * Duplicate clicks/retries cannot spend twice or submit an arbitrary score.
+/** Each action resolves one game turn on the server. Animation frames do not
+ * write to D1, and duplicate clicks/retries cannot settle the same turn twice.
  */
-export async function playGame(context: GameContext, request: GameRequest): Promise<GameSnapshot | null> {
+export async function playGame(context: GameContext, request: GameRequest): Promise<GameSnapshot<GameResult> | null> {
   const engine = gameEngine(request.gameId)!;
   const current = context.run;
   if ((request.action === "start" && current?.id === request.requestId)
-    || (request.action === "turn" && current?.id === request.runId && current.lastRequestId === request.requestId)) {
+    || (request.action !== "start" && current?.id === request.runId && current.lastRequestId === request.requestId)) {
     return gameSnapshot(context, request.gameId);
   }
   if ((current?.id ?? null) !== request.runId || (current?.turn ?? 0) !== request.turn) return null;
   const database = db();
   const now = Date.now();
   const authValues = [context.sessionHash, now, context.member.id];
+  const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000;
   if (request.action === "start") {
-    const run: GameRun = { id: request.requestId, gameId: request.gameId, turn: 0, balance: engine.initialBalance, status: "playing", lastRequestId: request.requestId, lastResult: null };
+    const run: GameRun<GameResult> = { id: request.requestId, gameId: request.gameId, turn: 0, balance: engine.initialBalance, status: "playing", lastRequestId: request.requestId,
+      lastResult: engine.kind === "fastball" ? { kind: "fastball-ready", releaseMs: engine.prepare(random) } : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
-      SELECT ?,?,?,0,?,'playing',?,'null',?,? WHERE ${authGuard}
+      SELECT ?,?,?,0,?,'playing',?,?,?,? WHERE ${authGuard}
         AND (? IS NULL OR EXISTS (SELECT 1 FROM mini_game_runs WHERE game_id=? AND player_id=? AND run_id=? AND turn=?))
       ON CONFLICT(game_id,player_id) DO UPDATE SET run_id=excluded.run_id,turn=0,balance=excluded.balance,
-        status='playing',last_request_id=excluded.last_request_id,result_json='null',started_at=excluded.started_at,updated_at=excluded.updated_at
+        status='playing',last_request_id=excluded.last_request_id,result_json=excluded.result_json,started_at=excluded.started_at,updated_at=excluded.updated_at
       WHERE mini_game_runs.run_id=? AND mini_game_runs.turn=? RETURNING run_id
-    `).bind(request.gameId, context.member.id, run.id, run.balance, request.requestId, now, now, ...authValues,
+    `).bind(request.gameId, context.member.id, run.id, run.balance, request.requestId, JSON.stringify(run.lastResult), now, now, ...authValues,
       request.runId, request.gameId, context.member.id, request.runId, request.turn, request.runId, request.turn).first<{ run_id: string }>();
     return saved ? gameSnapshot({ ...context, run }, request.gameId) : null;
   }
-  if (!current || current.status !== "playing" || current.turn >= engine.maxTurns || current.balance <= 0) return null;
-  if (request.bet > current.balance) throw new GameInputError("持ち金以内の賭け金を入力してください。");
-  // Crypto is only called on the server; the client never provides dice/results.
-  const result = engine.play(current.balance, request.bet, () => crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000);
-  const run: GameRun = { ...current, turn: current.turn + 1, balance: result.balanceAfter, lastRequestId: request.requestId, lastResult: result, status: current.turn + 1 >= engine.maxTurns || result.balanceAfter === 0 ? "finished" : "playing" };
+  if (!current || current.status !== "playing" || current.turn >= engine.maxTurns) return null;
+  let run: GameRun<GameResult>;
+  if (engine.kind === "chinchiro" && request.action === "turn") {
+    if (current.balance <= 0) return null;
+    if (request.bet > current.balance) throw new GameInputError("持ち金以内の賭け金を入力してください。");
+    const result = engine.play(current.balance, request.bet, random);
+    run = { ...current, turn: current.turn + 1, balance: result.balanceAfter, lastRequestId: request.requestId, lastResult: result, status: current.turn + 1 >= engine.maxTurns || result.balanceAfter === 0 ? "finished" : "playing" };
+  } else if (engine.kind === "fastball" && request.action === "pitch") {
+    const ready = current.lastResult;
+    if (!ready || !("kind" in ready) || ready.kind !== "fastball-ready") return null;
+    // The browser measures input timing; the server owns the target and formula.
+    // Neither the claimed speed nor a client-supplied target is accepted.
+    const result = engine.play(request.elapsedMs, ready.releaseMs);
+    run = { ...current, turn: current.turn + 1, balance: result.speed, status: "finished", lastResult: result, lastRequestId: request.requestId };
+  } else {
+    throw new GameInputError("このゲームでは使えない操作です。");
+  }
   const statements = [database.prepare(`
     UPDATE mini_game_runs SET turn=?,balance=?,status=?,last_request_id=?,result_json=?,updated_at=?
     WHERE game_id=? AND player_id=? AND run_id=? AND turn=? AND status='playing' AND ${authGuard}
     RETURNING run_id
-  `).bind(run.turn, run.balance, run.status, request.requestId, JSON.stringify(result), now,
+  `).bind(run.turn, run.balance, run.status, request.requestId, JSON.stringify(run.lastResult), now,
     request.gameId, context.member.id, current.id, current.turn, ...authValues)];
-  if (run.status === "finished") {
+  const best = context.scores.find((score) => score.playerId === context.member.id);
+  const improvesBest = run.status === "finished" && (!best || run.balance > best.score);
+  if (improvesBest) {
     // Read the committed balance from the run, not the candidate calculation.
     // Even concurrent retries of the same request can only record that result.
     statements.push(database.prepare(`
@@ -121,9 +143,6 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
   const committed = await database.batch<{ run_id: string }>(statements);
   if (!committed[0].results.length) return null;
   let scores = context.scores;
-  if (run.status === "finished") {
-    const best = scores.find((score) => score.playerId === context.member.id);
-    if (!best || run.balance > best.score) scores = [...scores.filter((score) => score.playerId !== context.member.id), { playerId: context.member.id, name: context.member.name, number: context.member.number, score: run.balance, achievedAt: now }];
-  }
+  if (improvesBest) scores = [...scores.filter((score) => score.playerId !== context.member.id), { playerId: context.member.id, name: context.member.name, number: context.member.number, score: run.balance, achievedAt: now }];
   return gameSnapshot({ ...context, run, scores }, request.gameId);
 }

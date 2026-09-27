@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameRequest, GameSnapshot } from "@/lib/games/api-types";
+import type { TurnResult } from "@/lib/games/chinchiro";
 
 export type GameAction = GameRequest;
 
 /** No polling: read on entry and update only when the player takes an action. */
-export function useGameApi(gameId: string) {
-  const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
+export function useGameApi<TResult = TurnResult>(gameId: string) {
+  const [snapshot, setSnapshot] = useState<GameSnapshot<TResult> | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -20,18 +21,18 @@ export function useGameApi(gameId: string) {
   const read = useCallback(async (signal?: AbortSignal) => {
     try {
       const response = await fetch(`/api/games?game=${encodeURIComponent(gameId)}`, { cache: "no-store", signal });
-      const value = await response.json();
+      const value = await response.json() as GameSnapshot<TResult> & { error?: string };
       if (response.status === 401) {
         if (alive.current) setUnauthorized(true);
         return null;
       }
       if (!response.ok) throw new Error(value.error || "ゲームを読み込めませんでした。");
       if (alive.current) {
-        setSnapshot(value as GameSnapshot);
+        setSnapshot(value);
         setUnauthorized(false);
         setError("");
       }
-      return alive.current ? value as GameSnapshot : null;
+      return alive.current ? value : null;
     } catch (cause) {
       if (signal?.aborted) return null;
       if (alive.current) setError(cause instanceof Error ? cause.message : "ゲームを読み込めませんでした。");
@@ -44,6 +45,8 @@ export function useGameApi(gameId: string) {
   useEffect(() => {
     alive.current = true;
     const controller = new AbortController();
+    // Start the external request on mount; state updates follow its response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void read(controller.signal);
     return () => {
       alive.current = false;
@@ -51,7 +54,7 @@ export function useGameApi(gameId: string) {
     };
   }, [read]);
 
-  async function act(action?: GameAction): Promise<GameSnapshot | null> {
+  async function act(action?: GameAction): Promise<GameSnapshot<TResult> | null> {
     if (mutationBusy.current) return null;
     // A failed request keeps its ID, so retrying cannot charge a second stake.
     const request = pending.current || action;
@@ -66,7 +69,7 @@ export function useGameApi(gameId: string) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
       });
-      const value = await response.json();
+      const value = await response.json() as GameSnapshot<TResult> & { error?: string };
       if (response.status === 401) {
         if (alive.current) setUnauthorized(true);
         return null;
@@ -81,10 +84,10 @@ export function useGameApi(gameId: string) {
       }
       pending.current = null;
       if (alive.current) {
-        setSnapshot(value as GameSnapshot);
+        setSnapshot(value);
         setUnauthorized(false);
       }
-      return alive.current ? value as GameSnapshot : null;
+      return alive.current ? value : null;
     } catch (cause) {
       if (alive.current) setError(cause instanceof Error ? cause.message : "通信できませんでした。同じ操作を再試行できます。");
       return null;

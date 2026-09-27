@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-html-link-for-pages -- Separate game sessions use full navigation. */
 /* eslint-disable @next/next/no-img-element -- Local game artwork needs no image service. */
 import { ArrowUpRight, Gamepad2 } from "lucide-react";
 import { GAME_CATALOG, type GameDefinition } from "@/lib/games/catalog";
@@ -21,7 +20,7 @@ function GameCardContent({ game, api }: { game: GameDefinition; api: ReturnType<
         <div className={styles.cardArt}><img src={game.image} alt="" /><span>TEAM RECORD<br />CHALLENGE</span></div>
         <div className={styles.cardCopy}><small>YG ORIGINAL</small><h2>{game.title}</h2><p>{game.description}</p><span className={styles.playLink}>{api.snapshot?.run?.status === "playing" ? "つづきから遊ぶ" : "ゲームで遊ぶ"}<ArrowUpRight size={20} aria-hidden="true" /></span></div>
       </a>
-      {api.loading || api.unauthorized || !api.snapshot ? <GameAccessState loading={api.loading} unauthorized={api.unauthorized} error={api.error} onRetry={() => { void api.read(); }} /> : <GameLeaderboard entries={api.snapshot.leaderboard} personalBest={api.snapshot.personalBest} memberId={api.snapshot.member.id} scoreUnit={game.scoreUnit} />}
+      {api.loading || api.unauthorized || !api.snapshot ? <GameAccessState loading={api.loading} unauthorized={api.unauthorized} error={api.error} onRetry={() => { void api.read(); }} /> : <GameLeaderboard entries={api.snapshot.leaderboard} personalBest={api.snapshot.personalBest} memberId={api.snapshot.member.id} scoreUnit={game.scoreUnit} scoreScale={game.scoreScale} precision={game.precision} />}
     </article>
   );
 }
