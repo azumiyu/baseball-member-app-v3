@@ -107,8 +107,14 @@ export function TeamApp() {
   /* ---------------- 名簿操作 ---------------- */
 
   const savePlayer = useCallback(
-    (player: Player) => edit(upsertPlayerUpdater(player)),
-    [edit],
+    (player: Player) => {
+      if (!canEditLineup && player.id !== team.member?.id) return;
+      edit((current) => {
+        if (!canEditLineup && !current.players.some((p) => p.id === player.id)) return current;
+        return upsertPlayerUpdater(player)(current);
+      });
+    },
+    [canEditLineup, team.member?.id, edit],
   );
 
   const deletePlayer = useCallback(
@@ -286,6 +292,8 @@ export function TeamApp() {
           ) : (
             <RegistrationPanel
               key={team.member.id}
+              canEditRoster={canEditLineup}
+              memberId={team.member.id}
               players={data.players}
               bench={bench}
               absent={absent}
@@ -319,7 +327,7 @@ export function TeamApp() {
 
       <PlayerEditorModal
         canEditLineup={canEditCurrentLineup}
-        target={ui.editor}
+        target={canEditLineup || (ui.editor !== null && ui.editor !== "new" && ui.editor.id === team.member.id) ? ui.editor : null}
         bench={bench}
         absent={absent}
         onClose={() => ui.setEditor(null)}

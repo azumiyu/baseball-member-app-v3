@@ -441,8 +441,8 @@ export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: T
   if (scope === "team" && !snapshot.member.isAdmin &&
       [1, 2].some((index) => previous.team_settings[0][index] !== next.team_settings[0][index])) throw new TeamSettingsPermissionError();
   if (scope === "team" && !snapshot.member.canEditLineup) {
-    // Roster metadata remains editable. Existing placement and membership are
-    // fixed; newly registered players may only append to the implicit bench.
+    // Only the authenticated member's profile may change. Registration,
+    // other members' profiles, and placement require lineup permission.
     if (changes.slice(1).some((change) => {
       if (snapshot.member.isAdmin && change.table.name === "team_settings") {
         return change.remove.length > 0 || change.upsert.some((row) => row.some((cell, index) => index !== 1 && index !== 2 && cell !== previous.team_settings[0][index]));
@@ -451,12 +451,14 @@ export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: T
     }) ||
         changes[0].remove.length) throw new LineupPermissionError();
     const existing = new Map(previous.players.map((row) => [row[0], row]));
-    if (previous.players.some((row, index) => next.players[index]?.[0] !== row[0]) ||
-        next.players.some((row, index) => {
+    if (previous.players.length !== next.players.length ||
+        previous.players.some((row, index) => next.players[index]?.[0] !== row[0]) ||
+        next.players.some((row) => {
           const old = existing.get(row[0]);
-          return old
-            ? row[4] !== old[4] || row[5] !== old[5] || row[6] !== old[6]
-            : index < previous.players.length || row[5] !== null || row[6] !== null;
+          if (!old) return true;
+          return row.some((cell, index) =>
+            cell !== old[index] && (row[0] !== snapshot.member.id || index < 1 || index > 3),
+          );
         })) throw new LineupPermissionError();
   }
   if (scope === "stats") {

@@ -66,12 +66,16 @@ function EquipmentRegistrationContent({ players }: { players: Player[] }) {
 }
 
 export function RegistrationPanel({
+  canEditRoster,
+  memberId,
   players,
   bench,
   absent,
   onAddPlayer,
   onEditPlayer,
 }: {
+  canEditRoster: boolean;
+  memberId: string;
   players: Player[];
   bench: Player[];
   absent: Player[];
@@ -104,6 +108,8 @@ export function RegistrationPanel({
 
       {tab === "players" ? (
         <RosterPanel
+          canEditRoster={canEditRoster}
+          memberId={memberId}
           players={players}
           bench={bench}
           absent={absent}

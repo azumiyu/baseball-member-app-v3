@@ -10,12 +10,16 @@ import { MAX_PLAYERS } from "../lineup/BenchSection";
  * 検索文字列はこの画面の中だけで使うのでローカル state です。
  */
 export function RosterPanel({
+  canEditRoster,
+  memberId,
   players,
   bench,
   absent,
   onAddPlayer,
   onEditPlayer,
 }: {
+  canEditRoster: boolean;
+  memberId: string;
   players: Player[];
   bench: Player[];
   absent: Player[];
@@ -39,14 +43,14 @@ export function RosterPanel({
           <h2>登録選手</h2>
           <p>名前と背番号を登録して、チームで共有。</p>
         </div>
-        <button
+        {canEditRoster && <button
           className="primary"
           onClick={onAddPlayer}
           disabled={players.length >= MAX_PLAYERS}
         >
           <Plus size={17} />
           選手を登録
-        </button>
+        </button>}
       </div>
 
       <div className="search-field">
@@ -64,10 +68,10 @@ export function RosterPanel({
           <Users size={36} />
           <h3>まずは、チームの選手を登録</h3>
           <p>最大{MAX_PLAYERS}人。登録した選手は何度でも使えます。</p>
-          <button className="secondary" onClick={onAddPlayer}>
+          {canEditRoster && <button className="secondary" onClick={onAddPlayer}>
             <Plus size={16} />
             最初の選手を登録
-          </button>
+          </button>}
         </div>
       ) : (
         <div className="roster-list">
@@ -77,6 +81,7 @@ export function RosterPanel({
               <button
                 className="roster-row"
                 key={p.id}
+                disabled={!canEditRoster && p.id !== memberId}
                 onClick={() => onEditPlayer(p)}
               >
                 <span className="roster-number">{p.number}</span>
@@ -85,7 +90,7 @@ export function RosterPanel({
                   <small>{p.kana || "ふりがな未登録"}</small>
                 </span>
                 <span className="roster-status">{statusOf(p)}</span>
-                <Pencil size={16} />
+                {(canEditRoster || p.id === memberId) && <Pencil size={16} />}
               </button>
             ))}
         </div>
