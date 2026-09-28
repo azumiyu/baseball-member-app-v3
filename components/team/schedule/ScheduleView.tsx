@@ -17,7 +17,7 @@ import {
 import { LoadingState } from "../common/LoadingState";
 import { Modal } from "../common/Modal";
 import { SaveStateLabel } from "../common/SaveStateLabel";
-import { scheduleNameOptions, type ScheduleNameOptions } from "../lib/schedule-options";
+import { compareScheduleChoices, defaultScheduleChoice, scheduleNameOptions, shortScheduleLabel, type ScheduleNameOptions } from "../lib/schedule-options";
 import { useScheduleData } from "../hooks/useScheduleData";
 import type { SaveState } from "../types";
 import { ScheduleNotices } from "./ScheduleNotices";
@@ -111,8 +111,9 @@ function ResponseEditor({
   );
 }
 
-function GameCard({ game, players, member, featured, expanded, onToggle, disabled, onEdit, onResponse }: {
+function GameCard({ game, summaryLabel, players, member, featured, expanded, onToggle, disabled, onEdit, onResponse }: {
   game: ScheduleGame;
+  summaryLabel: string;
   players: Player[];
   member: AuthMember;
   featured: boolean;
@@ -137,9 +138,7 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
         <button type="button" id={`${detailsId}-toggle`} className="schedule-game-summary" aria-expanded={expanded} aria-controls={detailsId} onClick={onToggle}>
           <span className="schedule-game-heading-copy">
             {featured && <span className="schedule-featured-label">{game.date === japanDate() ? "本日の試合" : "次の土曜日"}</span>}
-            <span className="schedule-game-date"><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time>{game.startTime && <span>{game.startTime}</span>}</span>
-            <span className="schedule-game-title"><strong>{game.title || "大会名未設定"}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span></span>
-            <span className="schedule-game-summary-info">{game.opponent ? `vs ${game.opponent}` : "対戦相手未定"}{game.location && ` ／ ${game.location}`}</span>
+            <span className="schedule-game-title"><strong>{summaryLabel}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span></span>
           </span>
           <span className="schedule-game-summary-end"><span className={`schedule-status-badge ${ownResponse?.status ?? "unanswered"}`}>{ownStatus}<span className="sr-only">（あなたの出欠）</span></span><ChevronDown size={19} aria-hidden="true" /></span>
         </button>
@@ -151,6 +150,7 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
           </button>
         )}
       <div className="schedule-game-info">
+        <p><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time></p>
         <p><Clock3 size={16} aria-hidden="true" /><span>{game.startTime ? `${game.startTime} 開始` : "開始時間は未定"}</span></p>
         {game.opponent && <p><Users size={16} aria-hidden="true" /><span>対戦相手：{game.opponent}</span></p>}
         <p><MapPin size={16} aria-hidden="true" /><span>{game.location || "場所は未定"}</span></p>
@@ -363,9 +363,10 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
   }, [editorRequest, isVisible, member.canEditLineup, schedule.loading, schedule.saveState, editor, loadGame]);
 
   const sortedPlayers = [...players].sort((a, b) => a.number.localeCompare(b.number, "ja", { numeric: true }) || a.name.localeCompare(b.name, "ja"));
-  const sortedGames = [...schedule.data.games].sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "99:99").localeCompare(b.startTime || "99:99") || a.id.localeCompare(b.id));
-  const saturdayGames = sortedGames.filter((game) => game.date === saturday);
-  const upcomingGames = sortedGames.filter((game) => game.date >= today && game.date !== saturday);
+  const sortedGames = [...schedule.data.games].sort(compareScheduleChoices);
+  const featuredDate = defaultScheduleChoice(sortedGames)?.date ?? saturday;
+  const featuredGames = sortedGames.filter((game) => game.date === featuredDate);
+  const upcomingGames = sortedGames.filter((game) => game.date >= today && game.date !== featuredDate);
   const pastGames = sortedGames.filter((game) => game.date < today).reverse();
   const options = scheduleNameOptions(schedule.data.games, nameOptions);
   const addGame = (date = saturday) => { setNewGameDefaults(null); setDefaultDate(date); setEditor("new"); };
@@ -397,7 +398,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
       return current;
     });
   };
-  const card = (game: ScheduleGame) => <GameCard key={game.id} game={game} players={sortedPlayers} member={member} featured={game.date === saturday} expanded={expandedGameId === game.id} onToggle={() => setExpandedGameId((current) => current === game.id ? null : game.id)} disabled={blocked} onEdit={member.canEditLineup ? () => setEditor(game) : undefined} onResponse={(playerId, response) => updateResponse(game.id, playerId, response)} />;
+  const card = (game: ScheduleGame) => <GameCard key={game.id} game={game} summaryLabel={shortScheduleLabel(game, sortedGames)} players={sortedPlayers} member={member} featured={game.date === featuredDate} expanded={expandedGameId === game.id} onToggle={() => setExpandedGameId((current) => current === game.id ? null : game.id)} disabled={blocked} onEdit={member.canEditLineup ? () => setEditor(game) : undefined} onResponse={(playerId, response) => updateResponse(game.id, playerId, response)} />;
 
   return (
     <section className="schedule-page">
@@ -420,7 +421,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
           <div className="schedule-error-actions">{schedule.saveState === "error" && <button type="button" className="primary" onClick={schedule.retrySave}>保存を再試行</button>}<button type="button" className="secondary" onClick={reload}>変更を破棄して再読み込み</button></div>
         </div>}
         <div className="schedule-game-list">
-          {saturdayGames.length ? saturdayGames.map(card) : <div className="panel schedule-saturday-empty">
+          {featuredGames.length ? featuredGames.map(card) : <div className="panel schedule-saturday-empty">
             <span className="schedule-empty-icon"><CalendarDays size={25} aria-hidden="true" /></span><p className="schedule-featured-label">次の土曜日</p><h2>{formatDate(saturday)}</h2><p>まだ予定が登録されていません。</p>
             {member.canEditLineup ? <button type="button" className="secondary" disabled={blocked} onClick={() => addGame(saturday)}><Plus size={16} aria-hidden="true" />この日の予定を追加</button> : <p className="schedule-empty-help">予定が追加されると、ここから出欠を回答できます。</p>}
           </div>}

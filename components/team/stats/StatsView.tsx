@@ -29,6 +29,7 @@ import type { SaveState } from "../types";
 import { LoadingState } from "../common/LoadingState";
 import { StatsValues } from "./StatsValues";
 import { isHitResult } from "./stats-summary";
+import { compareScheduleChoices, defaultScheduleChoice, shortScheduleLabel } from "../lib/schedule-options";
 
 const NUMBER_FIELDS = [
   ["rbis", "打点"],
@@ -63,6 +64,7 @@ export function StatsView({
   const stats = useStatsData();
   const [selectedPlayerId, setSelectedPlayerId] = useState(member.id);
   const [selection, setSelection] = useState<string | null>(null);
+  const [showPastSchedules, setShowPastSchedules] = useState(false);
   const [linkScheduleId, setLinkScheduleId] = useState("");
   const [statsTab, setStatsTab] = useState<"entry" | "confirmation">("entry");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
@@ -73,9 +75,10 @@ export function StatsView({
   } | null>(null);
   const [entryDraft, setEntryDraft] = useState<{ key: string; values: PlayerStats } | null>(null);
   const scheduleById = new Map(stats.schedules.map((game) => [game.id, game]));
-  const schedules = [...stats.schedules].sort((a, b) => b.date.localeCompare(a.date) || a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id));
-  const defaultGame = schedules.find((game) => game.date <= japanDate())
-    ?? [...schedules].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id))[0];
+  const today = japanDate();
+  const schedules = [...stats.schedules].sort(compareScheduleChoices);
+  const visibleSchedules = schedules.filter((game) => showPastSchedules || game.date >= today);
+  const defaultGame = defaultScheduleChoice(schedules);
   const selectedValue = selection ?? (defaultGame ? `schedule:${defaultGame.id}` : "");
   const selectedSchedule = selectedValue.startsWith("schedule:") ? scheduleById.get(selectedValue.slice(9)) : undefined;
   const legacyKey = selectedValue.startsWith("legacy:") ? selectedValue.slice(7) : "";
@@ -166,12 +169,20 @@ export function StatsView({
   };
   const canLeaveDraft = () => !hasDraftChanges || window.confirm("まだ登録していない成績の入力を破棄しますか？");
   const changeSelection = (value: string) => {
-    if (!canLeaveDraft()) return;
+    if (!canLeaveDraft()) return false;
     setSelection(value);
     setEntryDraft(null);
     setLinkScheduleId("");
     setOpenPlate(null);
     clearRegistrationMessage();
+    return true;
+  };
+  const togglePastSchedules = () => {
+    if (showPastSchedules && ((selectedSchedule && selectedSchedule.date < today) || (legacyKey && (parseGameKey(legacyKey)?.date ?? "") < today))) {
+      if (!changeSelection(defaultGame ? `schedule:${defaultGame.id}` : "")) return;
+    }
+    if (showPastSchedules) setLinkScheduleId("");
+    setShowPastSchedules((current) => !current);
   };
   const editPlayer = (updater: (current: PlayerStats) => PlayerStats) => {
     if (!selectedGameKey || !selectedPlayer || !canEditPlayer(selectedPlayer.id))
@@ -231,6 +242,7 @@ export function StatsView({
     1,
     Math.ceil(registeredGames.length / CONFIRMATION_PAGE_SIZE),
   );
+  const visibleLegacyGames = registeredGames.filter(({ key, game }) => !stats.data.scheduleIds[key] && (showPastSchedules || game.date >= today));
   const currentConfirmationPage = Math.min(
     confirmationPage,
     confirmationPageCount,
@@ -250,6 +262,8 @@ export function StatsView({
     if (!canEditPlayer(playerId) || !canLeaveDraft()) return;
     clearRegistrationMessage();
     setSelection(stats.data.scheduleIds[key] ? `schedule:${stats.data.scheduleIds[key]}` : `legacy:${key}`);
+    const date = scheduleById.get(stats.data.scheduleIds[key])?.date ?? parseGameKey(key)?.date;
+    if (date && date < today) setShowPastSchedules(true);
     setSelectedPlayerId(playerId);
     setOpenPlate(null);
     setEntryDraft(null);
@@ -495,15 +509,16 @@ export function StatsView({
               <label htmlFor="stats-schedule">試合を選択</label>
               <select id="stats-schedule" className="stats-player-select" value={selectedValue} onChange={(event) => changeSelection(event.target.value)}>
                 <option value="" disabled>登録済みの試合を選択してください</option>
-                {schedules.map((game) => <option key={game.id} value={`schedule:${game.id}`}>{scheduleLabel(game)}</option>)}
-                {registeredGames.some(({ key }) => !stats.data.scheduleIds[key]) && <optgroup label="未連携の登録済み成績">
-                  {registeredGames.filter(({ key }) => !stats.data.scheduleIds[key]).map(({ key }) => <option key={key} value={`legacy:${key}`}>{labelForKey(key)}</option>)}
+                {visibleSchedules.map((game) => <option key={game.id} value={`schedule:${game.id}`}>{shortScheduleLabel(game, visibleSchedules)}</option>)}
+                {visibleLegacyGames.length > 0 && <optgroup label="未連携の登録済み成績">
+                  {visibleLegacyGames.map(({ key, game }) => <option key={key} value={`legacy:${key}`}>{game.date.slice(5).replace("-", "/")} 第{game.number}試合（未連携）</option>)}
                 </optgroup>}
               </select>
-              {selectedSchedule && <p className="stats-schedule-details">{scheduleLabel(selectedSchedule)}{selectedSchedule.location && <span>{selectedSchedule.location}</span>}</p>}
-              {!schedules.length && <p className="stats-schedule-details">新しい成績は、スケジュール管理で試合を登録してから入力できます。</p>}
-              {(stats.hasMoreSchedules || stats.scheduleError) && <button type="button" className="secondary stats-load-schedules" disabled={stats.schedulesLoading} onClick={() => void stats.loadOlderSchedules()}>{stats.schedulesLoading ? "読み込み中…" : stats.scheduleError ? "過去の試合を再読み込み" : "さらに過去の試合を表示"}</button>}
-              {stats.scheduleError && <p role="alert" className="stats-schedule-details">{stats.scheduleError}</p>}
+              {selectedSchedule && <p className="stats-schedule-details">{selectedSchedule.startTime || "時刻未定"}{selectedSchedule.opponent && ` · vs ${selectedSchedule.opponent}`}{selectedSchedule.location && <span>{selectedSchedule.location}</span>}</p>}
+              {!visibleSchedules.length && <p className="stats-schedule-details">{showPastSchedules ? "試合はまだ表示されていません。" : "本日以降の試合は登録されていません。"}新しい試合はスケジュール管理から登録できます。</p>}
+              {/* <button type="button" className="secondary stats-load-schedules" aria-pressed={showPastSchedules} onClick={togglePastSchedules}>{showPastSchedules ? "過去の試合を非表示" : "過去の試合も表示"}</button> */}
+              {showPastSchedules && (stats.hasMoreSchedules || stats.scheduleError) && <button type="button" className="secondary stats-load-schedules" disabled={stats.schedulesLoading} onClick={() => void stats.loadOlderSchedules()}>{stats.schedulesLoading ? "読み込み中…" : stats.scheduleError ? "過去の試合を再読み込み" : "さらに過去の試合を表示"}</button>}
+              {showPastSchedules && stats.scheduleError && <p role="alert" className="stats-schedule-details">{stats.scheduleError}</p>}
             </div>
           </div>
           {selectedGameKey && !selectedSchedule && <div className="stats-legacy-link">
@@ -512,7 +527,7 @@ export function StatsView({
               <label htmlFor="stats-link-schedule">紐づける試合</label>
               <select id="stats-link-schedule" value={linkScheduleId} onChange={(event) => setLinkScheduleId(event.target.value)}>
                 <option value="">試合を選択してください</option>
-                {schedules.filter((game) => !Object.values(stats.data.scheduleIds).includes(game.id)).map((game) => <option key={game.id} value={game.id}>{scheduleLabel(game)}</option>)}
+                {visibleSchedules.filter((game) => !Object.values(stats.data.scheduleIds).includes(game.id)).map((game) => <option key={game.id} value={game.id}>{shortScheduleLabel(game, visibleSchedules)}</option>)}
               </select>
               <button type="button" className="secondary" disabled={!linkScheduleId || stats.saveState !== "saved"} onClick={linkLegacyGame}>この試合に紐づける</button>
             </> : <p>紐づけは管理者が設定できます。登録済みの成績はそのまま編集できます。</p>}

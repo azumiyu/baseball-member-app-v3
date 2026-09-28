@@ -2,6 +2,7 @@
 import { CalendarDays, ChevronDown, FileDown } from "lucide-react";
 import type { TeamData } from "@/lib/model";
 import type { ScheduleGame } from "@/lib/schedule";
+import { shortScheduleLabel } from "../lib/schedule-options";
 
 type ScheduleOption = Omit<ScheduleGame, "responses">;
 
@@ -89,7 +90,7 @@ export function MatchInfoPanel({
             <option value="" disabled>{schedules.length ? "登録済みの試合を選択" : "登録済みの試合はありません"}</option>
             {schedules.map((game) => (
               <option key={game.id} value={game.id}>
-                {game.date.replaceAll("-", "/")} {game.startTime || "時刻未定"} · {game.title || "試合"}{game.opponent ? ` vs ${game.opponent}` : ""}
+                {shortScheduleLabel(game, schedules)}
               </option>
             ))}
           </select>
