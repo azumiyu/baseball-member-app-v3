@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   DndContext,
   pointerWithin,
@@ -111,6 +111,7 @@ export function OrderPanel({
           container.data.current?.kind === args.active.data.current?.kind,
       ),
     });
+  const captureRef = useRef<HTMLDivElement>(null);
 
   return (
     <section className="order-panel">
@@ -196,57 +197,65 @@ export function OrderPanel({
         }}
         collisionDetection={collisionDetection}
       >
-        <div className="section-title">
-          <span>スターティングオーダー</span>
-          <span>
-            {activeCount} / {capacity}
-          </span>
-        </div>
-        <div className="column-labels">
-          <span>打順</span>
-          <span>
-            {attendance === null ? "選手 / 背番号" : "選手 / 出欠 / 背番号"}
-          </span>
-          <span>守備</span>
-        </div>
+        <div ref={captureRef} className="lineup-capture">
+          <div className="section-title">
+            <span>スターティングオーダー</span>
+            <span>
+              {activeCount} / {capacity}
+            </span>
+          </div>
+          <div className="column-labels">
+            <span>打順</span>
+            <span>
+              選手 /
+              {attendance !== null && (
+                <span data-capture-hide="true"> 出欠 /</span>
+              )}{" "}
+              背番号
+            </span>
+            <span>守備</span>
+          </div>
 
-        <div className="lineup-list">
-          {data.slots.map((slot, i) => (
-            <LineupRow
-              key={i}
-              readOnly={readOnly}
-              index={i}
-              position={slot.position}
-              player={data.players.find((p) => p.id === slot.playerId)}
-              attendance={
-                attendance === null || !slot.playerId
-                  ? null
-                  : attendance[slot.playerId]
-              }
-              onPickPlayer={() => onPickPlayer(`slot:${i}`)}
-              onPickPosition={() => onPickPosition(i)}
-            />
-          ))}
-          {data.mode === "dh" && (
-            <PitcherRow
-              readOnly={readOnly}
-              pitcher={pitcher}
-              attendance={
-                attendance === null || !pitcher ? null : attendance[pitcher.id]
-              }
-              onPick={() => onPickPlayer("pitcher")}
-            />
-          )}
-        </div>
+          <div className="lineup-list">
+            {data.slots.map((slot, i) => (
+              <LineupRow
+                key={i}
+                readOnly={readOnly}
+                index={i}
+                position={slot.position}
+                player={data.players.find((p) => p.id === slot.playerId)}
+                attendance={
+                  attendance === null || !slot.playerId
+                    ? null
+                    : attendance[slot.playerId]
+                }
+                onPickPlayer={() => onPickPlayer(`slot:${i}`)}
+                onPickPosition={() => onPickPosition(i)}
+              />
+            ))}
+            {data.mode === "dh" && (
+              <PitcherRow
+                readOnly={readOnly}
+                pitcher={pitcher}
+                attendance={
+                  attendance === null || !pitcher
+                    ? null
+                    : attendance[pitcher.id]
+                }
+                onPick={() => onPickPlayer("pitcher")}
+              />
+            )}
+          </div>
 
-        <BenchSection
-          readOnly={readOnly}
-          bench={bench}
-          attendance={attendance}
-          totalPlayers={data.players.length}
-          onEditPlayer={onEditPlayer}
-          onAddPlayer={onAddPlayer}
-        />
+          <BenchSection
+            readOnly={readOnly}
+            bench={bench}
+            attendance={attendance}
+            totalPlayers={data.players.length}
+            onEditPlayer={onEditPlayer}
+            onAddPlayer={onAddPlayer}
+          />
+        </div>
         <AbsentSection
           readOnly={readOnly}
           absent={absent}

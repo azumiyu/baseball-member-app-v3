@@ -43,6 +43,7 @@ export function BenchSection({
               className="add-player-link"
               onClick={onAddPlayer}
               disabled={totalPlayers >= MAX_PLAYERS}
+              data-capture-hide="true"
             >
               <Plus size={16} />
               選手を登録{" "}
@@ -66,7 +67,7 @@ export function BenchSection({
               >
                 {!readOnly && <GripVertical size={15} />}
                 <span>{p.name}</span>
-                <span className="lineup-player-meta">
+                <span className="lineup-player-meta" data-capture-hide="true">
                   <AttendanceBadge
                     response={attendance === null ? null : attendance[p.id]}
                   />
@@ -79,11 +80,15 @@ export function BenchSection({
           <div className="empty-bench">
             <Users size={25} />
             <p>
-              {readOnly
-                ? "ベンチの選手はいません"
-                : totalPlayers
-                  ? "ここに移動するとベンチに戻せます"
-                  : "選手を登録してオーダーを組みましょう"}
+              <span data-capture-hide="true">
+                {readOnly
+                  ? "ベンチの選手はいません"
+                  : totalPlayers
+                    ? "ここに移動するとベンチに戻せます"
+                    : "選手を登録してオーダーを組みましょう"}
+              </span>
+
+              <span className="capture-only">ベンチの選手はいません</span>
             </p>
           </div>
         )}

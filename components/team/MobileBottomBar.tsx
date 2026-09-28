@@ -1,5 +1,5 @@
 "use client";
-import { FileDown, Users } from "lucide-react";
+import { FileDown, Users,ImageDown } from "lucide-react";
 import type { TeamTab } from "./types";
 
 /** スマホ用の下部固定バー（タブ切替 + PDF 作成） */
@@ -10,6 +10,8 @@ export function MobileBottomBar({
   pdfDisabled,
   pdfDisabledReason,
   onCreatePdf,
+  imageBusy,
+  onCreateImage,
 }: {
   tab: TeamTab;
   onToggleTab: () => void;
@@ -17,6 +19,8 @@ export function MobileBottomBar({
   pdfDisabled: boolean;
   pdfDisabledReason: string;
   onCreatePdf: () => void;
+  imageBusy: boolean;
+  onCreateImage: () => void;
 }) {
   return (
     <div className="mobile-bottom">
@@ -31,8 +35,17 @@ export function MobileBottomBar({
         title={pdfDisabledReason || undefined}
       >
         <FileDown size={18} />
-        {pdfBusy ? "作成中…" : pdfDisabled ? "全員打ちはPDF不可" : "メンバー表作成"}
+        {pdfBusy ? "作成中…" : pdfDisabled ? "ＰＤＦ作成不可" : "メンバー表作成"}
       </button>
+      <button
+    type="button"
+    className="primary"
+    onClick={onCreateImage}
+    disabled={imageBusy}
+  >
+    <ImageDown size={18} />
+    {imageBusy ? "作成中…" : "画像"}
+  </button>
     </div>
   );
 }

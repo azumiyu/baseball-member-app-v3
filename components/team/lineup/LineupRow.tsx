@@ -2,7 +2,11 @@
 import { GripVertical } from "lucide-react";
 import type { Player, Position } from "@/lib/model";
 import { DragButton } from "../dnd/DragButton";
-import { AttendanceBadge, attendanceDescription, type PlayerAttendance } from "./AttendanceBadge";
+import {
+  AttendanceBadge,
+  attendanceDescription,
+  type PlayerAttendance,
+} from "./AttendanceBadge";
 
 /**
  * スターティングオーダーの 1 行。
@@ -46,10 +50,16 @@ export function LineupRow({
         disabled={readOnly}
       >
         {!readOnly && <GripVertical size={16} />}
-        <span className="player-name">{player?.name ?? (readOnly ? "未設定" : "選手を選択")}</span>
-        <span className="lineup-player-meta">
-          <AttendanceBadge response={attendance} />
-          <span className="jersey">{player ? `#${player.number}` : readOnly ? "—" : "＋"}</span>
+        <span className="player-name">
+          {player?.name ?? (readOnly ? "未設定" : "選手を選択")}
+        </span>
+        <span data-capture-hide="true">
+          <span className="lineup-player-meta">
+            <AttendanceBadge response={attendance} />
+            <span className="jersey">
+              {player ? `#${player.number}` : readOnly ? "—" : "＋"}
+            </span>
+          </span>
         </span>
       </DragButton>
 

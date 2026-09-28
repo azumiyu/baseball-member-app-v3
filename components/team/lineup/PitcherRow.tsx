@@ -28,7 +28,7 @@ export function PitcherRow({
       >
         {!readOnly && <GripVertical size={16} />}
         <span className="player-name">{pitcher?.name ?? (readOnly ? "未設定" : "投手を選択")}</span>
-        <span className="lineup-player-meta">
+        <span className="lineup-player-meta" data-capture-hide="true">
           <AttendanceBadge response={attendance} />
           <span className="jersey">{pitcher ? `#${pitcher.number}` : readOnly ? "—" : "＋"}</span>
         </span>

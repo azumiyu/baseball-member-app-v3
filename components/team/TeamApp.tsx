@@ -14,7 +14,10 @@ import { usePdfExport } from "./hooks/usePdfExport";
 import { useLineupTool } from "./hooks/useLineupTool";
 import { EquipmentView } from "./equipment/EquipmentView";
 import { StatsView } from "./stats/StatsView";
-import { ScheduleView, type ScheduleEditorRequest } from "./schedule/ScheduleView";
+import {
+  ScheduleView,
+  type ScheduleEditorRequest,
+} from "./schedule/ScheduleView";
 import { createEntityId } from "@/lib/entity-id";
 
 import {
@@ -42,6 +45,7 @@ import { SettingsModal } from "./modals/SettingsModal";
 import { ReauthModal } from "./modals/ReauthModal";
 import { PdfWarningModal } from "./modals/PdfWarningModal";
 import { PdfReadyModal } from "./modals/PdfReadyModal";
+import { ImageReadyModal } from "./modals/ImageReadyModal";
 import { AppMenuModal } from "./modals/AppMenuModal";
 import type { SaveState } from "./types";
 import { scheduleNameOptions } from "./lib/schedule-options";
@@ -62,10 +66,13 @@ export function TeamApp() {
   const team = useTeamData();
   const ui = useTeamUiState();
   const pdf = usePdfExport(team.data, team.setError);
-  const [equipmentSaveState, setEquipmentSaveState] = useState<SaveState>("saved");
+  const [equipmentSaveState, setEquipmentSaveState] =
+    useState<SaveState>("saved");
   const [statsSaveState, setStatsSaveState] = useState<SaveState>("saved");
-  const [scheduleSaveState, setScheduleSaveState] = useState<SaveState>("saved");
-  const [scheduleEditorRequest, setScheduleEditorRequest] = useState<ScheduleEditorRequest | null>(null);
+  const [scheduleSaveState, setScheduleSaveState] =
+    useState<SaveState>("saved");
+  const [scheduleEditorRequest, setScheduleEditorRequest] =
+    useState<ScheduleEditorRequest | null>(null);
 
   useLineupTool(team.data, team.auth);
 
@@ -83,6 +90,11 @@ export function TeamApp() {
 
   const bench = useMemo(() => benchPlayers(data), [data]);
   const absent = useMemo(() => absentPlayers(data), [data]);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{
+    url: string;
+    blob: Blob;
+  } | null>(null);
 
   /* ---------------- オーダー操作 ---------------- */
 
@@ -110,7 +122,8 @@ export function TeamApp() {
     (player: Player) => {
       if (!canEditLineup && player.id !== team.member?.id) return;
       edit((current) => {
-        if (!canEditLineup && !current.players.some((p) => p.id === player.id)) return current;
+        if (!canEditLineup && !current.players.some((p) => p.id === player.id))
+          return current;
         return upsertPlayerUpdater(player)(current);
       });
     },
@@ -149,7 +162,13 @@ export function TeamApp() {
     ui.setSettings(false);
     pdf.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [team.saveState, scheduleSaveState, team.logout, ui.setSettings, pdf.clear]);
+  }, [
+    team.saveState,
+    scheduleSaveState,
+    team.logout,
+    ui.setSettings,
+    pdf.clear,
+  ]);
 
   /* ---------------- 未ログイン ---------------- */
 
@@ -189,6 +208,75 @@ export function TeamApp() {
       }
     />
   );
+
+  /* ---------------- 画像生成 ---------------- */
+
+  async function createLineupImage() {
+    if (imageBusy) return;
+
+    const target = document.querySelector<HTMLDivElement>(".lineup-capture");
+
+    if (!target) {
+      team.setError("オーダー画面を開いてから画像を作成してください。");
+      return;
+    }
+
+    setImageBusy(true);
+
+    try {
+      target.classList.add("capture-mode");
+      const { toBlob } = await import("html-to-image");
+
+      const blob = await toBlob(target, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+        filter: (node) =>
+          !(node instanceof HTMLElement && node.dataset.captureHide === "true"),
+      });
+
+      if (!blob) {
+        throw new Error("PNG画像を生成できませんでした。");
+      }
+
+      setImagePreview({
+        url: URL.createObjectURL(blob),
+        blob,
+      });
+    } catch (error) {
+      console.error(error);
+      team.setError("画像の作成に失敗しました。");
+    } finally {
+      target.classList.remove("capture-mode");
+      setImageBusy(false);
+    }
+  }
+
+  async function saveImageToPhotos() {
+    if (!imagePreview) return;
+
+    const file = new File(
+      [imagePreview.blob],
+      `${data.teamName}_オーダー.png`,
+      { type: "image/png" },
+    );
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+        });
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          team.setError("画像の共有に失敗しました。");
+        }
+      }
+    } else {
+      team.setError(
+        "共有機能を利用できません。画像を長押しして保存してください。",
+      );
+    }
+  }
 
   /* ---------------- 本画面 ---------------- */
 
@@ -244,8 +332,14 @@ export function TeamApp() {
             teamName={data.teamName}
             pdfBusy={pdf.busy}
             pdfDisabled={pdf.disabled || lineupSwitching}
-            pdfDisabledReason={lineupSwitching ? "選択した試合のスタメンを読み込んでいます。" : pdf.disabledReason}
+            pdfDisabledReason={
+              lineupSwitching
+                ? "選択した試合のスタメンを読み込んでいます。"
+                : pdf.disabledReason
+            }
             onCreatePdf={() => void pdf.create()}
+            imageBusy={imageBusy}
+            onCreateImage={() => void createLineupImage()}
           />
 
           {appNavigation}
@@ -275,7 +369,16 @@ export function TeamApp() {
               attendanceScheduleId={team.attendanceScheduleId}
               onOpenSchedule={() => {
                 ui.setAppView("schedule");
-                if (canEditLineup) setScheduleEditorRequest({ requestId: createEntityId(), gameId: data.scheduleId, date: data.date, startTime: data.startTime, title: data.tournament, opponent: data.opponent, location: data.location });
+                if (canEditLineup)
+                  setScheduleEditorRequest({
+                    requestId: createEntityId(),
+                    gameId: data.scheduleId,
+                    date: data.date,
+                    startTime: data.startTime,
+                    title: data.tournament,
+                    opponent: data.opponent,
+                    location: data.location,
+                  });
               }}
               edit={editLineup}
               readOnly={!canEditLineup}
@@ -311,8 +414,14 @@ export function TeamApp() {
             }
             pdfBusy={pdf.busy}
             pdfDisabled={pdf.disabled || lineupSwitching}
-            pdfDisabledReason={lineupSwitching ? "選択した試合のスタメンを読み込んでいます。" : pdf.disabledReason}
+            pdfDisabledReason={
+              lineupSwitching
+                ? "選択した試合のスタメンを読み込んでいます。"
+                : pdf.disabledReason
+            }
             onCreatePdf={() => void pdf.create()}
+            imageBusy={imageBusy}
+            onCreateImage={() => void createLineupImage()}
           />
         </>
       ) : null}
@@ -327,7 +436,14 @@ export function TeamApp() {
 
       <PlayerEditorModal
         canEditLineup={canEditCurrentLineup}
-        target={canEditLineup || (ui.editor !== null && ui.editor !== "new" && ui.editor.id === team.member.id) ? ui.editor : null}
+        target={
+          canEditLineup ||
+          (ui.editor !== null &&
+            ui.editor !== "new" &&
+            ui.editor.id === team.member.id)
+            ? ui.editor
+            : null
+        }
         bench={bench}
         absent={absent}
         onClose={() => ui.setEditor(null)}
@@ -344,7 +460,9 @@ export function TeamApp() {
         slotCount={data.slots.length}
         onClose={() => ui.setPick(null)}
         onSelect={selectPlayer}
-        onShiftOrder={(index, delta) => editLineup(shiftOrderUpdater(index, delta))}
+        onShiftOrder={(index, delta) =>
+          editLineup(shiftOrderUpdater(index, delta))
+        }
         onAddPlayer={() => {
           ui.setPick(null);
           ui.setEditor("new");
@@ -366,7 +484,8 @@ export function TeamApp() {
         saveState={team.saveState}
         error={team.error}
         onUpdateTeamInfo={(values) => {
-          if (team.member?.isAdmin) edit((current) => ({ ...current, ...values }));
+          if (team.member?.isAdmin)
+            edit((current) => ({ ...current, ...values }));
         }}
         onClose={() => ui.setSettings(false)}
         onRequestLogout={requestLogout}
@@ -383,6 +502,17 @@ export function TeamApp() {
       />
 
       <PdfReadyModal url={pdf.url} name={pdf.name} onClose={pdf.closePreview} />
+
+      <ImageReadyModal
+        preview={imagePreview}
+        onClose={() => {
+          if (imagePreview) {
+            URL.revokeObjectURL(imagePreview.url);
+          }
+          setImagePreview(null);
+        }}
+        onSave={() => void saveImageToPhotos()}
+      />
 
       <AppMenuModal
         open={ui.appMenuOpen}
