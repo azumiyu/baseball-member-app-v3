@@ -860,6 +860,10 @@ footer {
   padding: 38px;
   box-shadow: 0 18px 65px #00142933;
 }
+/* スマホでパスワード入力にフォーカスした際の自動ズームを防ぐ。 */
+.login-card input[type="password"] {
+  font-size: 16px;
+}
 .lock-icon {
   display: grid;
   place-items: center;
