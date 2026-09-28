@@ -27,6 +27,7 @@ function noticeFor(games: ScheduleGame[], changed: boolean): Notice | null {
 function ChangeComparison({ game }: { game: ScheduleGame }) {
   const changes = [
     { label: "開始時刻", before: game.previousStartTime, after: game.startTime, empty: "時刻未定" },
+    { label: "終了時刻", before: game.previousEndTime, after: game.endTime, empty: "時刻未定" },
     { label: "場所", before: game.previousLocation, after: game.location, empty: "場所未定" },
   ].filter((change) => change.before !== null && change.before !== change.after);
   if (!changes.length) return null;

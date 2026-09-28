@@ -101,7 +101,9 @@
 .schedule-error-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .schedule-error-actions button { min-height: 44px; font-size: 12px; }
 .schedule-game-form { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 16px; }
-.schedule-date-time-fields { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); min-width: 0; gap: 12px; }
+.schedule-editor-fields { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; margin: 0; padding: 0; border: 0; gap: 16px; }
+.schedule-date-time-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; gap: 12px; }
+.schedule-date-time-fields > label:first-child { grid-column: 1 / -1; }
 .schedule-date-time-fields > label { min-width: 0; max-width: 100%; }
 .schedule-game-form input, .schedule-game-form select { display: block; width: 100%; min-width: 0; min-height: 48px; margin-top: 7px; font-size: 16px; font-weight: 400; }
 .schedule-game-form select { padding: 10px; border: 1px solid #d5e0e9; border-radius: 8px; background: #fff; color: #344f67; }
@@ -121,7 +123,9 @@
 .schedule-name-input > svg { position: absolute; top: 50%; left: 12px; transform: translateY(-50%); color: #708496; pointer-events: none; }
 .schedule-name-input input { margin-top: 0; padding-left: 38px; padding-right: 46px; }
 .schedule-name-clear { position: absolute; top: 2px; right: 2px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 7px; background: transparent; color: #708496; }
-.schedule-name-suggestions { margin-top: 6px; padding: 5px; border: 1px solid #d5e0e9; border-radius: 10px; background: #f8fbfe; }
+.schedule-name-suggestions { position: absolute; z-index: 5; top: 100%; left: 0; right: 0; max-height: min(240px, 30svh); overflow-y: auto; overscroll-behavior: contain; margin-top: 6px; padding: 5px; border: 1px solid #d5e0e9; border-radius: 10px; background: #f8fbfe; box-shadow: 0 8px 24px #10243724; }
+.schedule-share-fallback { display: grid; gap: 8px; }
+.schedule-share-fallback textarea { width: 100%; min-width: 0; padding: 10px; border: 1px solid #d5e0e9; border-radius: 8px; font-size: 16px; line-height: 1.6; resize: vertical; }
 .schedule-name-suggestions-heading { margin: 5px 8px; color: #708496; font-size: 11px; }
 .schedule-name-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 46px; padding: 10px; border-radius: 7px; background: transparent; color: #344f67; font-size: 14px; text-align: left; }
 .schedule-name-option span { min-width: 0; overflow-wrap: anywhere; }

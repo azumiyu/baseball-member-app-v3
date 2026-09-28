@@ -26,6 +26,12 @@
   box-shadow: 0 24px 80px #00142940, 0 4px 16px #00142914;
   outline: none;
 }
+.team-dialog[data-preserve-size="true"] {
+  height: calc(var(--dialog-height, 100svh) * 0.88);
+}
+.team-dialog[data-preserve-size="true"] .team-dialog-body {
+  overflow-anchor: none;
+}
 .team-dialog[data-state="open"] {
   animation: team-dialog-enter 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }

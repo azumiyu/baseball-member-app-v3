@@ -5,6 +5,8 @@ import { CalendarDays, Check, ChevronDown, Clock3, ExternalLink, MapPin, Pencil,
 import type { AuthMember } from "@/lib/auth-types";
 import type { Player } from "@/lib/model";
 import { createEntityId } from "@/lib/entity-id";
+import { defaultEndTime, scheduleShareText, scheduleTimeRange } from "@/lib/schedule-format";
+import { copyText } from "../lib/clipboard";
 import {
   japanDate,
   mapLinks,
@@ -17,7 +19,7 @@ import {
 import { LoadingState } from "../common/LoadingState";
 import { Modal } from "../common/Modal";
 import { SaveStateLabel } from "../common/SaveStateLabel";
-import { compareScheduleChoices, defaultScheduleChoice, scheduleNameOptions, shortScheduleLabel, type ScheduleNameOptions } from "../lib/schedule-options";
+import { compareScheduleChoices, defaultScheduleChoice, scheduleNameOptions, type ScheduleNameOptions } from "../lib/schedule-options";
 import { useScheduleData } from "../hooks/useScheduleData";
 import type { SaveState } from "../types";
 import { ScheduleNotices } from "./ScheduleNotices";
@@ -35,6 +37,7 @@ const GAME_STATUSES: { status: ScheduleGameStatus; label: string }[] = [
   { status: "confirmed", label: "確定" },
 ];
 const START_TIMES = Array.from({ length: 25 }, (_, index) => `${String(7 + Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
+const END_TIMES = Array.from({ length: 34 }, (_, index) => `${String(7 + Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
 type ResponseInput = Pick<ScheduleResponse, "status" | "comment">;
 
 export type ScheduleEditorRequest = {
@@ -111,9 +114,8 @@ function ResponseEditor({
   );
 }
 
-function GameCard({ game, summaryLabel, players, member, featured, expanded, onToggle, disabled, onEdit, onResponse }: {
+function GameCard({ game, players, member, featured, expanded, onToggle, disabled, onEdit, onResponse }: {
   game: ScheduleGame;
-  summaryLabel: string;
   players: Player[];
   member: AuthMember;
   featured: boolean;
@@ -153,7 +155,7 @@ function GameCard({ game, summaryLabel, players, member, featured, expanded, onT
         )}
       <div className="schedule-game-info">
         <p><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time></p>
-        <p><Clock3 size={16} aria-hidden="true" /><span>{game.startTime ? `${game.startTime} 開始` : "開始時間は未定"}</span></p>
+        <p><Clock3 size={16} aria-hidden="true" /><span>{scheduleTimeRange(game)}</span></p>
         {game.opponent && <p><Users size={16} aria-hidden="true" /><span>対戦相手：{game.opponent}</span></p>}
         <p><MapPin size={16} aria-hidden="true" /><span>{game.location || "場所は未定"}</span></p>
       </div>
@@ -202,10 +204,10 @@ function GameCard({ game, summaryLabel, players, member, featured, expanded, onT
   );
 }
 
-type GameFields = Pick<ScheduleGame, "date" | "startTime" | "title" | "opponent" | "location" | "status">;
+type GameFields = Pick<ScheduleGame, "date" | "startTime" | "endTime" | "title" | "opponent" | "location" | "status">;
 
 function gameFields(game: GameFields): GameFields {
-  return { date: game.date, startTime: game.startTime, title: game.title, opponent: game.opponent, location: game.location, status: game.status };
+  return { date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, status: game.status };
 }
 
 const NAME_FIELDS = [
@@ -222,17 +224,19 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
   saveState: SaveState;
   saveError: string;
   nameOptions: ScheduleNameOptions;
-  onSave: (id: string, values: GameFields) => void;
+  onSave: (id: string, values: GameFields) => Promise<boolean>;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
   const [id] = useState(() => game?.id ?? createEntityId());
   const [draft, setDraft] = useState<GameFields>(() => game ? gameFields(game) : defaults ?? {
-    date: defaultDate, startTime: "", title: "", opponent: "", location: "", status: "unconfirmed",
+    date: defaultDate, startTime: "", endTime: "", title: "", opponent: "", location: "", status: "unconfirmed",
   });
   const [initial] = useState(() => JSON.stringify(draft));
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [shareResult, setShareResult] = useState<{ text: string; copied: boolean; saved: boolean } | null>(null);
   const draftJson = JSON.stringify(draft);
   const hasLocalChanges = draftJson !== (submitted ?? initial);
   const pending = saveState === "dirty" || saveState === "saving";
@@ -244,12 +248,13 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
     onClose();
   };
   const update = <K extends keyof GameFields>(field: K, value: GameFields[K]) => {
-    setDraft((current) => ({ ...current, [field]: value }));
+    setDraft((current) => ({ ...current, [field]: value, ...(field === "startTime" ? { endTime: defaultEndTime(value) } : {}) }));
     setFormError("");
+    setShareResult(null);
   };
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (blocked || pending) return;
+    if (blocked || pending || submitting) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date) || draft.date.startsWith("0000-") || !Number.isFinite(Date.parse(draft.date)) || new Date(draft.date).toISOString().slice(0, 10) !== draft.date) {
       setFormError("試合日を入力してください。");
       return;
@@ -258,7 +263,17 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
     setFormError("");
     setDraft(values);
     setSubmitted(JSON.stringify(values));
-    onSave(id, values);
+    setSubmitting(true);
+    setShareResult(null);
+    const text = scheduleShareText(values);
+    // iPhoneでもユーザー操作の直後にコピーを開始できるよう、保存完了を待たない。
+    const copying = copyText(text, event.currentTarget);
+    try {
+      const [copied, saved] = await Promise.all([copying, onSave(id, values)]);
+      setShareResult({ text, copied, saved });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -275,10 +290,13 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
       }}
     >
       <form className="schedule-game-form" onSubmit={submit}>
+        <fieldset className="schedule-editor-fields" disabled={blocked || submitting}>
         <div className="schedule-date-time-fields">
           <label htmlFor="schedule-date">試合日 <span className="schedule-required">必須</span><input id="schedule-date" type="date" required value={draft.date} onChange={(event) => update("date", event.target.value)} /></label>
           <label htmlFor="schedule-time">開始時刻 <span>任意</span><select id="schedule-time" value={draft.startTime} onChange={(event) => update("startTime", event.target.value)}><option value="">時刻未定</option>{draft.startTime && !START_TIMES.includes(draft.startTime) && <option value={draft.startTime}>{draft.startTime}（登録済み）</option>}{START_TIMES.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
+          <label htmlFor="schedule-end-time">終了時刻 <span>任意</span><select id="schedule-end-time" value={draft.endTime} onChange={(event) => update("endTime", event.target.value)}><option value="">時刻未定</option>{draft.endTime && !END_TIMES.includes(draft.endTime) && <option value={draft.endTime}>{draft.endTime}</option>}{END_TIMES.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
         </div>
+        <p className="schedule-autosave-note">開始時刻を選ぶと、2時間後を終了時刻に設定します。終了時刻は変更できます。</p>
         <div className="schedule-status-field"><span>予定の状況</span><div className="schedule-game-status-buttons" role="group" aria-label="予定の状況">{GAME_STATUSES.map(({ status, label }) => <button key={status} type="button" className={status} aria-pressed={draft.status === status} onClick={() => update("status", status)}>{label}{draft.status === status && <Check size={14} aria-hidden="true" />}</button>)}</div></div>
         {NAME_FIELDS.map(({ field, label, placeholder, maxLength }) => (
           <ScheduleNameField
@@ -294,11 +312,18 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
             onChange={(name) => update(field, name)}
           />
         ))}
+        </fieldset>
         {formError && <p className="schedule-form-error" role="alert">{formError}</p>}
-        {saveError && <div className="schedule-form-error" role="alert"><p>{saveError}</p><p>入力内容はこの画面に残っています。{blocked ? "閉じて再読み込みの案内を確認してください。" : "もう一度「予定を保存」を押してください。"}</p></div>}
+        {saveError && <div className="schedule-form-error" role="alert"><p>{saveError}</p><p>入力内容はこの画面に残っています。{blocked ? "閉じて再読み込みの案内を確認してください。" : "もう一度「予定を保存及びコピー」を押してください。"}</p></div>}
         {submitted && !hasLocalChanges && <p className={`schedule-form-save-state ${saveState}`} role="status"><SaveStateLabel state={saveState} /></p>}
+        {shareResult && !hasLocalChanges && <div className="schedule-share-fallback">
+          <p className="schedule-autosave-note" role="status">{shareResult.saved
+            ? shareResult.copied ? "保存・コピーしました。LINEに貼り付けて送信できます。" : "予定は保存しました。コピーできなかったため、下の文章を選択してコピーしてください。"
+            : shareResult.copied ? "文章はコピーしましたが、予定はまだ保存できていません。保存後にLINEへ送信してください。" : "保存・コピーが完了していません。もう一度お試しください。"}</p>
+          {!shareResult.copied && <label>LINE用の文章<textarea readOnly rows={7} value={shareResult.text} onFocus={(event) => event.currentTarget.select()} /></label>}
+        </div>}
         <div className="schedule-form-actions">
-          <button type="submit" className="primary" disabled={blocked || pending || (submitted === draftJson && saveState === "saved")}>{pending ? "保存中…" : "予定を保存"}</button>
+          <button type="submit" className="primary" disabled={blocked || pending || submitting}>{pending || submitting ? "保存・コピー中…" : "予定を保存及びコピー"}</button>
           <button type="button" className="secondary" onClick={close}>閉じる</button>
         </div>
         {(game || (submitted && saveState === "saved")) && <button type="button" className="schedule-delete-button" disabled={blocked || pending} onClick={() => onDelete(id)}>この予定を削除</button>}
@@ -357,7 +382,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
         if (game) { setEditorRequestError(""); setEditor(game); setExpandedGameId(game.id); }
         else setEditorRequestError("対象の予定を開けませんでした。最新の内容を読み込み、オーダーからもう一度開いてください。");
       } else {
-        setNewGameDefaults({ date: editorRequest.date, startTime: editorRequest.startTime, title: editorRequest.title, opponent: editorRequest.opponent, location: editorRequest.location, status: "unconfirmed" });
+        setNewGameDefaults({ date: editorRequest.date, startTime: editorRequest.startTime, endTime: defaultEndTime(editorRequest.startTime), title: editorRequest.title, opponent: editorRequest.opponent, location: editorRequest.location, status: "unconfirmed" });
         setDefaultDate(editorRequest.date);
         setEditor("new");
       }
@@ -377,14 +402,15 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
     if (schedule.saveState !== "saved" && !window.confirm("この画面の未保存の出欠・コメント・予定の変更を破棄して、最新の内容を読み込みますか？必要な入力内容は先に控えてください。")) return;
     void schedule.load();
   };
-  const saveGame = (id: string, values: GameFields) => {
-    if (!member.canEditLineup || blocked) return;
+  const saveGame = async (id: string, values: GameFields): Promise<boolean> => {
+    if (!member.canEditLineup || blocked || schedule.saveState === "saving") return false;
     schedule.edit((current) => {
       const index = current.games.findIndex((game) => game.id === id);
       if (index >= 0) current.games[index] = { ...current.games[index], ...values };
-      else current.games.push({ id, ...values, mapUrl: "", detailsRevision: 1, previousStartTime: null, previousLocation: null, changedBy: null, responses: {} });
+      else current.games.push({ id, ...values, mapUrl: "", detailsRevision: 1, previousStartTime: null, previousEndTime: null, previousLocation: null, changedBy: null, responses: {} });
       return current;
     });
+    return schedule.saveNow();
   };
   const deleteGame = (id: string) => {
     if (!member.canEditLineup || blocked || schedule.saveState === "saving") return;
@@ -400,7 +426,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
       return current;
     });
   };
-  const card = (game: ScheduleGame) => <GameCard key={game.id} game={game} summaryLabel={shortScheduleLabel(game, sortedGames)} players={sortedPlayers} member={member} featured={game.date === featuredDate} expanded={expandedGameId === game.id} onToggle={() => setExpandedGameId((current) => current === game.id ? null : game.id)} disabled={blocked} onEdit={member.canEditLineup ? () => setEditor(game) : undefined} onResponse={(playerId, response) => updateResponse(game.id, playerId, response)} />;
+  const card = (game: ScheduleGame) => <GameCard key={game.id} game={game} players={sortedPlayers} member={member} featured={game.date === featuredDate} expanded={expandedGameId === game.id} onToggle={() => setExpandedGameId((current) => current === game.id ? null : game.id)} disabled={blocked} onEdit={member.canEditLineup ? () => setEditor(game) : undefined} onResponse={(playerId, response) => updateResponse(game.id, playerId, response)} />;
 
   return (
     <section className="schedule-page">

@@ -26,7 +26,6 @@
   }
 }
 @media (max-width: 420px) {
-  .team-dialog-body .schedule-date-time-fields,
   .team-dialog-body .schedule-form-actions {
     grid-template-columns: minmax(0, 1fr);
   }

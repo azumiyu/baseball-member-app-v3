@@ -40,7 +40,7 @@ function replaceGames(data: ScheduleData, games: ScheduleGame[], removedIds: str
 /** Keep server-assigned revisions while replaying edits made during a save. */
 function mergeFollowingEdits(sent: ScheduleGame, current: ScheduleGame, canonical: ScheduleGame): ScheduleGame {
   const next = structuredClone(canonical);
-  for (const key of ["date", "startTime", "title", "opponent", "location", "mapUrl"] as const) {
+  for (const key of ["date", "startTime", "endTime", "title", "opponent", "location", "mapUrl"] as const) {
     if (sent[key] !== current[key]) next[key] = current[key];
   }
   if (sent.status !== current.status) next.status = current.status;
@@ -186,13 +186,15 @@ export function useScheduleData() {
     }
   }, [markState, publish]);
 
-  const save = useCallback(async () => {
-    if (!ready.current || loadingNow.current || saving.current || currentState.current !== "dirty") return;
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!ready.current || loadingNow.current || saving.current) return false;
+    if (currentState.current === "saved") return true;
+    if (currentState.current !== "dirty") return false;
     const sent = structuredClone(draft.current);
     const changes = differences(baseline.current, sent);
     if (!changes.games.length && !changes.removedGames.length) {
       markState("saved");
-      return;
+      return true;
     }
     epoch.current += 1;
     saving.current = true;
@@ -201,7 +203,7 @@ export function useScheduleData() {
       const result = validatedSnapshot(await api<ScheduleSnapshot>("/api/schedule", "PUT", {
         partial: true, data: { games: changes.games }, removedGames: changes.removedGames, revision: currentRevision.current,
       }, API_ERROR));
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       const canonical = new Map(result.data.games.map((game) => [game.id, game]));
       if (canonical.size !== changes.games.length || changes.games.some((game) => !canonical.has(game.id))) {
         throw new Error("保存結果を確認できませんでした。最新データを読み込んでください。");
@@ -219,11 +221,13 @@ export function useScheduleData() {
       setError("");
       saving.current = false;
       markState(hasDifferences(baseline.current, next) ? "dirty" : "saved");
+      return true;
     } catch (cause) {
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       const failure = cause as ApiError;
       setError(failure.message || API_ERROR);
       markState(failure.status === 409 ? "conflict" : "error");
+      return false;
     } finally {
       saving.current = false;
     }
@@ -333,7 +337,7 @@ export function useScheduleData() {
   }, [data, revision, saveState, loading, save]);
 
   return {
-    data, revision, loading, error, setError, saveState, edit, load, refreshIfIdle, retrySave, loginGames,
+    data, revision, loading, error, setError, saveState, edit, saveNow: save, load, refreshIfIdle, retrySave, loginGames,
     loadPast, pastLoading, pastError, hasMorePast, pastLoaded, loadGame,
   };
 }

@@ -67,6 +67,7 @@ export function Modal({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         layout="app"
+        data-preserve-size={preserveSize || undefined}
         style={style}
         onEscapeKeyDown={onEscapeKeyDown}
         onOpenAutoFocus={(event) => {

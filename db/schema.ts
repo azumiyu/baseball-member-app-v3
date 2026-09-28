@@ -80,6 +80,7 @@ export const scheduleGames = sqliteTable("schedule_games", {
     id: text("id").primaryKey(),
     date: text("date").notNull(),
     startTime: text("start_time").notNull().default(""),
+    endTime: text("end_time").notNull().default(""),
     title: text("title").notNull().default(""),
     opponent: text("opponent").notNull().default(""),
     location: text("location").notNull().default(""),
@@ -87,6 +88,7 @@ export const scheduleGames = sqliteTable("schedule_games", {
     status: text("status").notNull().default("unconfirmed"),
     detailsRevision: integer("details_revision").notNull().default(1),
     previousStartTime: text("previous_start_time"),
+    previousEndTime: text("previous_end_time"),
     previousLocation: text("previous_location"),
     changedBy: text("changed_by").references(() => players.id),
 }, (table) => [

@@ -24,6 +24,7 @@ export function ScheduleNameField({
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const activeOptionRef = useRef<HTMLButtonElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [filtering, setFiltering] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -37,7 +38,13 @@ export function ScheduleNameField({
   const hasActiveOption = expanded && activeIndex >= 0 && activeIndex < suggestions.length;
 
   useEffect(() => {
-    if (open && activeIndex >= 0) activeOptionRef.current?.scrollIntoView({ block: "nearest" });
+    const option = activeOptionRef.current;
+    const list = suggestionsRef.current;
+    if (!open || activeIndex < 0 || !option || !list) return;
+    // ページやモーダルを動かさず、候補リストの中だけをスクロールする。
+    const offset = option.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    if (offset < 0) list.scrollTop += offset;
+    else if (offset + option.offsetHeight > list.clientHeight) list.scrollTop += offset + option.offsetHeight - list.clientHeight;
   }, [open, activeIndex]);
 
   const select = (name: string) => {
@@ -100,16 +107,15 @@ export function ScheduleNameField({
           onChange={(event) => { onChange(event.target.value); setFiltering(true); setActiveIndex(-1); setOpen(true); }}
           onKeyDown={onKeyDown}
         />
-        {value && <button type="button" className="schedule-name-clear" aria-label={`${label}をクリア`} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => {
+        {value && <button type="button" className="schedule-name-clear" aria-label={`${label}をクリア`} disabled={disabled} onPointerDown={(event) => event.preventDefault()} onClick={() => {
           onChange("");
           inputRef.current?.focus({ preventScroll: true });
           setFiltering(false);
           setActiveIndex(-1);
           setOpen(true);
         }}><X size={17} aria-hidden="true" /></button>}
-      </div>
       {expanded && (
-        <div className="schedule-name-suggestions">
+        <div ref={suggestionsRef} className="schedule-name-suggestions">
           <div id={`${id}-list`} role="listbox" aria-label={`${label}の候補`}>
             {suggestions.map((name, index) => (
               <button
@@ -121,7 +127,7 @@ export function ScheduleNameField({
                   tabIndex={-1}
                   aria-selected={index === activeIndex}
                   className="schedule-name-option"
-                  onMouseDown={(event) => event.preventDefault()}
+                  onPointerDown={(event) => event.preventDefault()}
                   onClick={() => select(name)}
               ><span>{name}</span>{name === trimmed && <Check size={16} aria-hidden="true" />}</button>
             ))}
@@ -130,6 +136,7 @@ export function ScheduleNameField({
           {matches.length > MAX_SUGGESTIONS && <p className="schedule-name-empty">ほか{matches.length - MAX_SUGGESTIONS}件あります。入力して絞り込めます。</p>}
         </div>
       )}
+      </div>
       {/* <p id={`${id}-hint`} className="schedule-name-hint">
         {isNew ? "新しい名前です。予定を保存すると候補にも登録されます。" : trimmed ? "登録済みの名前です。そのまま入力して変更できます。" : "過去の候補を選ぶか、新しい名前を入力できます。"}
         {description && <span>{description}</span>}

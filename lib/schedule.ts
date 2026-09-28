@@ -14,6 +14,7 @@ export type ScheduleGame = {
     id: string;
     date: string;
     startTime: string;
+    endTime: string;
     title: string;
     opponent: string;
     location: string;
@@ -21,6 +22,7 @@ export type ScheduleGame = {
     status: ScheduleGameStatus;
     detailsRevision: number;
     previousStartTime: string | null;
+    previousEndTime: string | null;
     previousLocation: string | null;
     changedBy: string | null;
     responses: Record<string, ScheduleResponse>;
@@ -93,6 +95,10 @@ export function validateScheduleData(value: unknown): ScheduleData {
         if (startTime && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
             throw new Error("Invalid start time");
         }
+        const endTime = stringField(raw.endTime, "end time", 5);
+        if (endTime && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(endTime)) {
+            throw new Error("Invalid end time");
+        }
         const mapUrl = stringField(raw.mapUrl, "map URL", SCHEDULE_LIMITS.mapUrl);
         if (mapUrl) {
             let parsedUrl: URL;
@@ -130,6 +136,7 @@ export function validateScheduleData(value: unknown): ScheduleData {
             id,
             date,
             startTime,
+            endTime,
             title: stringField(raw.title, "schedule title", SCHEDULE_LIMITS.title),
             opponent: stringField(raw.opponent, "opponent", SCHEDULE_LIMITS.opponent),
             location: stringField(raw.location, "location", SCHEDULE_LIMITS.location),
@@ -137,6 +144,7 @@ export function validateScheduleData(value: unknown): ScheduleData {
             status: raw.status as ScheduleGameStatus,
             detailsRevision,
             previousStartTime: raw.previousStartTime === null ? null : stringField(raw.previousStartTime, "previous start time", 5),
+            previousEndTime: raw.previousEndTime == null ? null : stringField(raw.previousEndTime, "previous end time", 5),
             previousLocation: raw.previousLocation === null ? null : stringField(raw.previousLocation, "previous location", SCHEDULE_LIMITS.location),
             changedBy: raw.changedBy === null ? null : stringField(raw.changedBy, "changed by", SCHEDULE_LIMITS.id, true),
             responses,
