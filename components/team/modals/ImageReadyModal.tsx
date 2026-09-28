@@ -49,7 +49,7 @@ export function ImageReadyModal({
               onClick={onSave}
             >
               <ImageDown size={18} />
-              写真に保存
+              写真を共有・保存
             </button>
           </div>
 
