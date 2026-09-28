@@ -31,6 +31,13 @@ const ATTENDANCE = [
   { status: "undecided", label: "未定", symbol: "△" },
 ] as const;
 
+const RESPONSE_FILTERS = [
+  { status: "all", label: "全体" },
+  ...ATTENDANCE,
+  { status: "unanswered", label: "未回答" },
+] as const;
+type ResponseFilter = typeof RESPONSE_FILTERS[number]["status"];
+
 const GAME_STATUSES: { status: ScheduleGameStatus; label: string }[] = [
   { status: "unconfirmed", label: "未確定" },
   { status: "proposed", label: "打診中" },
@@ -78,7 +85,8 @@ function ResponseEditor({
   disabled: boolean;
   onChange: (response: ResponseInput) => void;
 }) {
-  const commentId = `schedule-comment-${gameId}-${player.id}`;
+  const fieldId = useId();
+  const commentId = `schedule-comment-${gameId}-${player.id}-${fieldId}`;
   return (
     <div className="schedule-response-editor">
       <div className="schedule-attendance-buttons" role="group" aria-label={`${player.name}の出欠`}>
@@ -114,7 +122,78 @@ function ResponseEditor({
   );
 }
 
-function GameCard({ game, players, member, featured, expanded, onToggle, disabled, onEdit, onResponse }: {
+function ResponseCounts({ game, players, selected, onSelect }: {
+  game: ScheduleGame;
+  players: Player[];
+  selected?: ResponseFilter;
+  onSelect: (filter: ResponseFilter) => void;
+}) {
+  const counts = { all: players.length, attending: 0, absent: 0, undecided: 0, unanswered: 0 };
+  for (const player of players) counts[game.responses[player.id]?.status ?? "unanswered"] += 1;
+  return (
+    <div className="schedule-response-counts" role="group" aria-label="出欠の集計">
+      {RESPONSE_FILTERS.map(({ status, label }) => (
+        <button key={status} type="button" className={status} aria-haspopup={selected === undefined ? "dialog" : undefined} aria-pressed={selected === undefined ? undefined : selected === status} aria-label={`${label} ${counts[status]}人の出欠・コメント`} onClick={() => onSelect(status)}>
+          <span>{label}</span><strong>{counts[status]}</strong>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ResponsesModal({ game, players, member, filter, open, disabled, saveState, error, onFilterChange, onResponse, onRetry, onClose }: {
+  game: ScheduleGame;
+  players: Player[];
+  member: AuthMember;
+  filter: ResponseFilter;
+  open: boolean;
+  disabled: boolean;
+  saveState: SaveState;
+  error: string;
+  onFilterChange: (filter: ResponseFilter) => void;
+  onResponse: (playerId: string, response: ResponseInput) => void;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const filterLabel = RESPONSE_FILTERS.find(({ status }) => status === filter)?.label;
+  // 未回答からの入力や出欠変更で、編集中の行が消えないようにする。
+  const visiblePlayers = players.filter((player) => filter === "all" || (game.responses[player.id]?.status ?? "unanswered") === filter || player.id === editingPlayerId);
+  return (
+    <Modal open={open} onClose={onClose} title="出欠・コメント" description={`${formatDate(game.date)} ${game.title || "大会名未設定"}${game.opponent ? ` ／ vs ${game.opponent}` : ""}`}>
+      <ResponseCounts game={game} players={players} selected={filter} onSelect={(next) => { setEditingPlayerId(null); onFilterChange(next); }} />
+      {error && <div className="schedule-form-error" role="alert"><p>{error}</p>{saveState === "error" && <button type="button" className="secondary" onClick={onRetry}>保存を再試行</button>}{saveState === "conflict" && <p>閉じて、最新の内容を再読み込みしてください。</p>}</div>}
+      {saveState !== "saved" && <p className="schedule-form-save-state" role="status"><SaveStateLabel state={saveState} /></p>}
+      <div className="schedule-members" aria-label={`${filterLabel}の出欠・コメント`}>
+        {visiblePlayers.length ? <ul>
+          {visiblePlayers.map((player) => {
+            const response = game.responses[player.id];
+            const status = response?.status ?? "unanswered";
+            const label = ATTENDANCE.find((entry) => entry.status === status)?.label ?? "未回答";
+            const canEdit = member.isAdmin || player.id === member.id;
+            const editing = editingPlayerId === player.id && canEdit;
+            return (
+              <li key={player.id}>
+                <div className="schedule-member-heading">
+                  <span className="schedule-member-name"><small>#{player.number}</small>{player.name}{player.id === member.id && <small>あなた</small>}</span>
+                  <span className={`schedule-status-badge ${status}`}>{label}</span>
+                  {canEdit && <button type="button" className="schedule-member-edit" disabled={disabled} aria-expanded={editing} aria-label={`${player.name}の回答を${editing ? "閉じる" : "編集"}`} onClick={() => setEditingPlayerId(editing ? null : player.id)}><Pencil size={14} aria-hidden="true" /><span>{editing ? "閉じる" : "編集"}</span></button>}
+                </div>
+                {editing ? <>
+                  <ResponseEditor gameId={game.id} player={player} response={response} disabled={disabled} onChange={(next) => onResponse(player.id, next)} />
+                  {filter !== "all" && status !== filter && <p className="schedule-autosave-note">現在は「{label}」です。編集を閉じると「{filterLabel}」の一覧から移動します。</p>}
+                </> : response?.comment ? <p className="schedule-member-comment">{response.comment}</p> : null}
+              </li>
+            );
+          })}
+        </ul> : <p className="schedule-members-empty">{filter === "all" ? "登録されているメンバーはいません。" : `「${filterLabel}」のメンバーはいません。`}</p>}
+      </div>
+      <button type="button" className="secondary schedule-members-close" onClick={onClose}>閉じる</button>
+    </Modal>
+  );
+}
+
+function GameCard({ game, players, member, featured, expanded, onToggle, disabled, onEdit, onResponse, onOpenResponses }: {
   game: ScheduleGame;
   players: Player[];
   member: AuthMember;
@@ -124,13 +203,11 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
   disabled: boolean;
   onEdit?: () => void;
   onResponse: (playerId: string, response: ResponseInput) => void;
+  onOpenResponses: (filter: ResponseFilter) => void;
 }) {
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const detailsId = useId();
   const maps = mapLinks(game);
   const ownPlayer = players.find((player) => player.id === member.id);
-  const counts = { attending: 0, absent: 0, undecided: 0, unanswered: 0 };
-  for (const player of players) counts[game.responses[player.id]?.status ?? "unanswered"] += 1;
   const ownResponse = game.responses[member.id];
   const ownStatus = ATTENDANCE.find(({ status }) => status === ownResponse?.status)?.label ?? "未入力";
 
@@ -173,32 +250,7 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
           <ResponseEditor gameId={game.id} player={ownPlayer} response={game.responses[member.id]} disabled={disabled} onChange={(response) => onResponse(member.id, response)} />
         </section>
       )}
-      <div className="schedule-response-counts" aria-label="出欠の集計">
-        {ATTENDANCE.map(({ status, label }) => <span key={status} className={status}>{label}<strong>{counts[status]}</strong></span>)}
-        <span>未回答<strong>{counts.unanswered}</strong></span>
-      </div>
-      <details className="schedule-members">
-        <summary>全員の出欠・コメント <span>{players.length}人</span></summary>
-        <ul>
-          {players.map((player) => {
-            const response = game.responses[player.id];
-            const label = ATTENDANCE.find(({ status }) => status === response?.status)?.label ?? "未回答";
-            const canEditOther = member.isAdmin && player.id !== member.id;
-            return (
-              <li key={player.id}>
-                <div className="schedule-member-heading">
-                  <span className="schedule-member-name"><small>#{player.number}</small>{player.name}{player.id === member.id && <small>あなた</small>}</span>
-                  <span className={`schedule-status-badge ${response?.status ?? "unanswered"}`}>{label}</span>
-                  {canEditOther && <button type="button" className="schedule-member-edit" disabled={disabled} aria-expanded={editingPlayerId === player.id} aria-label={`${player.name}の回答を編集`} onClick={() => setEditingPlayerId(editingPlayerId === player.id ? null : player.id)}><Pencil size={14} aria-hidden="true" /><span>{editingPlayerId === player.id ? "閉じる" : "編集"}</span></button>}
-                </div>
-                {editingPlayerId === player.id && canEditOther ? (
-                  <ResponseEditor gameId={game.id} player={player} response={response} disabled={disabled} onChange={(next) => onResponse(player.id, next)} />
-                ) : response?.comment ? <p className="schedule-member-comment">{response.comment}</p> : null}
-              </li>
-            );
-          })}
-        </ul>
-      </details>
+      <ResponseCounts game={game} players={players} onSelect={onOpenResponses} />
       </div>
     </article>
   );
@@ -375,6 +427,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
 }) {
   const schedule = useScheduleData();
   const [editor, setEditor] = useState<ScheduleGame | "new" | null>(null);
+  const [responseView, setResponseView] = useState<{ gameId: string; filter: ResponseFilter } | null>(null);
   const [defaultDate, setDefaultDate] = useState(upcomingSaturday);
   const [newGameDefaults, setNewGameDefaults] = useState<GameFields | null>(null);
   const [editorRequestError, setEditorRequestError] = useState("");
@@ -396,10 +449,10 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
 
   const refreshSchedule = schedule.refreshIfIdle;
   useEffect(() => {
-    if (schedule.loading || schedule.error || schedule.saveState !== "saved" || editor || remoteRevision <= schedule.revision || requestedRevision.current === remoteRevision) return;
+    if (schedule.loading || schedule.error || schedule.saveState !== "saved" || editor || responseView || remoteRevision <= schedule.revision || requestedRevision.current === remoteRevision) return;
     requestedRevision.current = remoteRevision;
     void refreshSchedule();
-  }, [remoteRevision, schedule.revision, schedule.loading, schedule.error, schedule.saveState, editor, refreshSchedule]);
+  }, [remoteRevision, schedule.revision, schedule.loading, schedule.error, schedule.saveState, editor, responseView, refreshSchedule]);
 
   const loadGame = schedule.loadGame;
   useEffect(() => {
@@ -420,6 +473,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
 
   const sortedPlayers = [...players].sort((a, b) => a.number.localeCompare(b.number, "ja", { numeric: true }) || a.name.localeCompare(b.name, "ja"));
   const sortedGames = [...schedule.data.games].sort(compareScheduleChoices);
+  const responseGame = responseView ? schedule.data.games.find((game) => game.id === responseView.gameId) : undefined;
   const featuredDate = defaultScheduleChoice(sortedGames)?.date ?? saturday;
   const featuredGames = sortedGames.filter((game) => game.date === featuredDate);
   const upcomingGames = sortedGames.filter((game) => game.date >= today && game.date !== featuredDate);
@@ -455,11 +509,11 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
       return current;
     });
   };
-  const card = (game: ScheduleGame) => <GameCard key={game.id} game={game} players={sortedPlayers} member={member} featured={game.date === featuredDate} expanded={expandedGameId === game.id} onToggle={() => setExpandedGameId((current) => current === game.id ? null : game.id)} disabled={blocked} onEdit={member.canEditLineup ? () => setEditor(game) : undefined} onResponse={(playerId, response) => updateResponse(game.id, playerId, response)} />;
+  const card = (game: ScheduleGame) => <GameCard key={game.id} game={game} players={sortedPlayers} member={member} featured={game.date === featuredDate} expanded={expandedGameId === game.id} onToggle={() => setExpandedGameId((current) => current === game.id ? null : game.id)} disabled={blocked} onEdit={member.canEditLineup ? () => setEditor(game) : undefined} onResponse={(playerId, response) => updateResponse(game.id, playerId, response)} onOpenResponses={(filter) => setResponseView({ gameId: game.id, filter })} />;
 
   return (
     <section className="schedule-page">
-      {schedule.loginGames && <ScheduleNotices games={schedule.data.games} initialGames={schedule.loginGames} memberId={member.id} suspended={editor !== null || schedule.loading} saveState={schedule.saveState} error={schedule.error} onResponse={(id, response) => updateResponse(id, member.id, response)} onRetry={schedule.retrySave} onOpenSchedule={(id) => { setExpandedGameId(id); onOpenSchedule(); }} />}
+      {schedule.loginGames && <ScheduleNotices games={schedule.data.games} initialGames={schedule.loginGames} memberId={member.id} suspended={editor !== null || responseGame !== undefined || schedule.loading} saveState={schedule.saveState} error={schedule.error} onResponse={(id, response) => updateResponse(id, member.id, response)} onRetry={schedule.retrySave} onOpenSchedule={(id) => { setExpandedGameId(id); onOpenSchedule(); }} />}
       <header className="page-heading schedule-page-heading">
         <div><p className="eyebrow">TEAM SCHEDULE</p><h1>スケジュール</h1><p>試合の予定を確認して、出欠を回答しましょう。</p></div>
       </header>
@@ -493,6 +547,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
         </details>
       </>}
       {editor !== null && <GameEditor key={editor === "new" ? "new" : editor.id} game={editor === "new" ? undefined : editor} defaultDate={defaultDate} defaults={newGameDefaults} visible={isVisible} saveState={schedule.saveState} saveError={saveFailed ? schedule.error : ""} nameOptions={options} onSave={saveGame} onDelete={deleteGame} onClose={() => setEditor(null)} />}
+      {responseView && responseGame && <ResponsesModal key={responseGame.id} game={responseGame} players={sortedPlayers} member={member} filter={responseView.filter} open={isVisible && editor === null} disabled={blocked} saveState={schedule.saveState} error={saveFailed ? schedule.error : ""} onFilterChange={(filter) => setResponseView({ gameId: responseGame.id, filter })} onResponse={(playerId, response) => updateResponse(responseGame.id, playerId, response)} onRetry={schedule.retrySave} onClose={() => setResponseView(null)} />}
     </section>
   );
 }

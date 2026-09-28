@@ -62,22 +62,25 @@
 .schedule-response-editor textarea:focus { outline: 3px solid #a9d7fc; outline-offset: 1px; }
 .schedule-response-editor textarea:read-only { background: #f4f6f8; }
 .schedule-autosave-note { margin: 6px 0 0; color: #788c9c; font-size: 11px; }
-.schedule-response-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 18px; }
-.schedule-response-counts > span { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 8px 3px; border-radius: 7px; background: #f1f4f7; color: #677b8c; font-size: 11px; }
-.schedule-response-counts strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.schedule-response-counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; margin-top: 18px; }
+.schedule-response-counts > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; min-width: 0; min-height: 56px; padding: 6px 2px; border: 1px solid transparent; border-radius: 7px; background: #f1f4f7; color: #677b8c; font-size: 12px; font-weight: 700; line-height: 1.35; touch-action: manipulation; }
+.schedule-response-counts > button > span { white-space: nowrap; }
+.schedule-response-counts strong { font-size: 18px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.schedule-response-counts .all { background: #e5f2fc; color: #166da8; }
 .schedule-response-counts .attending { background: #eaf6f0; color: #1b7456; }
 .schedule-response-counts .absent { background: #fff0f0; color: #a34449; }
 .schedule-response-counts .undecided { background: #fff7e2; color: #926905; }
+.schedule-response-counts > button[aria-pressed="true"] { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+.schedule-response-counts > button:focus-visible { outline: 3px solid #299aec; outline-offset: 2px; }
 .schedule-members { margin-top: 12px; }
-.schedule-members summary,
 .schedule-past > summary { min-height: 44px; padding: 11px 3px; color: #46627a; cursor: pointer; font-size: 13px; font-weight: 700; }
-.schedule-members summary > span,
 .schedule-past > summary > span { margin-left: 5px; color: #788b9c; font-size: 12px; font-weight: 400; }
-.schedule-members summary:focus-visible,
 .schedule-past > summary:focus-visible { outline: 3px solid #299aec; outline-offset: 2px; border-radius: 4px; }
 .schedule-members ul { margin: 4px 0 0; padding: 0; list-style: none; }
 .schedule-members li { padding: 12px 0; border-top: 1px solid #e9eef3; }
 .schedule-members li:last-child { padding-bottom: 0; }
+.schedule-members-empty { margin: 16px 0 0; padding: 12px; border-radius: 7px; background: #f6f8fa; color: #677b8c; font-size: 13px; line-height: 1.6; }
+.schedule-members-close { width: 100%; min-height: 44px; margin-top: 16px; }
 .schedule-member-heading { display: flex; align-items: center; gap: 7px; }
 .schedule-member-name { display: flex; align-items: baseline; flex: 1; flex-wrap: wrap; min-width: 0; gap: 5px; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
 .schedule-member-name small { color: #8293a1; font-size: 10px; font-weight: 400; }
