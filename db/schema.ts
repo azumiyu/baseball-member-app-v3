@@ -91,11 +91,13 @@ export const scheduleGames = sqliteTable("schedule_games", {
     previousEndTime: text("previous_end_time"),
     previousLocation: text("previous_location"),
     changedBy: text("changed_by").references(() => players.id),
+    umpireArranged: integer("umpire_arranged").notNull().default(0),
 }, (table) => [
     index("schedule_games_date_start_time_idx").on(table.date, table.startTime),
     index("schedule_games_date_id_idx").on(table.date, table.id),
     check("schedule_games_status_check", sql`${table.status} IN ('unconfirmed', 'proposed', 'confirmed')`),
     check("schedule_games_details_revision_check", sql`${table.detailsRevision} >= 1`),
+    check("schedule_games_umpire_arranged_check", sql`${table.umpireArranged} IN (0, 1)`),
 ]);
 
 export const scheduleResponses = sqliteTable("schedule_responses", {

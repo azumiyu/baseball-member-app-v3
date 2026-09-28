@@ -28,3 +28,19 @@ export function scheduleShareText(game: Pick<ScheduleGame, "date" | "startTime" 
     "から参加回答をお願いします！",
   ].join("\n");
 }
+
+export function umpireRequestText(game: Pick<ScheduleGame, "date" | "startTime" | "endTime" | "location">): string {
+  const date = new Date(`${game.date}T00:00:00Z`);
+  const weekday = "日月火水木金土"[date.getUTCDay()];
+  const time = (value: string) => value ? value.replace(/^0/, "") : "未定";
+  const nextDay = game.startTime && game.endTime && game.endTime < game.startTime ? "翌日" : "";
+  return [
+    "いつもお世話になっております。",
+    "以下にて審判派遣のご検討お願いいたします。",
+    "",
+    `日時：${date.getUTCMonth() + 1}/${date.getUTCDate()}(${weekday})${time(game.startTime)}～${nextDay}${time(game.endTime)}`,
+    `場所：${game.location.trim() || "未定"}`,
+    "",
+    "以上、よろしくお願いいたします。",
+  ].join("\n");
+}

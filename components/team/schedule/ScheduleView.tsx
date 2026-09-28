@@ -5,7 +5,7 @@ import { CalendarDays, Check, ChevronDown, Clock3, ExternalLink, MapPin, Pencil,
 import type { AuthMember } from "@/lib/auth-types";
 import type { Player } from "@/lib/model";
 import { createEntityId } from "@/lib/entity-id";
-import { defaultEndTime, scheduleShareText, scheduleTimeRange } from "@/lib/schedule-format";
+import { defaultEndTime, scheduleShareText, scheduleTimeRange, umpireRequestText } from "@/lib/schedule-format";
 import { copyText } from "../lib/clipboard";
 import {
   japanDate,
@@ -141,7 +141,7 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
           <span className="schedule-game-heading-copy">
             {featured && <span className="schedule-featured-label">{game.date === japanDate() ? "本日の試合" : "次の土曜日"}</span>}
             <span className="schedule-game-date"><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time>{game.startTime && <span>{game.startTime}</span>}</span>
-            <span className="schedule-game-title"><strong>{game.title || "大会名未設定"}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span></span>
+            <span className="schedule-game-title"><strong>{game.title || "大会名未設定"}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span>{onEdit && (<span className={`schedule-game-status ${game.umpireArranged ? "umpire-arranged" : "umpire-pending"}`}>{game.umpireArranged ? "審判手配済" : "審判未手配"}</span>)}</span>
             <span className="schedule-game-summary-info">{game.opponent ? `vs ${game.opponent}` : "対戦相手未定"}{game.location && ` ／ ${game.location}`}</span>
           </span>
           <span className="schedule-game-summary-end"><span className={`schedule-status-badge ${ownResponse?.status ?? "unanswered"}`}>{ownStatus}<span className="sr-only">（あなたの出欠）</span></span><ChevronDown size={19} aria-hidden="true" /></span>
@@ -204,10 +204,10 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
   );
 }
 
-type GameFields = Pick<ScheduleGame, "date" | "startTime" | "endTime" | "title" | "opponent" | "location" | "status">;
+type GameFields = Pick<ScheduleGame, "date" | "startTime" | "endTime" | "title" | "opponent" | "location" | "status" | "umpireArranged">;
 
 function gameFields(game: GameFields): GameFields {
-  return { date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, status: game.status };
+  return { date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, status: game.status, umpireArranged: game.umpireArranged };
 }
 
 const NAME_FIELDS = [
@@ -230,13 +230,14 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
 }) {
   const [id] = useState(() => game?.id ?? createEntityId());
   const [draft, setDraft] = useState<GameFields>(() => game ? gameFields(game) : defaults ?? {
-    date: defaultDate, startTime: "", endTime: "", title: "", opponent: "", location: "", status: "unconfirmed",
+    date: defaultDate, startTime: "", endTime: "", title: "", opponent: "", location: "", status: "unconfirmed", umpireArranged: false,
   });
   const [initial] = useState(() => JSON.stringify(draft));
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [shareResult, setShareResult] = useState<{ text: string; copied: boolean; saved: boolean } | null>(null);
+  const [copyingUmpire, setCopyingUmpire] = useState(false);
+  const [shareResult, setShareResult] = useState<{ kind: "schedule" | "umpire"; text: string; copied: boolean; saved: boolean; draftJson: string } | null>(null);
   const draftJson = JSON.stringify(draft);
   const hasLocalChanges = draftJson !== (submitted ?? initial);
   const pending = saveState === "dirty" || saveState === "saving";
@@ -248,17 +249,37 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
     onClose();
   };
   const update = <K extends keyof GameFields>(field: K, value: GameFields[K]) => {
-    setDraft((current) => ({ ...current, [field]: value, ...(field === "startTime" ? { endTime: defaultEndTime(value) } : {}) }));
+    setDraft((current) => {
+      const next = { ...current, [field]: value };
+      if (field === "startTime") next.endTime = defaultEndTime(next.startTime);
+      return next;
+    });
     setFormError("");
     setShareResult(null);
   };
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (blocked || pending || submitting) return;
+  const validateDate = () => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date) || draft.date.startsWith("0000-") || !Number.isFinite(Date.parse(draft.date)) || new Date(draft.date).toISOString().slice(0, 10) !== draft.date) {
       setFormError("試合日を入力してください。");
-      return;
+      return false;
     }
+    setFormError("");
+    return true;
+  };
+  const copyUmpireRequest = async (form: HTMLFormElement | null) => {
+    if (!form || submitting || copyingUmpire || !validateDate()) return;
+    const text = umpireRequestText(draft);
+    setCopyingUmpire(true);
+    setShareResult(null);
+    try {
+      const copied = await copyText(text, form);
+      setShareResult({ kind: "umpire", text, copied, saved: false, draftJson });
+    } finally {
+      setCopyingUmpire(false);
+    }
+  };
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (blocked || pending || submitting || copyingUmpire || !validateDate()) return;
     const values = { ...draft, title: draft.title.trim(), opponent: draft.opponent.trim(), location: draft.location.trim() };
     setFormError("");
     setDraft(values);
@@ -270,7 +291,7 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
     const copying = copyText(text, event.currentTarget);
     try {
       const [copied, saved] = await Promise.all([copying, onSave(id, values)]);
-      setShareResult({ text, copied, saved });
+      setShareResult({ kind: "schedule", text, copied, saved, draftJson: JSON.stringify(values) });
     } finally {
       setSubmitting(false);
     }
@@ -290,14 +311,19 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
       }}
     >
       <form className="schedule-game-form" onSubmit={submit}>
-        <fieldset className="schedule-editor-fields" disabled={blocked || submitting}>
+        <fieldset className="schedule-editor-fields" disabled={blocked || submitting || copyingUmpire}>
         <div className="schedule-date-time-fields">
           <label htmlFor="schedule-date">試合日 <span className="schedule-required">必須</span><input id="schedule-date" type="date" required value={draft.date} onChange={(event) => update("date", event.target.value)} /></label>
           <label htmlFor="schedule-time">開始時刻 <span>任意</span><select id="schedule-time" value={draft.startTime} onChange={(event) => update("startTime", event.target.value)}><option value="">時刻未定</option>{draft.startTime && !START_TIMES.includes(draft.startTime) && <option value={draft.startTime}>{draft.startTime}（登録済み）</option>}{START_TIMES.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
           <label htmlFor="schedule-end-time">終了時刻 <span>任意</span><select id="schedule-end-time" value={draft.endTime} onChange={(event) => update("endTime", event.target.value)}><option value="">時刻未定</option>{draft.endTime && !END_TIMES.includes(draft.endTime) && <option value={draft.endTime}>{draft.endTime}</option>}{END_TIMES.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
         </div>
         <p className="schedule-autosave-note">開始時刻を選ぶと、2時間後を終了時刻に設定します。終了時刻は変更できます。</p>
-        <div className="schedule-status-field"><span>予定の状況</span><div className="schedule-game-status-buttons" role="group" aria-label="予定の状況">{GAME_STATUSES.map(({ status, label }) => <button key={status} type="button" className={status} aria-pressed={draft.status === status} onClick={() => update("status", status)}>{label}{draft.status === status && <Check size={14} aria-hidden="true" />}</button>)}</div></div>
+        <div className="schedule-status-field"><span>予定の状況</span><div className="schedule-game-status-buttons" role="group" aria-label="予定の状況">{GAME_STATUSES.map(({ status, label }) => <button key={status} type="button" className={status} aria-pressed={draft.status === status} onClick={() => update("status", status)}>{label}{draft.status === status && <Check size={14} aria-hidden="true" />}</button>)}</div>
+          <label className="schedule-umpire-check" htmlFor="schedule-umpire-arranged">
+            <input id="schedule-umpire-arranged" type="checkbox" checked={draft.umpireArranged} onChange={(event) => update("umpireArranged", event.target.checked)} />
+            <span><strong>審判手配状況</strong><small>{draft.umpireArranged ? "審判手配済" : "審判未手配"}</small></span>
+          </label>
+        </div>
         {NAME_FIELDS.map(({ field, label, placeholder, maxLength }) => (
           <ScheduleNameField
             key={field}
@@ -316,14 +342,17 @@ function GameEditor({ game, defaultDate, defaults, visible, saveState, saveError
         {formError && <p className="schedule-form-error" role="alert">{formError}</p>}
         {saveError && <div className="schedule-form-error" role="alert"><p>{saveError}</p><p>入力内容はこの画面に残っています。{blocked ? "閉じて再読み込みの案内を確認してください。" : "もう一度「予定を保存及びコピー」を押してください。"}</p></div>}
         {submitted && !hasLocalChanges && <p className={`schedule-form-save-state ${saveState}`} role="status"><SaveStateLabel state={saveState} /></p>}
-        {shareResult && !hasLocalChanges && <div className="schedule-share-fallback">
-          <p className="schedule-autosave-note" role="status">{shareResult.saved
+        {shareResult?.draftJson === draftJson && <div className="schedule-share-fallback">
+          <p className="schedule-autosave-note" role="status">{shareResult.kind === "umpire"
+            ? shareResult.copied ? "審判手配用の文章をコピーしました。" : "コピーできなかったため、下の文章を選択してコピーしてください。"
+            : shareResult.saved
             ? shareResult.copied ? "保存・コピーしました。LINEに貼り付けて送信できます。" : "予定は保存しました。コピーできなかったため、下の文章を選択してコピーしてください。"
             : shareResult.copied ? "文章はコピーしましたが、予定はまだ保存できていません。保存後にLINEへ送信してください。" : "保存・コピーが完了していません。もう一度お試しください。"}</p>
-          {!shareResult.copied && <label>LINE用の文章<textarea readOnly rows={7} value={shareResult.text} onFocus={(event) => event.currentTarget.select()} /></label>}
+          {!shareResult.copied && <label>{shareResult.kind === "umpire" ? "審判手配用の文章" : "LINE用の文章"}<textarea readOnly rows={7} value={shareResult.text} onFocus={(event) => event.currentTarget.select()} /></label>}
         </div>}
-        <div className="schedule-form-actions">
-          <button type="submit" className="primary" disabled={blocked || pending || submitting}>{pending || submitting ? "保存・コピー中…" : "予定を保存及びコピー"}</button>
+        <div className="schedule-form-actions schedule-editor-actions">
+          <button type="submit" className="primary" disabled={blocked || pending || submitting || copyingUmpire}>{pending || submitting ? "保存・コピー中…" : "予定を保存及びコピー"}</button>
+          <button type="button" className="secondary" disabled={submitting || copyingUmpire} onClick={(event) => void copyUmpireRequest(event.currentTarget.form)}>{copyingUmpire ? "コピー中…" : "審判手配用文章をコピー"}</button>
           <button type="button" className="secondary" onClick={close}>閉じる</button>
         </div>
         {(game || (submitted && saveState === "saved")) && <button type="button" className="schedule-delete-button" disabled={blocked || pending} onClick={() => onDelete(id)}>この予定を削除</button>}
@@ -382,7 +411,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
         if (game) { setEditorRequestError(""); setEditor(game); setExpandedGameId(game.id); }
         else setEditorRequestError("対象の予定を開けませんでした。最新の内容を読み込み、オーダーからもう一度開いてください。");
       } else {
-        setNewGameDefaults({ date: editorRequest.date, startTime: editorRequest.startTime, endTime: defaultEndTime(editorRequest.startTime), title: editorRequest.title, opponent: editorRequest.opponent, location: editorRequest.location, status: "unconfirmed" });
+        setNewGameDefaults({ date: editorRequest.date, startTime: editorRequest.startTime, endTime: defaultEndTime(editorRequest.startTime), title: editorRequest.title, opponent: editorRequest.opponent, location: editorRequest.location, status: "unconfirmed", umpireArranged: false });
         setDefaultDate(editorRequest.date);
         setEditor("new");
       }

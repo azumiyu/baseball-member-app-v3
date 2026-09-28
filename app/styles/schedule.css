@@ -31,6 +31,8 @@
 .schedule-game-status.unconfirmed { background: #edf1f6; color: #61788b; }
 .schedule-game-status.proposed { background: #fff1dc; color: #aa6317; }
 .schedule-game-status.confirmed { background: #e5f2fc; color: #166da8; }
+.schedule-game-status.umpire-arranged { background: #e5f5ee; color: #1b7456; }
+.schedule-game-status.umpire-pending { background: #fff1dc; color: #936018; }
 .schedule-game-summary-info { display: block; margin-top: 4px; color: #728497; font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
 .schedule-game-details { padding: 16px 20px 20px; }
 .schedule-featured-label { margin: 0 0 8px; color: #0876c9; font-size: 12px; font-weight: 800; }
@@ -114,6 +116,10 @@
 .schedule-game-status-buttons .unconfirmed[aria-pressed="true"] { color: #61788b; background: #edf1f6; border-color: #61788b; }
 .schedule-game-status-buttons .proposed[aria-pressed="true"] { color: #aa6317; background: #fff1dc; border-color: #aa6317; }
 .schedule-game-status-buttons .confirmed[aria-pressed="true"] { color: #166da8; background: #e5f2fc; border-color: #166da8; }
+.schedule-game-form .schedule-umpire-check { display: flex; align-items: center; gap: 12px; min-height: 52px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid #d5e0e9; border-radius: 9px; cursor: pointer; }
+.schedule-game-form .schedule-umpire-check input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; min-height: 22px; margin: 0; padding: 0; accent-color: #158267; }
+.schedule-game-form .schedule-umpire-check > span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; margin: 0; color: #344f67; font-size: 13px; }
+.schedule-umpire-check small { color: #617a8e; font-size: 12px; }
 .schedule-delete-button { min-height: 44px; margin-top: 8px; border-top: 1px solid #ecd8da; color: #ac3d48; font-size: 13px; }
 .schedule-load-more { width: 100%; margin-top: 14px; }
 .schedule-reminder-list .schedule-attendance-buttons { margin: 9px 0 0; }
@@ -158,6 +164,7 @@
 .schedule-game-form label > small { display: block; margin-top: 6px; color: #7a8c9c; font-size: 11px; font-weight: 400; line-height: 1.5; }
 .schedule-form-actions { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 10px; padding-top: 5px; }
 .schedule-form-actions button { min-height: 48px; }
+.schedule-form-actions.schedule-editor-actions { grid-template-columns: minmax(0, 1fr); }
 .schedule-form-error { margin: 0; padding: 11px 12px; border-radius: 8px; background: #fff0f0; color: #a0383d; font-size: 13px; line-height: 1.6; }
 .schedule-form-error p { margin: 0 0 6px; }
 .schedule-form-save-state { margin: 0; }

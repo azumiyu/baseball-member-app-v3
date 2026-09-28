@@ -2,9 +2,11 @@
 
 開発時のファイル構成・設定値・保存処理は [開発・保守ガイド](docs/development-guide.md) を参照してください。
 
-既存DBを使う場合は [DB正規化の移行手順](docs/database-normalization.md)、[メンバーログイン・オーダー編集権限の適用手順](docs/member-login.md)、[道具のLINE通知設定の適用手順](docs/equipment-line-notifications.md)、[スケジュール・出欠管理の適用手順](docs/schedule-management.md)、[YGミニゲームの適用手順](docs/mini-games.md)、[成績と予定の連携の適用手順](docs/stats-schedules.md) を確認してください。現在のアプリの公開前に `0012_schedule_end_time.sql` までの適用が必要です。未適用の移行を順に一度だけ実行し、`0011` まで適用済みなら `0012` だけを追加適用します。DB適用後にアプリと、共通の予定読み取り処理を使う週次スケジュールWorkerを更新してください。
+既存DBを使う場合は [DB正規化の移行手順](docs/database-normalization.md)、[メンバーログイン・オーダー編集権限の適用手順](docs/member-login.md)、[道具のLINE通知設定の適用手順](docs/equipment-line-notifications.md)、[スケジュール・出欠管理の適用手順](docs/schedule-management.md)、[YGミニゲームの適用手順](docs/mini-games.md)、[成績と予定の連携の適用手順](docs/stats-schedules.md) を確認してください。現在のアプリの公開前に `0013_schedule_umpire.sql` までの適用が必要です。未適用の移行を順に一度だけ実行し、`0012` まで適用済みなら `0013` だけを追加適用します。DB適用後にアプリと、共通の予定読み取り処理を使う週次スケジュールWorkerを更新してください。
 
 スケジュールでは開始・終了時刻・場所の変更前後を確認でき、変更した本人以外の回答済みメンバーに再確認を促します。開始時刻を選ぶと終了時刻は2時間後になり、手動でも変更できます。「予定を保存及びコピー」で保存とLINEに貼り付ける案内文のコピーを行います。オーダーは登録済みの試合を選び、試合ごとのスタメンを保存します。チーム名・監督名は管理者のチーム設定で変更します。
+
+予定の「審判手配状況」をチェックして保存すると、一覧に「審判手配済／審判未手配」を表示します。「審判手配用文章をコピー」では、入力中の日時・場所から依頼文をコピーできます。
 
 成績入力でも登録済みの試合を選び、オーダーと同じ予定IDに連携します。同日の複数試合は別々に保存し、日付変更後も連携を保ちます。既存成績は同じ日付に成績・予定が各1件だけある場合に自動連携し、判別できない成績や予定削除後の成績は未連携の履歴として保持します。未連携の成績は管理者が対象の予定を確認して連携できます。
 
@@ -81,6 +83,7 @@ npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --
 npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --file="./drizzle/0010_mini_games.sql" --config="./dist/server/wrangler.json"
 npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --file="./drizzle/0011_stats_schedules.sql" --config="./dist/server/wrangler.json"
 npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --file="./drizzle/0012_schedule_end_time.sql" --config="./dist/server/wrangler.json"
+npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --file="./drizzle/0013_schedule_umpire.sql" --config="./dist/server/wrangler.json"
 ```
 
 ローカルDBは以下に保存されます。

@@ -44,6 +44,7 @@ function mergeFollowingEdits(sent: ScheduleGame, current: ScheduleGame, canonica
     if (sent[key] !== current[key]) next[key] = current[key];
   }
   if (sent.status !== current.status) next.status = current.status;
+  if (sent.umpireArranged !== current.umpireArranged) next.umpireArranged = current.umpireArranged;
   for (const playerId of new Set([...Object.keys(sent.responses), ...Object.keys(current.responses)])) {
     const before = sent.responses[playerId];
     const after = current.responses[playerId];

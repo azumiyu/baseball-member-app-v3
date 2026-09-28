@@ -20,6 +20,7 @@ export type ScheduleGame = {
     location: string;
     mapUrl: string;
     status: ScheduleGameStatus;
+    umpireArranged: boolean;
     detailsRevision: number;
     previousStartTime: string | null;
     previousEndTime: string | null;
@@ -79,6 +80,9 @@ export function validateScheduleData(value: unknown): ScheduleData {
         if (typeof raw.status !== "string"
             || !SCHEDULE_GAME_STATUSES.includes(raw.status as ScheduleGameStatus)) {
             throw new Error("Invalid schedule status");
+        }
+        if (raw.umpireArranged !== undefined && typeof raw.umpireArranged !== "boolean") {
+            throw new Error("Invalid umpire arranged flag");
         }
         const detailsRevision = revisionField(raw.detailsRevision, "schedule details revision", 1);
 
@@ -142,6 +146,7 @@ export function validateScheduleData(value: unknown): ScheduleData {
             location: stringField(raw.location, "location", SCHEDULE_LIMITS.location),
             mapUrl,
             status: raw.status as ScheduleGameStatus,
+            umpireArranged: raw.umpireArranged ?? false,
             detailsRevision,
             previousStartTime: raw.previousStartTime === null ? null : stringField(raw.previousStartTime, "previous start time", 5),
             previousEndTime: raw.previousEndTime == null ? null : stringField(raw.previousEndTime, "previous end time", 5),

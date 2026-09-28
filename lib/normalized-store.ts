@@ -34,7 +34,7 @@ const tables: Record<DataScope, Table[]> = {
     { name: "equipment_items", columns: ["id", "name", "holder_id", "note", "sort_order", "notify_line"], keys: ["id"], order: "sort_order" },
   ],
   schedule: [
-    { name: "schedule_games", columns: ["id", "date", "start_time", "title", "opponent", "location", "map_url", "status", "details_revision", "previous_start_time", "previous_location", "changed_by", "end_time", "previous_end_time"], keys: ["id"], order: "date, start_time, id" },
+    { name: "schedule_games", columns: ["id", "date", "start_time", "title", "opponent", "location", "map_url", "status", "details_revision", "previous_start_time", "previous_location", "changed_by", "end_time", "previous_end_time", "umpire_arranged"], keys: ["id"], order: "date, start_time, id" },
     { name: "schedule_responses", columns: ["schedule_id", "player_id", "status", "comment", "confirmed_revision"], keys: ["schedule_id", "player_id"], order: "schedule_id, player_id" },
   ],
   stats: [
@@ -287,6 +287,7 @@ export function decodeData(scope: DataScope, rows: Tables): ScopeData[DataScope]
         status: row[7] as ScheduleGame["status"], detailsRevision: row[8] as number,
         previousStartTime: row[9] as string | null, previousLocation: row[10] as string | null, changedBy: row[11] as string | null,
         endTime: row[12] as string, previousEndTime: row[13] as string | null,
+        umpireArranged: row[14] === 1,
         responses: Object.fromEntries(responsesByGame.get(row[0]) ?? []),
       })),
     } satisfies ScheduleData;
@@ -350,7 +351,7 @@ export function encodeData(scope: DataScope, data: ScopeData[DataScope]): Tables
   if (scope === "schedule") {
     const games = (data as ScheduleData).games;
     return {
-      schedule_games: games.map((game) => [game.id, game.date, game.startTime, game.title, game.opponent, game.location, game.mapUrl, game.status, game.detailsRevision, game.previousStartTime, game.previousLocation, game.changedBy, game.endTime, game.previousEndTime]),
+      schedule_games: games.map((game) => [game.id, game.date, game.startTime, game.title, game.opponent, game.location, game.mapUrl, game.status, game.detailsRevision, game.previousStartTime, game.previousLocation, game.changedBy, game.endTime, game.previousEndTime, game.umpireArranged ? 1 : 0]),
       schedule_responses: games.flatMap((game) => Object.entries(game.responses).map(([id, response]) => [game.id, id, response.status, response.comment, response.confirmedRevision])),
     };
   }
@@ -665,7 +666,7 @@ export function teamScheduleMetadata(snapshot: Snapshot) {
   const selectedId = snapshot.tables?.team_settings[0]?.[8];
   return {
     scheduleRevision: snapshot.related?.revision ?? 0,
-    schedules: schedule?.games.map((game) => ({ id: game.id, date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, mapUrl: game.mapUrl, status: game.status, detailsRevision: game.detailsRevision, previousStartTime: game.previousStartTime, previousEndTime: game.previousEndTime, previousLocation: game.previousLocation, changedBy: game.changedBy })) ?? [],
+    schedules: schedule?.games.map((game) => ({ id: game.id, date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, mapUrl: game.mapUrl, status: game.status, umpireArranged: game.umpireArranged, detailsRevision: game.detailsRevision, previousStartTime: game.previousStartTime, previousEndTime: game.previousEndTime, previousLocation: game.previousLocation, changedBy: game.changedBy })) ?? [],
     attendance: schedule?.games.find((game) => game.id === selectedId)?.responses ?? {},
     attendanceScheduleId: (selectedId as string | null | undefined) ?? null,
   };
