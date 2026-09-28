@@ -210,6 +210,48 @@ export function TeamApp() {
   );
 
   /* ---------------- 画像生成 ---------------- */
+  async function addImageMargin(blob: Blob, margin: number): Promise<Blob> {
+    const imageUrl = URL.createObjectURL(blob);
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("画像の読み込みに失敗しました。"));
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width + margin * 2;
+      canvas.height = image.height + margin * 2;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("Canvas の取得に失敗しました。");
+      }
+
+      // 余白部分を白で塗る
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 元画像を中央に描画
+      context.drawImage(image, margin, margin);
+
+      const output = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (!result) {
+            reject(new Error("余白付き画像の生成に失敗しました。"));
+            return;
+          }
+          resolve(result);
+        }, "image/png");
+      });
+
+      return output;
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  }
 
   async function createLineupImage() {
     if (imageBusy) return;
@@ -234,14 +276,17 @@ export function TeamApp() {
         filter: (node) =>
           !(node instanceof HTMLElement && node.dataset.captureHide === "true"),
       });
-
       if (!blob) {
         throw new Error("PNG画像を生成できませんでした。");
       }
 
+      // スクリーンショット全体の外側に白い余白を追加
+      const finalBlob = await addImageMargin(blob, 64);
+
+      // プレビューも保存も、必ず余白付き画像を使用する
       setImagePreview({
-        url: URL.createObjectURL(blob),
-        blob,
+        url: URL.createObjectURL(finalBlob),
+        blob: finalBlob,
       });
     } catch (error) {
       console.error(error);

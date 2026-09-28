@@ -1322,8 +1322,4 @@ footer {
 /* 画像生成時だけ表示 */
 .lineup-capture.capture-mode .capture-only {
   display: inline;
-  padding: 20px;
-  box-sizing: border-box;
-  background: #fff;
-  border-radius: 16px;
 }
