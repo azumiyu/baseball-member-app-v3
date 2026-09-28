@@ -27,7 +27,8 @@
   outline: none;
 }
 .team-dialog[data-preserve-size="true"] {
-  height: calc(var(--dialog-height, 100svh) * 0.88);
+  /* PC の短い確認画面は内容に合わせ、スマホでは下のメディアクエリで高さを固定する。 */
+  max-height: calc(var(--dialog-height, 100svh) * 0.88);
 }
 .team-dialog[data-preserve-size="true"] .team-dialog-body {
   overflow-anchor: none;
@@ -68,17 +69,17 @@
 }
 .team-dialog-header {
   flex: none;
-  padding: 22px 64px 16px 22px;
+  padding: 18px 64px 18px 22px;
   border-bottom: 1px solid #e3ebf1;
 }
 .team-dialog-header .modal-title {
-  margin: 0 0 8px;
+  margin: 0;
   line-height: 1.5;
   outline: none;
   overflow-wrap: anywhere;
 }
-.team-dialog-header .modal-description {
-  margin: 0;
+.team-dialog-body > .modal-description {
+  margin: 0 0 16px;
   font-size: 13px;
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -107,10 +108,10 @@
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px 22px calc(20px + var(--dialog-bottom-inset, 0px));
+  padding: 20px 22px calc(20px + var(--dialog-bottom-inset, 0px) + env(safe-area-inset-bottom, 0px));
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scroll-padding: 16px 16px calc(16px + var(--dialog-bottom-inset, 0px));
+  scroll-padding: 16px;
 }
 .team-dialog-body > * {
   min-width: 0;
@@ -119,12 +120,32 @@
 .team-dialog-body label {
   font-size: 14px;
 }
-.team-dialog-body input {
+.team-dialog-body input,
+.team-dialog-body select {
   height: 46px;
   min-height: 46px;
   max-width: 100%;
   font-size: 16px;
   flex-shrink: 0;
+}
+.team-dialog-body textarea {
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.team-dialog-body :is(input, select, textarea, button) {
+  scroll-margin-block: 12px 20px;
+}
+.team-dialog-body :is(.primary, .secondary, .danger-link, .logout-button) {
+  min-height: 44px;
+  white-space: normal;
+  touch-action: manipulation;
+}
+.team-dialog-body .modal-actions {
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .team-dialog-body [cmdk-root] {
   height: auto;

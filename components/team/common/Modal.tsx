@@ -10,9 +10,10 @@ import {
 /**
  * このアプリ共通のモーダル。
  *
- * スマホでソフトキーボードが出たときにダイアログがはみ出さないよう、
- * visualViewport の高さ・位置を CSS 変数（--dialog-height / --dialog-top）に流し込みます。
- * preserveSize の場合は開いた時のサイズを維持し、キーボードの分だけ本文のスクロール余白を増やします。
+ * スマホではキーボードを開く前の高さを維持し、本文だけをスクロールします。
+ * 入力フォーカスに合わせたスクロールや、キーボードの動きへの位置追従は行いません。
+ * キーボード用の末尾余白は表示中に縮めず、確定時にスクロール位置が跳ねるのを防ぎます。
+ * 端末の回転・PCのウィンドウサイズ変更時は表示領域を取り直します。
  * 開いたときのフォーカスは入力欄ではなくタイトルへ移します（勝手にキーボードが出ないように）。
  */
 export function Modal({
@@ -21,7 +22,7 @@ export function Modal({
   title,
   description,
   onEscapeKeyDown,
-  preserveSize = false,
+  preserveSize = true,
   children,
 }: {
   open: boolean;
@@ -40,18 +41,43 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const view = window.visualViewport;
-    if (!view) return;
-    const initial = { height: view.height, top: view.offsetTop };
-    const update = () => setViewport(preserveSize ? {
-      ...initial,
-      bottomInset: Math.max(0, initial.top + initial.height - view.offsetTop - view.height),
-    } : { height: view.height, top: view.offsetTop, bottomInset: 0 });
-    update();
-    view.addEventListener("resize", update);
-    view.addEventListener("scroll", update);
+    const mobile = window.matchMedia("(max-width: 760px), (pointer: coarse)");
+    let width = window.innerWidth;
+    let height = Math.max(window.innerHeight, view?.height ?? 0);
+    let top = view?.offsetTop ?? 0;
+    let bottomInset = 0;
+    let updateFrame = 0;
+    const update = () => {
+      // ピンチズームをウィンドウサイズ変更と扱わず、ユーザーの拡大操作を保つ。
+      if (view && Math.abs(view.scale - 1) > 0.05) return;
+      const visibleHeight = view?.height ?? window.innerHeight;
+      const currentHeight = Math.max(window.innerHeight, visibleHeight);
+      if (!preserveSize || !mobile.matches || window.innerWidth !== width) {
+        height = currentHeight;
+        width = window.innerWidth;
+        top = view?.offsetTop ?? 0;
+        bottomInset = 0;
+      }
+      // 余白を急に減らすとブラウザーが scrollTop を戻すため、閉じる・回転まで保持する。
+      bottomInset = preserveSize ? Math.max(bottomInset, height - visibleHeight) : 0;
+      const next = {
+        height: preserveSize ? height : visibleHeight,
+        top,
+        bottomInset,
+      };
+      setViewport((current) => current?.height === next.height && current.top === next.top && current.bottomInset === next.bottomInset ? current : next);
+    };
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(updateFrame);
+      updateFrame = window.requestAnimationFrame(update);
+    };
+    scheduleUpdate();
+    view?.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("resize", scheduleUpdate);
     return () => {
-      view.removeEventListener("resize", update);
-      view.removeEventListener("scroll", update);
+      window.cancelAnimationFrame(updateFrame);
+      view?.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
     };
   }, [open, preserveSize]);
 
@@ -68,6 +94,7 @@ export function Modal({
       <DialogContent
         layout="app"
         data-preserve-size={preserveSize || undefined}
+        data-short-viewport={viewport ? viewport.height <= 480 : undefined}
         style={style}
         onEscapeKeyDown={onEscapeKeyDown}
         onOpenAutoFocus={(event) => {
@@ -79,13 +106,15 @@ export function Modal({
           <DialogTitle ref={titleRef} tabIndex={-1} className="modal-title">
             {title}
           </DialogTitle>
+        </div>
+        <div className="team-dialog-body">
           <DialogDescription
             className={description ? "modal-description" : "sr-only"}
           >
             {description || title}
           </DialogDescription>
+          {children}
         </div>
-        <div className="team-dialog-body">{children}</div>
       </DialogContent>
     </Dialog>
   );

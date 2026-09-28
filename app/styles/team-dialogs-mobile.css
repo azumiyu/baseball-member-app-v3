@@ -1,4 +1,7 @@
-@media (max-width: 760px) {
+@media (max-width: 760px), (pointer: coarse) {
+  .team-dialog[data-preserve-size="true"] {
+    height: calc(var(--dialog-height, 100svh) * 0.88);
+  }
   .team-dialog-header {
     padding: 16px 64px 14px 16px;
   }
@@ -7,7 +10,7 @@
     right: 10px;
   }
   .team-dialog-body {
-    padding: 16px 16px calc(20px + var(--dialog-bottom-inset, 0px));
+    padding: 16px 16px calc(20px + var(--dialog-bottom-inset, 0px) + env(safe-area-inset-bottom, 0px));
   }
   .team-dialog-body [data-slot="command-input-wrapper"] {
     top: -16px;
@@ -24,6 +27,24 @@
     min-width: 0;
     padding: 10px 6px;
   }
+}
+@media (max-width: 360px) {
+  .team-dialog-body .form-two {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+/* キーボードで縮む viewport ではなく、開いた時／端末回転時の高さを使う。 */
+.team-dialog[data-short-viewport="true"] .team-dialog-header {
+  min-height: 56px;
+  padding-block: 12px;
+}
+.team-dialog[data-short-viewport="true"] .modal-title {
+  font-size: 16px;
+  line-height: 1.4;
+}
+.team-dialog[data-short-viewport="true"] .team-dialog-close {
+  top: 6px;
 }
 @media (max-width: 420px) {
   .team-dialog-body .schedule-form-actions {

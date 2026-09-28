@@ -117,6 +117,8 @@
 .schedule-delete-button { min-height: 44px; margin-top: 8px; border-top: 1px solid #ecd8da; color: #ac3d48; font-size: 13px; }
 .schedule-load-more { width: 100%; margin-top: 14px; }
 .schedule-reminder-list .schedule-attendance-buttons { margin: 9px 0 0; }
+.schedule-notice-comment { margin-top: 8px; }
+.schedule-notice-comment > button { width: 100%; min-height: 44px; margin-top: 10px; padding: 10px 8px; white-space: normal; }
 .schedule-changed-label { color: #aa6317; font-size: 12px; }
 .schedule-name-field { min-width: 0; }
 .schedule-name-input { position: relative; margin-top: 7px; }

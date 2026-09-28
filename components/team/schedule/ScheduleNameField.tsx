@@ -47,9 +47,9 @@ export function ScheduleNameField({
     else if (offset + option.offsetHeight > list.clientHeight) list.scrollTop += offset + option.offsetHeight - list.clientHeight;
   }, [open, activeIndex]);
 
-  const select = (name: string) => {
+  const select = (name: string, returnFocus = true) => {
     onChange(name);
-    inputRef.current?.focus({ preventScroll: true });
+    if (returnFocus && document.activeElement !== inputRef.current) inputRef.current?.focus({ preventScroll: true });
     setOpen(false);
     setActiveIndex(-1);
   };
@@ -67,7 +67,8 @@ export function ScheduleNameField({
       });
     } else if (event.key === "Enter") {
       event.preventDefault();
-      select(hasActiveOption ? suggestions[activeIndex] : trimmed);
+      // キーボードの確定操作では再フォーカスせず、閉じたキーボードを開き直さない。
+      select(hasActiveOption ? suggestions[activeIndex] : trimmed, false);
     } else if (event.key === "Escape" && expanded) {
       event.preventDefault();
       event.stopPropagation();
