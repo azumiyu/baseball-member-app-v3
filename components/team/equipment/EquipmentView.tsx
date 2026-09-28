@@ -14,6 +14,8 @@ import { GotoMoveDialog } from "../lineup/GotoMoveDialog";
 import { EquipmentEditorModal } from "../modals/EquipmentEditorModal";
 import { LoadingState } from "../common/LoadingState";
 import { useEquipmentData } from "../hooks/useEquipmentData";
+import { japanDate } from "@/lib/schedule";
+import { useScheduleData } from "../hooks/useScheduleData";
 
 // The roster separates family and given names with a half/full-width space.
 // Keep an unseparated name intact rather than guessing where it splits.
@@ -40,12 +42,13 @@ const equipmentCollision: CollisionDetection = (args) => {
 };
 
 function EquipmentTarget({
-  item, holder, selectedPlayer, disabled, onChoose,
+  item, holder, selectedPlayer, disabled,  handoffRequired, onChoose,
 }: {
   item: EquipmentItem;
   holder?: Player;
   selectedPlayer?: Player;
   disabled: boolean;
+  handoffRequired: boolean;
   onChoose: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -58,7 +61,12 @@ function EquipmentTarget({
     <button
       ref={setNodeRef}
       type="button"
-      className={`equipment-target ${isOver ? "drop-over" : ""} ${selectedPlayer ? "assignment-ready" : ""}`}
+      className={`
+        equipment-target
+        ${isOver ? "drop-over" : ""}
+        ${selectedPlayer ? "assignment-ready" : ""}
+        ${handoffRequired ? "needs-handoff" : ""}
+      `}      
       disabled={disabled}
       onClick={onChoose}
       title={[item.name, holder?.name ?? holderName, item.note].filter(Boolean).join(" / ")}
@@ -66,7 +74,24 @@ function EquipmentTarget({
         ? `${item.name}の担当を${selectedPlayer.name}にする`
         : `${item.name}：${holder?.name ?? holderName}。担当・LINE通知設定を編集`}
     >
-      <span className="equipment-target-name"><Package size={14} aria-hidden="true" /><strong>{item.name}</strong></span>
+      <span className="equipment-target-name">
+        <Package size={14} aria-hidden="true" />
+        <strong>{item.name}</strong>
+
+        {handoffRequired && (
+          <span
+            className="equipment-handoff-badge"
+            title="引継ぎ対象"
+          >
+            <span className="equipment-handoff-icon" aria-hidden="true">
+              ⇄
+            </span>
+            <span className="equipment-handoff-label">
+              引継ぎ対象
+            </span>
+          </span>
+        )}
+      </span>
       {item.note && <small className="equipment-target-note">{item.note}</small>}
       <span className={`equipment-target-holder ${item.holderId ? "assigned" : ""}`}>
         <UserRound size={12} aria-hidden="true" /><span>{holderName}</span>
@@ -112,6 +137,7 @@ export function EquipmentView({ players, appNavigation, onSaveStateChange }: {
   appNavigation?: ReactNode;
   onSaveStateChange?: (state: SaveState) => void;
 }) {
+  const schedule = useScheduleData();
   const equipment = useEquipmentData();
   const [notifyTab, setNotifyTab] = useState(true);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -129,6 +155,58 @@ export function EquipmentView({ players, appNavigation, onSaveStateChange }: {
     useSensor(MouseSensor, { activationConstraint: { distance: 7 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 10 } }),
     useSensor(KeyboardSensor, { keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space"] } }),
+  );
+  const today = japanDate();
+
+  // 今日を含む、これからの予定を日付・時刻順に取得
+  const upcomingGames = [...schedule.data.games]
+    .filter((game) => game.date >= today)
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        (a.startTime || "99:99").localeCompare(b.startTime || "99:99") ||
+        a.id.localeCompare(b.id),
+    );
+
+  // 直近の予定
+  const currentGame =
+    !schedule.loading && !schedule.error
+      ? upcomingGames[0]
+      : undefined;
+
+  // 本日が試合日か
+  const isGameDay = currentGame?.date === today;
+
+  // 本日が試合日の場合だけ、次の試合を判定対象にする
+  const nextGame = isGameDay
+    ? upcomingGames.find((game) => game.date > today)
+    : undefined;
+
+  // 引継ぎが必要なメンバー
+  const handoffPlayerIds = new Set(
+    players
+      .filter((player) => {
+        if (!currentGame) return false;
+
+        const currentStatus =
+          currentGame.responses[player.id]?.status;
+
+        // ① 直近の試合に参加できない
+        if (currentStatus !== "attending") {
+          return true;
+        }
+
+        // ② 本日試合日で、今日参加するが次回は参加できない
+        if (isGameDay && nextGame) {
+          const nextStatus =
+            nextGame.responses[player.id]?.status;
+
+          return nextStatus !== "attending";
+        }
+
+        return false;
+      })
+      .map((player) => player.id),
   );
 
   useEffect(() => {
@@ -189,7 +267,18 @@ export function EquipmentView({ players, appNavigation, onSaveStateChange }: {
       <div className="page-heading">
         <div>
           <p className="eyebrow">TEAM EQUIPMENT</p>
-          <h1>チーム道具管理</h1>
+          <h1>チーム道具管理　          <span
+            className="equipment-handoff-badge"
+            title="引継ぎ対象"
+          >
+            <span className="equipment-handoff-icon" aria-hidden="true">
+            　⇄
+            </span>
+            <span className="equipment-handoff-label">
+              引継ぎ対象
+            </span>
+          </span><span className="text-min">がついているものは引き継ぎ対象です。</span></h1>
+
           <p>チーム道具の担当・受け渡しを管理します。</p>
         </div>
       </div>
@@ -235,6 +324,9 @@ export function EquipmentView({ players, appNavigation, onSaveStateChange }: {
                       holder={players.find((player) => player.id === item.holderId)}
                       selectedPlayer={selectedPlayer}
                       disabled={blocked}
+                      handoffRequired={
+                        !!item.holderId && handoffPlayerIds.has(item.holderId)
+                      }
                       onChoose={() => selectedPlayer
                         ? requestAssignment(item.id, selectedPlayer.id)
                         : setEditorId(item.id)}
