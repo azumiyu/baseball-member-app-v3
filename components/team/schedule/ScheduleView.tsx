@@ -138,7 +138,9 @@ function GameCard({ game, summaryLabel, players, member, featured, expanded, onT
         <button type="button" id={`${detailsId}-toggle`} className="schedule-game-summary" aria-expanded={expanded} aria-controls={detailsId} onClick={onToggle}>
           <span className="schedule-game-heading-copy">
             {featured && <span className="schedule-featured-label">{game.date === japanDate() ? "本日の試合" : "次の土曜日"}</span>}
-            <span className="schedule-game-title"><strong>{summaryLabel}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span></span>
+            <span className="schedule-game-date"><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time>{game.startTime && <span>{game.startTime}</span>}</span>
+            <span className="schedule-game-title"><strong>{game.title || "大会名未設定"}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span></span>
+            <span className="schedule-game-summary-info">{game.opponent ? `vs ${game.opponent}` : "対戦相手未定"}{game.location && ` ／ ${game.location}`}</span>
           </span>
           <span className="schedule-game-summary-end"><span className={`schedule-status-badge ${ownResponse?.status ?? "unanswered"}`}>{ownStatus}<span className="sr-only">（あなたの出欠）</span></span><ChevronDown size={19} aria-hidden="true" /></span>
         </button>
