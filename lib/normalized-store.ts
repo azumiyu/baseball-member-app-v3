@@ -1,6 +1,6 @@
 import { type TeamData } from "./model";
 import { type EquipmentData } from "./equipment";
-import { emptyPlayerStats, gameKey, parseGameKey, type StatsData, type PlateAppearanceResult } from "./stats";
+import { emptyPlayerStats, gameKey, parseGameKey, type StatsData, type PlateAppearanceResult, type StatsSchedulePage } from "./stats";
 import { db, digest, random, token } from "./server";
 import type { AuthMember } from "./auth-types";
 import { japanDate, upcomingSaturday, type ScheduleData, type ScheduleGame } from "./schedule";
@@ -38,7 +38,7 @@ const tables: Record<DataScope, Table[]> = {
     { name: "schedule_responses", columns: ["schedule_id", "player_id", "status", "comment", "confirmed_revision"], keys: ["schedule_id", "player_id"], order: "schedule_id, player_id" },
   ],
   stats: [
-    { name: "stats_games", columns: ["game_date", "game_number"], keys: ["game_date", "game_number"], order: "game_date, game_number" },
+    { name: "stats_games", columns: ["game_date", "game_number", "schedule_id"], keys: ["game_date", "game_number"], order: "game_date, game_number" },
     { name: "player_game_stats", columns: ["game_date", "game_number", "player_id", "rbis", "runs", "stolen_bases", "caught_stealing_attempts", "errors", "caught_stealing"], keys: ["game_date", "game_number", "player_id"], order: "game_date, game_number, player_id" },
     { name: "plate_appearances", columns: ["game_date", "game_number", "player_id", "appearance_order", "result", "scoring_position"], keys: ["game_date", "game_number", "player_id", "appearance_order"], order: "game_date, game_number, player_id, appearance_order" },
   ],
@@ -62,6 +62,8 @@ export type ScheduleQuery =
 type SnapshotSelection = {
   schedule?: ScheduleQuery;
   team?: Pick<TeamData, "date" | "scheduleId">;
+  statsBefore?: { date: string; id: string };
+  statsPageOnly?: boolean;
 };
 
 /** All schedule snapshots share a bounded/indexed ID selection. UNION keeps the
@@ -102,14 +104,35 @@ function scheduleSelectionSql(scope: "team" | "schedule", selection: SnapshotSel
   return { sql: `WITH schedule_selection AS (${parts.join(" UNION ")})`, values };
 }
 
-function snapshotSql(scope: DataScope, partitioned: boolean, past = false) {
-  return `json_object(${tables[scope].map((table) =>
+function snapshotSql(scope: DataScope, partitioned: boolean, past = false, statsOptions = false, statsPageOnly = false) {
+  const entries = tables[scope].map((table) =>
     `'${table.name}', (SELECT json_group_array(json_array(${table.columns.join(",")}))
       FROM (SELECT ${table.columns.join(",")} FROM ${table.name}
         ${scope === "schedule" ? `WHERE ${table.name === "schedule_games" ? "id" : "schedule_id"} IN (SELECT id FROM schedule_selection)`
           : partitioned ? "WHERE (game_date,game_number) IN (SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?))" : table.filter ? `WHERE ${table.filter}` : ""}
         ORDER BY ${past && table.name === "schedule_games" ? "date DESC,id DESC" : table.order}))`,
-  ).join(",")})`;
+  );
+  if (statsOptions) entries.push(
+    `'stats_schedule_options', (SELECT json_group_array(json_array(id,date,start_time,title,opponent,location))
+      FROM (SELECT id,date,start_time,title,opponent,location FROM schedule_games
+        WHERE id IN (SELECT id FROM stats_schedule_page ORDER BY date DESC,id DESC LIMIT ${SCHEDULE_PAGE_SIZE})
+        ${statsPageOnly ? "" : "OR date >= (SELECT today FROM stats_schedule_bounds) OR id IN (SELECT schedule_id FROM stats_games WHERE schedule_id IS NOT NULL)"}
+        ORDER BY date DESC,start_time,id))`,
+    "'stats_schedule_page', (SELECT json_group_array(json_array(date,id)) FROM (SELECT date,id FROM stats_schedule_page ORDER BY date DESC,id DESC))",
+  );
+  return `json_object(${entries.join(",")})`;
+}
+
+export function statsScheduleMetadata(snapshot: Snapshot): StatsSchedulePage {
+  const rows = snapshot.tables?.stats_schedule_options ?? [];
+  const page = snapshot.tables?.stats_schedule_page ?? [];
+  const hasMoreSchedules = page.length > SCHEDULE_PAGE_SIZE;
+  const last = page[SCHEDULE_PAGE_SIZE - 1];
+  return {
+    schedules: rows.map((row) => ({ id: row[0] as string, date: row[1] as string, startTime: row[2] as string, title: row[3] as string, opponent: row[4] as string, location: row[5] as string })),
+    hasMoreSchedules,
+    nextScheduleCursor: hasMoreSchedules && last ? { date: last[0] as string, id: last[1] as string } : null,
+  };
 }
 
 export type Snapshot = {
@@ -137,6 +160,8 @@ export class StatsPermissionError extends Error {
     super("自分以外の選手の成績を変更できるのは管理者だけです。");
   }
 }
+
+export class StatsScheduleError extends Error {}
 
 export class LineupPermissionError extends Error {
   constructor() {
@@ -174,13 +199,21 @@ export async function readSnapshot(
     })) : null;
   const sessionHash = await digest(session);
   const scheduleSelection = scope === "team" || scope === "schedule" ? scheduleSelectionSql(scope, selection) : null;
+  const statsOptions = scope === "stats" && ((gameKeys === undefined && condition?.mode !== "matching") || selection.statsPageOnly === true);
+  const statsSelection = statsOptions ? {
+    sql: `WITH stats_schedule_bounds AS (SELECT ? AS today), stats_schedule_page AS (
+      SELECT date,id FROM schedule_games WHERE date < (SELECT today FROM stats_schedule_bounds)
+      ${selection.statsBefore ? "AND (date,id)<(?,?)" : ""}
+      ORDER BY date DESC,id DESC LIMIT ${SCHEDULE_PAGE_SIZE + 1})`,
+    values: [japanDate(), ...(selection.statsBefore ? [selection.statsBefore.date, selection.statsBefore.id] : [])],
+  } : null;
   const result = await db().prepare(`
-    ${scheduleSelection?.sql ?? ""}
+    ${scheduleSelection?.sql ?? statsSelection?.sql ?? ""}
     SELECT r.revision, p.id, p.name, p.number, p.is_admin, p.can_edit_lineup,
       ${linked ? "related.revision AS related_revision, settings.schedule_week," : ""}
       CASE WHEN ${predicate} THEN ${linked
         ? `json_object('primary', ${snapshotSql(scope, false)}, 'related', ${snapshotSql(otherScope, false)}, 'lineups', ${lineupSnapshotSql()})`
-        : snapshotSql(scope, partition !== null, selection.schedule?.kind === "past")} END AS data
+        : snapshotSql(scope, partition !== null, selection.schedule?.kind === "past", statsOptions, selection.statsPageOnly)} END AS data
     FROM sessions AS s
     JOIN member_devices AS d ON d.hash=s.device_hash
     JOIN players AS p ON p.id=d.player_id AND p.sort_order IS NOT NULL
@@ -188,7 +221,7 @@ export async function readSnapshot(
     ${linked ? `JOIN app_revisions AS related ON related.scope='${otherScope}' JOIN team_settings AS settings ON settings.id=1` : ""}
     WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
   `).bind(
-    ...(scheduleSelection?.values ?? []),
+    ...(scheduleSelection?.values ?? statsSelection?.values ?? []),
     ...predicateValues,
     ...(partition === null ? [] : tables[scope].map(() => partition)),
     scope, sessionHash, Date.now(),
@@ -257,8 +290,12 @@ export function decodeData(scope: DataScope, rows: Tables): ScopeData[DataScope]
       })),
     } satisfies ScheduleData;
   }
-  const data: StatsData = { games: {} };
-  for (const row of rows.stats_games) data.games[gameKey(row[0] as string, row[1] as number)] = {};
+  const data: StatsData = { games: {}, scheduleIds: {} };
+  for (const row of rows.stats_games) {
+    const key = gameKey(row[0] as string, row[1] as number);
+    data.games[key] = {};
+    if (row[2]) data.scheduleIds[key] = row[2] as string;
+  }
   for (const row of rows.player_game_stats) {
     const stats = emptyPlayerStats();
     [stats.rbis, stats.runs, stats.stolenBases, stats.caughtStealingAttempts, stats.errors, stats.caughtStealing] = row.slice(3) as number[];
@@ -295,7 +332,7 @@ function encodeStats(data: StatsData): Tables {
     const parsed = parseGameKey(key);
     if (!parsed) throw new Error("Invalid game key");
     const { date, number } = parsed;
-    rows.stats_games.push([date, number]);
+    rows.stats_games.push([date, number, data.scheduleIds[key] ?? null]);
     for (const [playerId, stats] of Object.entries(game)) {
       rows.player_game_stats.push([date, number, playerId, stats.rbis, stats.runs, stats.stolenBases, stats.caughtStealingAttempts, stats.errors, stats.caughtStealing]);
       stats.plateAppearances.forEach((result, index) => {
@@ -462,6 +499,13 @@ export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: T
         })) throw new LineupPermissionError();
   }
   if (scope === "stats") {
+    const existingGames = new Map(previous.stats_games.map((row) => [gameKey(row[0] as string, row[1] as number), row]));
+    for (const row of changes[0].upsert) {
+      const old = existingGames.get(gameKey(row[0] as string, row[1] as number));
+      if (!old && !row[2]) throw new StatsScheduleError("新しい成績はスケジュールの試合を選択して登録してください。");
+      if (old && row[2] !== old[2] && !snapshot.member.isAdmin) throw new StatsScheduleError("既存成績の試合との紐づけを変更できるのは管理者だけです。");
+      if (old && old[2] && !row[2]) throw new StatsScheduleError("試合との紐づけは解除できません。対象の試合を選択してください。");
+    }
     if (!snapshot.member.isAdmin) {
       // Check every changed row before pruning cascading deletes. A removed
       // game must not silently delete another member's records.
@@ -474,7 +518,7 @@ export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: T
           .filter((row) => row[2] === playerId)
           .map((row) => JSON.stringify(row.slice(0, 2))),
       );
-      if ([...changes[0].upsert, ...changes[0].remove].some((row) => !ownGames.has(JSON.stringify(row)))) {
+      if ([...changes[0].upsert, ...changes[0].remove].some((row) => !ownGames.has(JSON.stringify(row.slice(0, 2))))) {
         throw new StatsPermissionError();
       }
     }

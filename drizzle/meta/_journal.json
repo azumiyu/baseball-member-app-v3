@@ -78,6 +78,13 @@
       "when": 1790726400000,
       "tag": "0010_mini_games",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790726400001,
+      "tag": "0011_stats_schedules",
+      "breakpoints": true
     }
   ]
 }

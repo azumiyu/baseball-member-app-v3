@@ -3,7 +3,7 @@ import { validateEquipmentData } from "./equipment";
 import { gameKey, parseGameKey, validateStatsData, type StatsData } from "./stats";
 import { SCHEDULE_LIMITS, validateScheduleData, type ScheduleData } from "./schedule";
 import { json, readBody, renewSessionHeaders, sameOrigin } from "./server";
-import { decodeData, encodeData, readSnapshot, writeChanges, synchronizeTeamSnapshot, teamScheduleMetadata, mergeScheduleChanges, SCHEDULE_PAGE_SIZE, StatsPermissionError, LineupPermissionError, SchedulePermissionError, TeamSettingsPermissionError, type DataScope, type ScopeData, type ScheduleQuery } from "./normalized-store";
+import { decodeData, encodeData, readSnapshot, writeChanges, synchronizeTeamSnapshot, teamScheduleMetadata, statsScheduleMetadata, mergeScheduleChanges, SCHEDULE_PAGE_SIZE, StatsPermissionError, StatsScheduleError, LineupPermissionError, SchedulePermissionError, TeamSettingsPermissionError, type DataScope, type ScopeData, type ScheduleQuery } from "./normalized-store";
 
 const validators = { team: validateData, equipment: validateEquipmentData, stats: validateStatsData, schedule: validateScheduleData };
 const labels = { team: "チーム", equipment: "道具", stats: "成績", schedule: "スケジュール" };
@@ -76,7 +76,7 @@ export function dataRoute(scope: DataScope) {
             nextCursor: hasMore && last ? { date: last.date, id: last.id } : null }, 200, headers);
         }
         return json({ data: decodeData(scope, snapshot.tables), revision: snapshot.revision, member: snapshot.member,
-          ...(scope === "team" ? teamScheduleMetadata(snapshot) : {}) }, 200, headers);
+          ...(scope === "team" ? teamScheduleMetadata(snapshot) : scope === "stats" ? statsScheduleMetadata(snapshot) : {}) }, 200, headers);
       } catch {
         return json({ error: `${labels[scope]}データを読み込めませんでした。再試行してください。` }, 503);
       }
@@ -137,6 +137,10 @@ export function dataRoute(scope: DataScope) {
         }
         return json(result, 200, renewSessionHeaders(req));
       } catch (error) {
+        if (error instanceof StatsScheduleError) return json({ error: error.message }, 400);
+        if (scope === "stats" && error instanceof Error && /UNIQUE constraint failed: stats_games.schedule_id/i.test(error.message)) {
+          return json({ error: "この試合には別の成績が登録されています。最新データを読み込んでください。" }, 409);
+        }
         if (error instanceof StatsPermissionError || error instanceof LineupPermissionError || error instanceof SchedulePermissionError || error instanceof TeamSettingsPermissionError) return json({ error: error.message }, 403);
         if (error instanceof Error && /FOREIGN KEY constraint failed/i.test(error.message)) {
           return json({ error: "参照先の選手・試合がありません。最新データを読み込んでください。" }, 400);
@@ -145,4 +149,20 @@ export function dataRoute(scope: DataScope) {
       }
     },
   };
+}
+
+/** 過去の試合候補だけを20件ずつ取得する。成績・出欠の明細は取得しない。 */
+export async function statsScheduleOptionsRoute(req: Request) {
+  try {
+    const params = new URL(req.url).searchParams;
+    params.set("past", "1");
+    let query: ScheduleQuery;
+    try { query = scheduleQuery(params); } catch { return json({ error: "取得する試合の指定を確認してください。" }, 400); }
+    if (query.kind !== "past") return json({ error: "過去の試合を指定してください。" }, 400);
+    const snapshot = await readSnapshot(req, "stats", undefined, [], { statsPageOnly: true, statsBefore: query.before });
+    if (!snapshot) return json({ error: "ログインしてください。" }, 401);
+    return json(statsScheduleMetadata(snapshot), 200, renewSessionHeaders(req));
+  } catch {
+    return json({ error: "試合の候補を読み込めませんでした。" }, 503);
+  }
 }

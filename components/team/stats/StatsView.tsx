@@ -15,14 +15,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   emptyPlayerStats,
-  gameKey,
   parseGameKey,
+  statsGameKeyForSchedule,
   PLATE_APPEARANCE_RESULTS,
-  todayLocalDate,
+  type StatsScheduleOption,
   type PlateAppearanceResult,
   type PlayerStats,
   type StatsData,
 } from "@/lib/stats";
+import { japanDate } from "@/lib/schedule";
 import { useStatsData } from "../hooks/useStatsData";
 import type { SaveState } from "../types";
 import { LoadingState } from "../common/LoadingState";
@@ -38,10 +39,13 @@ const NUMBER_FIELDS = [
   ["caughtStealing", "盗塁阻止"],
 ] as const;
 const CONFIRMATION_PAGE_SIZE = 5;
-const GAME_NUMBERS = [1, 2, 3] as const;
 const STAT_NUMBER_OPTIONS = Array.from({ length: 11 }, (_, index) => index);
 const RBIS_NUMBER_OPTIONS = Array.from({ length: 21 }, (_, index) => index);
 const REGISTRATION_MESSAGE_MS = 1800;
+
+function scheduleLabel(game: StatsScheduleOption) {
+  return `${game.date.replaceAll("-", "/")} ${game.startTime || "時刻未定"} · ${game.title || "試合"}${game.opponent ? ` vs ${game.opponent}` : ""}`;
+}
 
 export function StatsView({
   players,
@@ -58,23 +62,37 @@ export function StatsView({
   const registrationTimer = useRef<number | null>(null);
   const stats = useStatsData();
   const [selectedPlayerId, setSelectedPlayerId] = useState(member.id);
-  const [selectedDate, setSelectedDate] = useState(todayLocalDate);
-  const [selectedGameNumber, setSelectedGameNumber] = useState(1);
+  const [selection, setSelection] = useState<string | null>(null);
+  const [linkScheduleId, setLinkScheduleId] = useState("");
   const [statsTab, setStatsTab] = useState<"entry" | "confirmation">("entry");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
   const [confirmationPage, setConfirmationPage] = useState(1);
-  const [entryReset, setEntryReset] = useState(false);
   const [gameToDelete, setGameToDelete] = useState<{
     key: string;
-    game: { date: string; number: number };
+    label: string;
   } | null>(null);
-  const [draftValues, setDraftValues] = useState<PlayerStats>(() =>
-    emptyPlayerStats(),
-  );
-  const selectedGameKey = gameKey(selectedDate, selectedGameNumber);
+  const [entryDraft, setEntryDraft] = useState<{ key: string; values: PlayerStats } | null>(null);
+  const scheduleById = new Map(stats.schedules.map((game) => [game.id, game]));
+  const schedules = [...stats.schedules].sort((a, b) => b.date.localeCompare(a.date) || a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id));
+  const defaultGame = schedules.find((game) => game.date <= japanDate())
+    ?? [...schedules].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id))[0];
+  const selectedValue = selection ?? (defaultGame ? `schedule:${defaultGame.id}` : "");
+  const selectedSchedule = selectedValue.startsWith("schedule:") ? scheduleById.get(selectedValue.slice(9)) : undefined;
+  const legacyKey = selectedValue.startsWith("legacy:") ? selectedValue.slice(7) : "";
+  const selectedGameKey = selectedSchedule ? statsGameKeyForSchedule(stats.data, selectedSchedule)
+    : Object.hasOwn(stats.data.games, legacyKey) && !stats.data.scheduleIds[legacyKey] ? legacyKey : "";
   const selectedPlayer = players.find(
     (player) => player.id === (member.isAdmin ? selectedPlayerId : member.id),
   );
+  const entryKey = JSON.stringify([selectedGameKey, selectedPlayer?.id]);
+  const savedValues = stats.data.games[selectedGameKey]?.[selectedPlayer?.id ?? ""] ?? emptyPlayerStats();
+  const draftValues = entryDraft?.key === entryKey ? entryDraft.values : savedValues;
+  const hasDraftChanges = JSON.stringify(draftValues) !== JSON.stringify(savedValues);
+  const labelForKey = (key: string) => {
+    const schedule = scheduleById.get(stats.data.scheduleIds[key]);
+    const game = parseGameKey(key);
+    return schedule ? scheduleLabel(schedule) : game ? `${game.date.replaceAll("-", "/")}・${game.number}試合目（未連携）` : key;
+  };
   useEffect(() => {
     return () => {
       if (registrationTimer.current !== null)
@@ -104,18 +122,6 @@ export function StatsView({
       document.removeEventListener("pointerdown", closeOnOutsideInteraction);
     };
   }, [openPlate]);
-  useEffect(() => {
-    if (!selectedPlayer || !selectedDate) {
-      setDraftValues(emptyPlayerStats());
-      return;
-    }
-
-    setDraftValues(
-      stats.data.games[selectedGameKey]?.[selectedPlayer.id] ??
-        emptyPlayerStats(),
-    );
-  }, [selectedGameKey, selectedPlayer?.id, stats.data]);
-
   if (stats.loading)
     return <LoadingState label="成績データを読み込んでいます…" />;
   if (stats.error && stats.saveState === "saved") {
@@ -137,7 +143,7 @@ export function StatsView({
     member.isAdmin || playerId === member.id;
   const selectedValues = draftValues;
   const canRegister = Boolean(
-    selectedDate &&
+    selectedGameKey &&
     selectedPlayer &&
     selectedValues.plateAppearances.some((result) => result !== null),
   );
@@ -158,17 +164,23 @@ export function StatsView({
     }
     setRegistrationMessage("");
   };
+  const canLeaveDraft = () => !hasDraftChanges || window.confirm("まだ登録していない成績の入力を破棄しますか？");
+  const changeSelection = (value: string) => {
+    if (!canLeaveDraft()) return;
+    setSelection(value);
+    setEntryDraft(null);
+    setLinkScheduleId("");
+    setOpenPlate(null);
+    clearRegistrationMessage();
+  };
   const editPlayer = (updater: (current: PlayerStats) => PlayerStats) => {
-    if (!selectedDate || !selectedPlayer || !canEditPlayer(selectedPlayer.id))
+    if (!selectedGameKey || !selectedPlayer || !canEditPlayer(selectedPlayer.id))
       return;
 
     clearRegistrationMessage();
 
-    setDraftValues((current) =>
-      updater(entryReset ? emptyPlayerStats() : current),
-    );
-
-    setEntryReset(false);
+    setSelection(selectedValue);
+    setEntryDraft((current) => ({ key: entryKey, values: updater(current?.key === entryKey ? current.values : savedValues) }));
   };
 
   const updatePlate = (index: number, result: PlateAppearanceResult | null) => {
@@ -211,7 +223,9 @@ export function StatsView({
     )
     .sort(
       (a, b) =>
-        b.game.date.localeCompare(a.game.date) || a.game.number - b.game.number,
+        (scheduleById.get(stats.data.scheduleIds[b.key])?.date ?? b.game.date)
+          .localeCompare(scheduleById.get(stats.data.scheduleIds[a.key])?.date ?? a.game.date)
+          || a.game.number - b.game.number,
     );
   const confirmationPageCount = Math.max(
     1,
@@ -230,27 +244,28 @@ export function StatsView({
     window.scrollTo({ top: 0, behavior: "instant" });
   };
   const editRegistration = (
-    game: { date: string; number: number },
+    key: string,
     playerId: string,
   ) => {
-    if (!canEditPlayer(playerId)) return;
+    if (!canEditPlayer(playerId) || !canLeaveDraft()) return;
     clearRegistrationMessage();
-    setSelectedDate(game.date);
-    setSelectedGameNumber(game.number);
+    setSelection(stats.data.scheduleIds[key] ? `schedule:${stats.data.scheduleIds[key]}` : `legacy:${key}`);
     setSelectedPlayerId(playerId);
     setOpenPlate(null);
-    setEntryReset(false);
+    setEntryDraft(null);
+    setLinkScheduleId("");
     setStatsTab("entry");
     window.scrollTo({ top: 0, behavior: "instant" });
   };
   const registerEntry = () => {
-    if (!canRegister || !selectedPlayer) return;
+    if (!canRegister || !selectedPlayer || stats.saveState !== "saved") return;
 
     clearRegistrationMessage();
     setOpenPlate(null);
 
     stats.edit((current: StatsData) => ({
       ...current,
+      scheduleIds: selectedSchedule ? { ...current.scheduleIds, [selectedGameKey]: selectedSchedule.id } : current.scheduleIds,
       games: {
         ...current.games,
         [selectedGameKey]: {
@@ -259,6 +274,8 @@ export function StatsView({
         },
       },
     }));
+    setSelection(selectedValue);
+    setEntryDraft(null);
 
     setRegistrationMessage("登録しました！");
 
@@ -271,7 +288,8 @@ export function StatsView({
     if (!selectedPlayer || !canEditPlayer(selectedPlayer.id)) return;
 
     clearRegistrationMessage();
-    setDraftValues(emptyPlayerStats());
+    setSelection(selectedValue);
+    setEntryDraft({ key: entryKey, values: emptyPlayerStats() });
     setOpenPlate(null);
     setRegistrationMessage("リセットしました");
     registrationTimer.current = window.setTimeout(() => {
@@ -287,21 +305,32 @@ export function StatsView({
       const games = { ...current.games };
       if (Object.keys(game).length === 0) delete games[gameKeyToDelete];
       else games[gameKeyToDelete] = game;
-      return { ...current, games };
+      const scheduleIds = { ...current.scheduleIds };
+      if (!games[gameKeyToDelete]) delete scheduleIds[gameKeyToDelete];
+      return { ...current, games, scheduleIds };
     });
   };
-  const deleteGameRegistration = (gameKeyToDelete: string, game: { date: string; number: number }) => {
+  const deleteGameRegistration = (gameKeyToDelete: string) => {
     if (!member.isAdmin) return;
-    setGameToDelete({ key: gameKeyToDelete, game });
+    setGameToDelete({ key: gameKeyToDelete, label: labelForKey(gameKeyToDelete) });
   };
   const confirmDeleteGameRegistration = () => {
     if (!gameToDelete) return;
     stats.edit((current: StatsData) => {
       const games = { ...current.games };
       delete games[gameToDelete.key];
-      return { ...current, games };
+      const scheduleIds = { ...current.scheduleIds };
+      delete scheduleIds[gameToDelete.key];
+      return { ...current, games, scheduleIds };
     });
     setGameToDelete(null);
+  };
+  const linkLegacyGame = () => {
+    if (!member.isAdmin || !selectedGameKey || stats.data.scheduleIds[selectedGameKey] || stats.saveState !== "saved" ||
+        !schedules.some((game) => game.id === linkScheduleId) || Object.values(stats.data.scheduleIds).includes(linkScheduleId)) return;
+    stats.edit((current) => ({ ...current, scheduleIds: { ...current.scheduleIds, [selectedGameKey]: linkScheduleId } }));
+    setSelection(`schedule:${linkScheduleId}`);
+    setLinkScheduleId("");
   };
 
   return (
@@ -317,7 +346,7 @@ export function StatsView({
             <AlertDialogTitle>この試合の成績を削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
               {gameToDelete
-                ? `${gameToDelete.game.number === 1 ? gameToDelete.game.date : `${gameToDelete.game.date}・${gameToDelete.game.number}試合目`}の成績をすべて削除します。`
+                ? `${gameToDelete.label}の成績をすべて削除します。`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -337,8 +366,8 @@ export function StatsView({
             {statsTab === "confirmation"
               ? "試合ごとの成績を確認できます。"
               : member.isAdmin
-                ? "試合日・試合番号・選手を選択して成績を入力してください。"
-                : "試合日・試合番号を選択して自分の成績を入力してください。"}
+                ? "登録済みの試合・選手を選択して成績を入力してください。"
+                : "登録済みの試合を選択して自分の成績を入力してください。"}
           </p>
         </div>
       </header>
@@ -346,6 +375,13 @@ export function StatsView({
       {stats.error && (
         <div className="panel stats-error" role="alert">
           <p>{stats.error}</p>
+          {stats.saveState === "error" && <button type="button" className="secondary" onClick={() => stats.edit((current) => current)}>保存を再試行</button>}
+          <button type="button" className="secondary" onClick={() => {
+            if (!window.confirm("未保存の変更を破棄して最新データを読み込みますか？")) return;
+            setEntryDraft(null);
+            setSelection(null);
+            void stats.load();
+          }}>最新データを読み込む</button>
         </div>
       )}
       <nav className="tabs stats-tabs" aria-label="成績画面切替">
@@ -380,19 +416,17 @@ export function StatsView({
                 <p className="stats-empty">まだ成績が登録されていません。</p>
               </div>
             ) : (
-              visibleRegisteredGames.map(({ key, game }, index) => (
+              visibleRegisteredGames.map(({ key }, index) => (
                 <section className="stats-game-group" key={key}>
                   <div className={`stats-game-heading ${index === 0 ? 'is-first' : ''}`}>
                     <h2>
-                      {game.number === 1
-                        ? game.date
-                        : `${game.date}・${game.number}試合目`}
+                      {labelForKey(key)}
                     </h2>
                     {member.isAdmin && (
                       <button
                         type="button"
                         className="stats-delete-button"
-                        onClick={() => deleteGameRegistration(key, game)}
+                        onClick={() => deleteGameRegistration(key)}
                       >
                         この試合を削除
                       </button>
@@ -408,7 +442,7 @@ export function StatsView({
                           player={player}
                           values={stats.data.games[key][player.id]}
                           canEdit={canEditPlayer(player.id)}
-                          onEdit={() => editRegistration(game, player.id)}
+                          onEdit={() => editRegistration(key, player.id)}
                           onDelete={() => deleteRegistration(key, player.id)}
                         />
                       ))}
@@ -458,45 +492,31 @@ export function StatsView({
         <div className="stats-entry-card panel">
           <div className="stats-game-fields">
             <div>
-              <label htmlFor="stats-game-date">試合日</label>
-              <input
-                id="stats-game-date"
-                type="date"
-                value={selectedDate}
-                onChange={(event) => {
-                  setSelectedDate(event.target.value);
-                  setEntryReset(false);
-                  setOpenPlate(null);
-                  clearRegistrationMessage();
-                }}
-              />
-            </div>
-            <div className="stats-game-number-field">
-              <label htmlFor="stats-game-number">試合</label>
-              <div className="stats-game-number-control">
-                <select
-                  className="stats-game-number-input"
-                  id="stats-game-number"
-                  value={selectedGameNumber}
-                  onChange={(event) => {
-                    setSelectedGameNumber(
-                      Number.parseInt(event.target.value, 10),
-                    );
-                    setEntryReset(false);
-                    setOpenPlate(null);
-                    clearRegistrationMessage();
-                  }}
-                >
-                  {GAME_NUMBERS.map((number) => (
-                    <option key={number} value={number}>
-                      {number}
-                    </option>
-                  ))}
-                </select>
-                <span>試合目</span>
-              </div>
+              <label htmlFor="stats-schedule">試合を選択</label>
+              <select id="stats-schedule" className="stats-player-select" value={selectedValue} onChange={(event) => changeSelection(event.target.value)}>
+                <option value="" disabled>登録済みの試合を選択してください</option>
+                {schedules.map((game) => <option key={game.id} value={`schedule:${game.id}`}>{scheduleLabel(game)}</option>)}
+                {registeredGames.some(({ key }) => !stats.data.scheduleIds[key]) && <optgroup label="未連携の登録済み成績">
+                  {registeredGames.filter(({ key }) => !stats.data.scheduleIds[key]).map(({ key }) => <option key={key} value={`legacy:${key}`}>{labelForKey(key)}</option>)}
+                </optgroup>}
+              </select>
+              {selectedSchedule && <p className="stats-schedule-details">{scheduleLabel(selectedSchedule)}{selectedSchedule.location && <span>{selectedSchedule.location}</span>}</p>}
+              {!schedules.length && <p className="stats-schedule-details">新しい成績は、スケジュール管理で試合を登録してから入力できます。</p>}
+              {(stats.hasMoreSchedules || stats.scheduleError) && <button type="button" className="secondary stats-load-schedules" disabled={stats.schedulesLoading} onClick={() => void stats.loadOlderSchedules()}>{stats.schedulesLoading ? "読み込み中…" : stats.scheduleError ? "過去の試合を再読み込み" : "さらに過去の試合を表示"}</button>}
+              {stats.scheduleError && <p role="alert" className="stats-schedule-details">{stats.scheduleError}</p>}
             </div>
           </div>
+          {selectedGameKey && !selectedSchedule && <div className="stats-legacy-link">
+            <p>この成績はまだスケジュールの試合に紐づいていません。</p>
+            {member.isAdmin ? <>
+              <label htmlFor="stats-link-schedule">紐づける試合</label>
+              <select id="stats-link-schedule" value={linkScheduleId} onChange={(event) => setLinkScheduleId(event.target.value)}>
+                <option value="">試合を選択してください</option>
+                {schedules.filter((game) => !Object.values(stats.data.scheduleIds).includes(game.id)).map((game) => <option key={game.id} value={game.id}>{scheduleLabel(game)}</option>)}
+              </select>
+              <button type="button" className="secondary" disabled={!linkScheduleId || stats.saveState !== "saved"} onClick={linkLegacyGame}>この試合に紐づける</button>
+            </> : <p>紐づけは管理者が設定できます。登録済みの成績はそのまま編集できます。</p>}
+          </div>}
           {member.isAdmin && (
             <div className="stats-player-field">
               <label htmlFor="stats-player">選手を選択</label>
@@ -505,8 +525,9 @@ export function StatsView({
                 id="stats-player"
                 value={selectedPlayerId}
                 onChange={(event) => {
+                  if (!canLeaveDraft()) return;
                   setSelectedPlayerId(event.target.value);
-                  setEntryReset(false);
+                  setEntryDraft(null);
                   setOpenPlate(null);
                   clearRegistrationMessage();
                 }}
@@ -520,7 +541,7 @@ export function StatsView({
               </select>
             </div>
           )}
-          {selectedPlayer && selectedDate ? (
+          {selectedPlayer && selectedGameKey ? (
             <>
               <h2 className="stats-section-heading">打席結果</h2>
               <div className="plate-entry-grid">
@@ -656,8 +677,8 @@ export function StatsView({
             </>
           ) : (
             <p className="stats-entry-placeholder">
-              {!selectedDate
-                ? "試合日を選択してください。"
+              {!selectedGameKey
+                ? "試合を選択してください。"
                 : member.isAdmin
                   ? "選手を選択すると成績入力欄が表示されます。"
                   : "登録されている選手情報を確認できません。"}
@@ -675,7 +696,7 @@ export function StatsView({
             <button
               type="button"
               className="secondary"
-              disabled={!selectedPlayer || !selectedDate}
+              disabled={!selectedPlayer || !selectedGameKey}
               onClick={resetEntry}
             >
               入力をリセット
