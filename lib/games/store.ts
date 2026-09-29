@@ -3,6 +3,7 @@ import { db, digest, token, validToken } from "../server";
 import type { GameRequest, GameRun, GameSnapshot, LeaderboardEntry, GameResult } from "./api-types";
 import { gameEngine } from "./registry";
 import { MAX_ELAPSED_MS } from "./fastball";
+import { MAX_BALANCE, type BetType } from "./horse-racing";
 
 type Score = Omit<LeaderboardEntry, "rank">;
 type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
@@ -67,6 +68,20 @@ export function parseGameRequest(value: unknown): GameRequest {
     && Number.isFinite(body.elapsedMs) && body.elapsedMs >= 0 && body.elapsedMs <= MAX_ELAPSED_MS) {
     return { action: "pitch", gameId: body.gameId, requestId: body.requestId, runId: body.runId, turn: body.turn as number, elapsedMs: body.elapsedMs };
   }
+  if (engine.kind === "horse-racing" && isId(body.runId)) {
+    if (body.action === "horse-race" || body.action === "horse-next") {
+      return { action: body.action, gameId: body.gameId, requestId: body.requestId, runId: body.runId, turn: body.turn as number };
+    }
+    const selectionCounts: Record<BetType, number> = { win: 1, place: 1, bracket: 2, quinella: 2, exacta: 2, wide: 2, trio: 3, trifecta: 3 };
+    if (body.action === "horse-buy" && typeof body.type === "string" && Object.hasOwn(selectionCounts, body.type)
+      && Number.isSafeInteger(body.amount) && (body.amount as number) > 0 && (body.amount as number) <= MAX_BALANCE
+      && Array.isArray(body.selection) && body.selection.length === selectionCounts[body.type as BetType]
+      && body.selection.every((horse) => Number.isSafeInteger(horse) && horse >= 1 && horse <= (body.type === "bracket" ? 8 : 15))
+      && (body.type === "bracket" || new Set(body.selection).size === body.selection.length)) {
+      return { action: "horse-buy", gameId: body.gameId, requestId: body.requestId, runId: body.runId, turn: body.turn as number,
+        type: body.type as BetType, selection: [...body.selection], amount: body.amount as number };
+    }
+  }
   throw new GameInputError("入力内容とゲームの操作を確認してください。");
 }
 
@@ -90,17 +105,22 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
   const authValues = [context.sessionHash, now, context.member.id];
   const random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000;
   if (request.action === "start") {
+    // A funded horse run can only continue; starting again must not discard
+    // purchased tickets or refill the bankroll before bankruptcy is settled.
+    if (engine.kind === "horse-racing" && current && current.status !== "finished") return null;
     const run: GameRun<GameResult> = { id: request.requestId, gameId: request.gameId, turn: 0, balance: engine.initialBalance, status: "playing", lastRequestId: request.requestId,
-      lastResult: engine.kind === "fastball" ? { kind: "fastball-ready", releaseMs: engine.prepare(random) } : null };
+      lastResult: engine.kind === "fastball" ? { kind: "fastball-ready", releaseMs: engine.prepare(random) }
+        : engine.kind === "horse-racing" ? engine.prepare(1, random) : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
       SELECT ?,?,?,0,?,'playing',?,?,?,? WHERE ${authGuard}
         AND (? IS NULL OR EXISTS (SELECT 1 FROM mini_game_runs WHERE game_id=? AND player_id=? AND run_id=? AND turn=?))
       ON CONFLICT(game_id,player_id) DO UPDATE SET run_id=excluded.run_id,turn=0,balance=excluded.balance,
         status='playing',last_request_id=excluded.last_request_id,result_json=excluded.result_json,started_at=excluded.started_at,updated_at=excluded.updated_at
-      WHERE mini_game_runs.run_id=? AND mini_game_runs.turn=? RETURNING run_id
+      WHERE mini_game_runs.run_id=? AND mini_game_runs.turn=?
+        AND (?=0 OR mini_game_runs.status='finished') RETURNING run_id
     `).bind(request.gameId, context.member.id, run.id, run.balance, request.requestId, JSON.stringify(run.lastResult), now, now, ...authValues,
-      request.runId, request.gameId, context.member.id, request.runId, request.turn, request.runId, request.turn).first<{ run_id: string }>();
+      request.runId, request.gameId, context.member.id, request.runId, request.turn, request.runId, request.turn, engine.kind === "horse-racing" ? 1 : 0).first<{ run_id: string }>();
     return saved ? gameSnapshot({ ...context, run }, request.gameId) : null;
   }
   if (!current || current.status !== "playing" || current.turn >= engine.maxTurns) return null;
@@ -117,6 +137,27 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
     // Neither the claimed speed nor a client-supplied target is accepted.
     const result = engine.play(request.elapsedMs, ready.releaseMs);
     run = { ...current, turn: current.turn + 1, balance: result.speed, status: "finished", lastResult: result, lastRequestId: request.requestId };
+  } else if (engine.kind === "horse-racing") {
+    const state = current.lastResult;
+    if (!state || !("kind" in state) || state.kind !== "horse-racing") return null;
+    try {
+      if (request.action === "horse-buy") {
+        const purchased = engine.buy(state, current.balance, request, request.requestId);
+        run = { ...current, turn: current.turn + 1, balance: purchased.balance, lastResult: purchased.state, lastRequestId: request.requestId };
+      } else if (request.action === "horse-race") {
+        const settled = engine.play(state, current.balance, random);
+        run = { ...current, turn: current.turn + 1, balance: settled.balance, lastResult: settled.state,
+          status: settled.balance === 0 ? "finished" : "playing", lastRequestId: request.requestId };
+      } else if (request.action === "horse-next") {
+        if (state.phase !== "result" || current.balance <= 0) throw new GameInputError("レース結果を確認してから次のレースへ進んでください。");
+        run = { ...current, turn: current.turn + 1, lastResult: engine.prepare(state.race + 1, random), lastRequestId: request.requestId };
+      } else {
+        throw new GameInputError("このゲームでは使えない操作です。");
+      }
+    } catch (error) {
+      if (error instanceof Error) throw new GameInputError(error.message);
+      throw error;
+    }
   } else {
     throw new GameInputError("このゲームでは使えない操作です。");
   }
@@ -127,18 +168,19 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
   `).bind(run.turn, run.balance, run.status, request.requestId, JSON.stringify(run.lastResult), now,
     request.gameId, context.member.id, current.id, current.turn, ...authValues)];
   const best = context.scores.find((score) => score.playerId === context.member.id);
-  const improvesBest = run.status === "finished" && (!best || run.balance > best.score);
+  const recordsScore = engine.kind === "horse-racing" ? request.action === "horse-race" : run.status === "finished";
+  const improvesBest = recordsScore && (!best || run.balance > best.score);
   if (improvesBest) {
     // Read the committed balance from the run, not the candidate calculation.
     // Even concurrent retries of the same request can only record that result.
     statements.push(database.prepare(`
       INSERT INTO mini_game_scores(game_id,player_id,score,achieved_at)
       SELECT game_id,player_id,balance,updated_at FROM mini_game_runs
-      WHERE game_id=? AND player_id=? AND run_id=? AND last_request_id=? AND status='finished'
+      WHERE game_id=? AND player_id=? AND run_id=? AND last_request_id=? AND status=?
         AND ${authGuard}
       ON CONFLICT(game_id,player_id) DO UPDATE SET score=excluded.score,achieved_at=excluded.achieved_at
       WHERE excluded.score>mini_game_scores.score
-    `).bind(request.gameId, context.member.id, run.id, request.requestId, ...authValues));
+    `).bind(request.gameId, context.member.id, run.id, request.requestId, run.status, ...authValues));
   }
   const committed = await database.batch<{ run_id: string }>(statements);
   if (!committed[0].results.length) return null;

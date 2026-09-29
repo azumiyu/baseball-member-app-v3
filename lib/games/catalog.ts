@@ -36,6 +36,16 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     scoreScale: 100,
     precision: 2,
   },
+  {
+    id: "nagayasu-horse-racing",
+    title: "長安の走れ！馬ども！",
+    description: "100万円を握りしめ、15頭の大激走へ。8種類の馬券で目指せ1000兆円！",
+    href: "/game/nagayasu-horse-racing",
+    image: "/game/nagayasu.PNG",
+    version: 1,
+    scoreLabel: "最高持ち金",
+    scoreUnit: "円",
+  },
 ];
 
 export function getGame(id: string): GameDefinition | undefined {
