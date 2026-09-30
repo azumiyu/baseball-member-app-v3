@@ -91,22 +91,108 @@ export function AccountingPage() {
     await save({ ...snapshot.data, payments: [...snapshot.data.payments.filter((payment) => payment.year !== year || payment.playerId !== playerId), { year, playerId, paid, paidAt: null }] });
   }
 
-  const data = snapshot?.data;
-  const paidIds = new Set(data?.payments.filter((payment) => payment.year === year && payment.paid).map((payment) => payment.playerId));
-  const paidPlayers = data?.players.filter((player) => paidIds.has(player.id)) ?? [];
-  const unpaidPlayers = data?.players.filter((player) => !paidIds.has(player.id)) ?? [];
-  const currentYear = Number(japanDate().slice(0, 4));
-  const years = [...new Set([year, ...Array.from({ length: 7 }, (_, index) => currentYear - 5 + index), ...(data?.payments.map((payment) => payment.year) ?? [])])].sort((a, b) => b - a);
-  const disabled = busy || conflict || loading;
+const data = snapshot?.data;
+
+const currentYear = Number(japanDate().slice(0, 4));
+
+const years = data
+  ? [
+      ...new Set([
+        currentYear,
+        ...data.entries.map((entry) =>
+          Number(entry.date.slice(0, 4)),
+        ),
+        ...data.payments.map((payment) => payment.year),
+      ]),
+    ].sort((a, b) => b - a)
+  : [currentYear];
+
+const visibleEntries = data
+  ? [...data.entries]
+      .filter((entry) => Number(entry.date.slice(0, 4)) === year)
+      .sort(
+        (a, b) =>
+          b.date.localeCompare(a.date) ||
+          b.createdAt - a.createdAt ||
+          a.id.localeCompare(b.id),
+      )
+  : [];
+
+  const yearlyIncome = visibleEntries.reduce(
+  (total, entry) => total + entry.income,
+  0,
+);
+
+const yearlyExpense = visibleEntries.reduce(
+  (total, entry) => total + entry.expense,
+  0,
+);
+
+function shortDate(date: string) {
+  const [, month, day] = date.split("-");
+  return `${Number(month)}/${Number(day)}`;
+}
+
+const paidIds = new Set(
+  data?.payments
+    .filter((payment) => payment.year === year && payment.paid)
+    .map((payment) => payment.playerId),
+);
+
+const paidPlayers =
+  data?.players.filter((player) => paidIds.has(player.id)) ?? [];
+
+const unpaidPlayers =
+  data?.players.filter((player) => !paidIds.has(player.id)) ?? [];
+
+const disabled = busy || conflict || loading;  
   return <main className={`app-shell ${styles.page}`}>
     <header className="topbar"><Link href="/" className="secondary"><ArrowLeft size={18} aria-hidden="true" />チームへ戻る</Link>{snapshot && <span className="login-member">{snapshot.member.name}</span>}</header>
     {/* <div className="page-heading"><div><p className="eyebrow">YG TEAM</p><h1><WalletCards size={27} aria-hidden="true" /> 会計</h1><p>部費・収支管理 {snapshot && !canEdit && <b>／ 閲覧専用</b>}</p></div></div> */}
     {error && <div className="error-banner" role="alert"><span>{error}</span>{unauthorized ? <Link href="/">ログイン画面へ</Link> : <button type="button" disabled={busy} onClick={() => { void load(); }}>{conflict ? "最新データを読み込む" : "再読み込み"}</button>}</div>}
     {loading && !snapshot ? <LoadingState /> : data && !unauthorized && <>
       <section className={styles.balance} aria-label="現在残高"><span>現在残高</span><strong>{money(accountingBalance(data.entries))}</strong><small>全収入 − 全支出</small></section>
-      <section className={styles.panel} aria-label="収支一覧"><div className={styles.sectionHeading}><h2>収支一覧</h2>{canEdit && <button type="button" className="primary" disabled={disabled} onClick={() => openEntry()}><Plus size={17} aria-hidden="true" />収支を登録</button>}</div>
+      <section className={styles.panel} aria-label="収支一覧"><div className={styles.sectionHeading}>
+  <div>
+    <h2>収支一覧</h2>
+
+    <select
+      aria-label="収支の年度"
+      value={year}
+      onChange={(event) => setYear(Number(event.target.value))}
+    >
+      {years.map((value) => (
+        <option key={value} value={value}>
+          {value}年度
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div className={styles.yearSummary}>
+    <span>
+      収入 <strong>{money(yearlyIncome)}</strong>
+    </span>
+
+    <span>
+      支出 <strong>{money(yearlyExpense)}</strong>
+    </span>
+  </div>
+
+  {canEdit && (
+    <button
+      type="button"
+      className="primary"
+      disabled={disabled}
+      onClick={() => openEntry()}
+    >
+      <Plus size={17} aria-hidden="true" />
+      収支を登録
+    </button>
+  )}
+</div>
         <div className={styles.scroll}><table className={styles.table}><thead><tr><th scope="col">日付</th><th scope="col">費目</th><th scope="col">収入</th><th scope="col">支出</th>{canEdit && <th scope="col">操作</th>}</tr></thead><tbody>
-          {[...data.entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt || a.id.localeCompare(b.id)).map((entry) => <tr key={entry.id}><td>{entry.date}</td><td>{entry.category}</td><td>{money(entry.income)}</td><td>{money(entry.expense)}</td>{canEdit && <td><div className={styles.rowActions}><button type="button" className="secondary" disabled={disabled} aria-label={`${entry.date} ${entry.category}を編集`} onClick={() => openEntry(entry)}><Pencil size={14} aria-hidden="true" />編集</button><button type="button" className="danger-link" disabled={disabled} aria-label={`${entry.date} ${entry.category}を削除`} onClick={() => { void remove(entry); }}><Trash2 size={14} aria-hidden="true" />削除</button></div></td>}</tr>)}
+          {visibleEntries.map((entry) => <tr key={entry.id}><td>{shortDate(entry.date)}</td><td>{entry.category}</td><td>{money(entry.income)}</td><td>{money(entry.expense)}</td>{canEdit && <td><div className={styles.rowActions}><button type="button" className="secondary" disabled={disabled} aria-label={`${entry.date} ${entry.category}を編集`} onClick={() => openEntry(entry)}><Pencil size={14} aria-hidden="true" />編集</button><button type="button" className="danger-link" disabled={disabled} aria-label={`${entry.date} ${entry.category}を削除`} onClick={() => { void remove(entry); }}><Trash2 size={14} aria-hidden="true" />削除</button></div></td>}</tr>)}
           {!data.entries.length && <tr><td colSpan={canEdit ? 5 : 4}>収支はまだ登録されていません。</td></tr>}
         </tbody></table></div>
       </section>
