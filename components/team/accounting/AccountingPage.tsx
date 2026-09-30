@@ -71,7 +71,7 @@ export function AccountingPage() {
   }
   function openEntry(entry?: AccountingEntry) {
     setFormError("");
-    setDraft(entry ? { ...entry, income: String(entry.income), expense: String(entry.expense) } : { id: createEntityId(), date: japanDate(), category: "", income: "0", expense: "0" });
+    setDraft(entry ? { ...entry, income: String(entry.income), expense: String(entry.expense) } : { id: createEntityId(), date: japanDate(), category: "", income: "", expense: "" });
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -100,7 +100,7 @@ export function AccountingPage() {
   const disabled = busy || conflict || loading;
   return <main className={`app-shell ${styles.page}`}>
     <header className="topbar"><Link href="/" className="secondary"><ArrowLeft size={18} aria-hidden="true" />チームへ戻る</Link>{snapshot && <span className="login-member">{snapshot.member.name}</span>}</header>
-    <div className="page-heading"><div><p className="eyebrow">YG TEAM</p><h1><WalletCards size={27} aria-hidden="true" /> 会計</h1><p>部費・収支管理 {snapshot && !canEdit && <b>／ 閲覧専用</b>}</p></div></div>
+    {/* <div className="page-heading"><div><p className="eyebrow">YG TEAM</p><h1><WalletCards size={27} aria-hidden="true" /> 会計</h1><p>部費・収支管理 {snapshot && !canEdit && <b>／ 閲覧専用</b>}</p></div></div> */}
     {error && <div className="error-banner" role="alert"><span>{error}</span>{unauthorized ? <Link href="/">ログイン画面へ</Link> : <button type="button" disabled={busy} onClick={() => { void load(); }}>{conflict ? "最新データを読み込む" : "再読み込み"}</button>}</div>}
     {loading && !snapshot ? <LoadingState /> : data && !unauthorized && <>
       <section className={styles.balance} aria-label="現在残高"><span>現在残高</span><strong>{money(accountingBalance(data.entries))}</strong><small>全収入 − 全支出</small></section>
@@ -110,12 +110,12 @@ export function AccountingPage() {
           {!data.entries.length && <tr><td colSpan={canEdit ? 5 : 4}>収支はまだ登録されていません。</td></tr>}
         </tbody></table></div>
       </section>
-      <section className={styles.panel} aria-label="部費支払状況"><div className={styles.sectionHeading}><h2>部費支払状況</h2><label className={styles.year}>年度<select aria-label="部費の年度" value={year} disabled={busy} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}年度</option>)}</select></label></div>
+      {canEdit && <section className={styles.panel} aria-label="部費支払状況"><div className={styles.sectionHeading}><h2>部費支払状況</h2><label className={styles.year}>年度<select aria-label="部費の年度" value={year} disabled={busy} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}年度</option>)}</select></label></div>
         <div className={styles.yearNavigation}><button type="button" className="secondary" disabled={busy || year <= 1900} onClick={() => setYear(year - 1)}>前年度</button><strong>{year}年度</strong><button type="button" className="secondary" disabled={busy || year >= 9999} onClick={() => setYear(year + 1)}>翌年度</button></div>
         <p className={styles.paidCount}>支払済み <strong>{paidPlayers.length} / {data.players.length}</strong>人</p>
         {canEdit && <p className={styles.help}>支払状況変更：各メンバーのボタンで切り替えます。</p>}
         <div className={styles.groups}>{[{ title: "支払済み", players: paidPlayers, paid: true }, { title: "未払い", players: unpaidPlayers, paid: false }].map((group) => <div key={group.title}><h3>{group.title}</h3><ul>{group.players.map((player) => <li key={player.id}><span>{player.name}</span>{canEdit && <button type="button" className="secondary" disabled={disabled} aria-label={`${player.name}を${group.paid ? "未払い" : "支払済み"}に変更`} onClick={() => { void togglePayment(player.id, !group.paid); }}>{group.paid ? "未払いにする" : "支払済みにする"}</button>}</li>)}</ul>{!group.players.length && <p className={styles.help}>該当者はいません。</p>}</div>)}</div>
-      </section>
+      </section>}
       <p role="status" className={styles.help}>{busy ? "保存中…" : notice}</p>
     </>}
     <Modal open={draft !== null && canEdit && !unauthorized} onClose={() => { if (!busy) setDraft(null); }} title={data?.entries.some((entry) => entry.id === draft?.id) ? "収支を編集" : "収支を登録"}>
