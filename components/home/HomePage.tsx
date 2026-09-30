@@ -78,10 +78,10 @@ export function HomePage() {
     <main className="home-page">
       <header className="home-header">
         <a className="home-logo" href="/" aria-label="YG FIRES ホーム">
-          <span className="home-logo-mark">YG</span>
+          <span className="home-logo-mark">Y</span>
           <span>
-            <strong>YG FIRES</strong>
-            <small>BASEBALL TEAM</small>
+            <strong>YG</strong>
+            <small>HOME PAGE</small>
           </span>
         </a>
 
@@ -225,9 +225,9 @@ export function HomePage() {
           </div>
           <div className="home-column-copy">
             <p className="home-column-label">MEMBER RECRUITMENT</p>
-            <h3>選手募集</h3>
+            <h3>メンバー募集</h3>
             <p>
-              YG FIRESでは、一緒に野球を楽しむメンバーを募集しています。
+              YG FIRESでは、楽しみながら本気でプロスタを目指しているチームです。<br />興味のある方はぜひInstagramのDMにてご連絡ください。
             </p>
           </div>
         </article>
