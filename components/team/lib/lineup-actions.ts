@@ -30,36 +30,70 @@ export function dragEndUpdater(
 
 function applyDrag(d: TeamData, a: DragKey, b: DragKey): TeamData {
   if (a.kind === "player") {
-    // ベンチ / 不参加ゾーンへ落とした場合
+    // ベンチ / 不参加ゾーンへ落とした場合（従来どおり）
     if (b.key === "bench-zone" || b.key === "absent-zone") {
       const id = resolvePlayerId(d, a.key);
       if (!id) return d;
-      if (a.key === "pitcher") d.pitcher = null;
-      else if (a.key.startsWith("slot:"))
+
+      if (a.key === "pitcher") {
+        d.pitcher = null;
+      } else if (a.key.startsWith("slot:")) {
         d.slots[Number(a.key.slice(5))].playerId = null;
+      }
+
       d.absentIds = d.absentIds.filter((v) => v !== id);
-      if (b.key === "absent-zone") d.absentIds.push(id);
+
+      if (b.key === "absent-zone") {
+        d.absentIds.push(id);
+      }
+
       return d;
     }
-    // 選手同士の入れ替え
+
+    // スタメン同士：選手と守備をセットで交換
+    if (a.key.startsWith("slot:") && b.key.startsWith("slot:")) {
+      const from = Number(a.key.slice(5));
+      const to = Number(b.key.slice(5));
+
+      if (!d.slots[from] || !d.slots[to]) return d;
+
+      [d.slots[from], d.slots[to]] = [
+        d.slots[to],
+        d.slots[from],
+      ];
+
+      return d;
+    }
+
+    // ベンチ・不参加・DH投手との入れ替えは従来どおり
     return swapPlayer(d, a.key, b.key);
   }
 
   const from = Number(a.key);
   const to = Number(b.key);
 
+  if (!d.slots[from] || !d.slots[to]) return d;
+
   if (a.kind === "position") {
-    // 守備位置だけを交換
+    // 守備位置だけを交換（従来どおり）
     [d.slots[from].position, d.slots[to].position] = [
       d.slots[to].position,
       d.slots[from].position,
     ];
+
     return d;
   }
 
-  // 打順の並べ替え（行ごと移動）
-  const [row] = d.slots.splice(from, 1);
-  d.slots.splice(to, 0, row);
+  // 打順の移動：選手IDだけ並べ替え、守備位置は各行に固定
+  const playerIds = d.slots.map((slot) => slot.playerId);
+
+  const [movedPlayerId] = playerIds.splice(from, 1);
+  playerIds.splice(to, 0, movedPlayerId);
+
+  d.slots.forEach((slot, index) => {
+    slot.playerId = playerIds[index];
+  });
+
   return d;
 }
 
@@ -82,12 +116,20 @@ function resolvePlayerId(d: TeamData, key: string): string | null {
  */
 export function selectPlayerUpdater(target: string, playerId: string | null) {
   return (d: TeamData): TeamData => {
+    // 選択解除
     if (!playerId) {
-      if (target === "pitcher") d.pitcher = null;
-      else d.slots[Number(target.slice(5))].playerId = null;
+      if (target === "pitcher") {
+        d.pitcher = null;
+      } else {
+        d.slots[Number(target.slice(5))].playerId = null;
+      }
       return d;
     }
-    const slotIndex = d.slots.findIndex((s) => s.playerId === playerId);
+
+    const slotIndex = d.slots.findIndex(
+      (s) => s.playerId === playerId,
+    );
+
     const from =
       slotIndex >= 0
         ? `slot:${slotIndex}`
@@ -96,6 +138,29 @@ export function selectPlayerUpdater(target: string, playerId: string | null) {
           : d.absentIds.includes(playerId)
             ? `absent:${playerId}`
             : `bench:${playerId}`;
+
+    // スタメン同士の場合、選手と守備をセットで交換
+    if (from.startsWith("slot:") && target.startsWith("slot:")) {
+      const fromIndex = Number(from.slice(5));
+      const targetIndex = Number(target.slice(5));
+
+      if (
+        fromIndex === targetIndex ||
+        !d.slots[fromIndex] ||
+        !d.slots[targetIndex]
+      ) {
+        return d;
+      }
+
+      [d.slots[fromIndex], d.slots[targetIndex]] = [
+        d.slots[targetIndex],
+        d.slots[fromIndex],
+      ];
+
+      return d;
+    }
+
+    // ベンチ・不参加・DH投手との交換は従来どおり
     return swapPlayer(d, from, target);
   };
 }
@@ -113,11 +178,18 @@ export function setPositionUpdater(index: number, position: Position) {
 }
 
 /** 打順を上下に移動する（範囲外は何もしない） */
+/** 打順を上下に移動（守備位置は固定） */
 export function shiftOrderUpdater(index: number, delta: number) {
   return (d: TeamData): TeamData => {
     const target = index + delta;
+
     if (target < 0 || target >= d.slots.length) return d;
-    [d.slots[index], d.slots[target]] = [d.slots[target], d.slots[index]];
+
+    [d.slots[index].playerId, d.slots[target].playerId] = [
+      d.slots[target].playerId,
+      d.slots[index].playerId,
+    ];
+
     return d;
   };
 }
