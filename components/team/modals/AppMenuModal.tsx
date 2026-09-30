@@ -1,5 +1,5 @@
 "use client";
-import { CircleDot, ClipboardList, Sparkles, Users, Gamepad2 } from "lucide-react";
+import { CircleDot, ClipboardList, Sparkles, Users, Gamepad2, WalletCards } from "lucide-react";
 import { Modal } from "../common/Modal";
 
 /**
@@ -35,6 +35,11 @@ export function AppMenuModal({
           <small></small>
         </button>
 
+        <a href="/accounting" className="app-launcher-item" onClick={onClose}>
+          <WalletCards size={26} aria-hidden="true" />
+          <strong>会計</strong>
+          <small>部費・収支管理</small>
+        </a>
         <a href="/goto" className="app-launcher-item" onClick={onClose}>
           <Sparkles size={26} aria-hidden="true" />
           <strong>後藤君のありがたいお話</strong>

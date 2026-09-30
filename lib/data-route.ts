@@ -1,12 +1,14 @@
 import { validateData, type TeamData } from "./model";
 import { validateEquipmentData } from "./equipment";
+import { validateAccountingData } from "./accounting";
+import { AccountingPermissionError } from "./normalized-store";
 import { gameKey, parseGameKey, validateStatsData, type StatsData } from "./stats";
 import { SCHEDULE_LIMITS, validateScheduleData, type ScheduleData } from "./schedule";
-import { json, readBody, renewSessionHeaders, sameOrigin } from "./server";
+import { getSession, json, readBody, renewSessionHeaders, sameOrigin } from "./server";
 import { decodeData, encodeData, readSnapshot, writeChanges, synchronizeTeamSnapshot, teamScheduleMetadata, statsScheduleMetadata, mergeScheduleChanges, SCHEDULE_PAGE_SIZE, StatsPermissionError, StatsScheduleError, LineupPermissionError, SchedulePermissionError, TeamSettingsPermissionError, type DataScope, type ScopeData, type ScheduleQuery } from "./normalized-store";
 
-const validators = { team: validateData, equipment: validateEquipmentData, stats: validateStatsData, schedule: validateScheduleData };
-const labels = { team: "チーム", equipment: "道具", stats: "成績", schedule: "スケジュール" };
+const validators = { team: validateData, equipment: validateEquipmentData, stats: validateStatsData, schedule: validateScheduleData, accounting: validateAccountingData };
+const labels = { team: "チーム", equipment: "道具", stats: "成績", schedule: "スケジュール", accounting: "会計" };
 const conflict = () => json({ error: "別の端末で更新されています。編集中の内容を確認して、最新データを読み込んでください。" }, 409);
 
 function validScheduleId(value: unknown): value is string {
@@ -84,6 +86,11 @@ export function dataRoute(scope: DataScope) {
     async PUT(req: Request) {
       if (!sameOrigin(req)) return json({ error: "リクエストを確認できません。" }, 403);
       try {
+        if (scope === "accounting") {
+          const session = await getSession(req);
+          if (!session?.member) return json({ error: "再ログインしてください。" }, 401);
+          if (session.member.isAdmin !== true) return json({ error: "会計を編集できるのは管理者だけです。" }, 403);
+        }
         let data: ScopeData[DataScope];
         let revision: number;
         let gameKeys: string[] | undefined;
@@ -127,6 +134,7 @@ export function dataRoute(scope: DataScope) {
           ...(scope === "team" ? { team: data as TeamData } : {}),
         });
         if (!snapshot) return json({ error: "再ログインしてください。" }, 401);
+        if (scope === "accounting" && snapshot.member.isAdmin !== true) throw new AccountingPermissionError();
         if (snapshot.revision !== revision) return conflict();
         if (scope === "schedule") data = mergeScheduleChanges(snapshot, data as ScheduleData, removedSchedules);
         const result = await writeChanges(scope, snapshot, encodeData(scope, data), changedScheduleIds);
@@ -137,6 +145,7 @@ export function dataRoute(scope: DataScope) {
         }
         return json(result, 200, renewSessionHeaders(req));
       } catch (error) {
+        if (error instanceof AccountingPermissionError) return json({ error: error.message }, 403);
         if (error instanceof StatsScheduleError) return json({ error: error.message }, 400);
         if (scope === "stats" && error instanceof Error && /UNIQUE constraint failed: stats_games.schedule_id/i.test(error.message)) {
           return json({ error: "この試合には別の成績が登録されています。最新データを読み込んでください。" }, 409);

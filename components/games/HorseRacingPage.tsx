@@ -25,6 +25,7 @@ function combination(ticket: Pick<Ticket, "type" | "selection">) {
 /** Positive variable speed allows overtakes, but each finish time is fixed by the server's order. */
 function racePosition(elapsed: number, rank: number, number: number) {
   const fraction = Math.min(1, elapsed / (7400 + rank * 115));
+  if (fraction === 1) return 1;
   const phase = number * 2.399;
   return fraction + 0.68 / (4 * Math.PI) * (Math.cos(phase) - Math.cos(4 * Math.PI * fraction + phase));
 }

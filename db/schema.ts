@@ -199,6 +199,34 @@ export const miniGameScores = sqliteTable("mini_game_scores", {
     check("mini_game_scores_score_check", sql`${table.score} >= 0`),
 ]);
 
+export const accountingEntries = sqliteTable("accounting_entries", {
+    id: text("id").primaryKey(),
+    date: text("date").notNull(),
+    category: text("category").notNull(),
+    income: integer("income").notNull(),
+    expense: integer("expense").notNull(),
+    createdBy: text("created_by").notNull().references(() => players.id),
+    createdAt: integer("created_at").notNull(),
+}, (table) => [
+    index("accounting_entries_date_idx").on(sql`${table.date} DESC`, sql`${table.createdAt} DESC`, table.id),
+    check("accounting_entries_category_check", sql`length(trim(${table.category})) BETWEEN 1 AND 100`),
+    check("accounting_entries_income_check", sql`typeof(${table.income}) = 'integer' AND ${table.income} BETWEEN 0 AND 9007199254740991`),
+    check("accounting_entries_expense_check", sql`typeof(${table.expense}) = 'integer' AND ${table.expense} BETWEEN 0 AND 9007199254740991`),
+    check("accounting_entries_amount_check", sql`${table.income} > 0 OR ${table.expense} > 0`),
+]);
+
+export const membershipPayments = sqliteTable("membership_payments", {
+    year: integer("year").notNull(),
+    playerId: text("player_id").notNull().references(() => players.id),
+    paid: integer("paid").notNull().default(0),
+    paidAt: integer("paid_at"),
+}, (table) => [
+    primaryKey({ columns: [table.year, table.playerId] }),
+    check("membership_payments_year_check", sql`${table.year} BETWEEN 1900 AND 9999`),
+    check("membership_payments_paid_check", sql`${table.paid} IN (0, 1)`),
+    check("membership_payments_paid_at_check", sql`(${table.paid} = 0 AND ${table.paidAt} IS NULL) OR (${table.paid} = 1 AND ${table.paidAt} IS NOT NULL)`),
+]);
+
 export const authConfig = sqliteTable("auth_config", {
     id: integer("id").primaryKey(),
     salt: text("salt").notNull(),

@@ -1,0 +1,38 @@
+.page { padding-bottom: 48px; }
+.balance { display: grid; gap: 10px; padding: 28px; margin-bottom: 24px; border-radius: 12px; background: #082c4e; color: white; }
+.balance > span { font-weight: 700; font-size: 14px; }
+.balance strong { font-size: clamp(25px, 6vw, 48px); line-height: 1.4; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.balance small { color: #c5d9ec; }
+.panel { margin-bottom: 24px; padding: 24px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+.sectionHeading { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.sectionHeading h2 { margin: 0; font-size: 19px; font-weight: 750; }
+.scroll { overflow-x: auto; }
+.table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.table th, .table td { padding: 14px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.table th { color: var(--muted-foreground); background: var(--background); white-space: nowrap; }
+.table td:not(:nth-child(2)) { white-space: nowrap; }
+.table td:nth-child(2) { min-width: 100px; max-width: 280px; overflow-wrap: anywhere; }
+.table td:nth-child(3), .table td:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
+.rowActions { display: flex; gap: 12px; }
+.rowActions button { padding: 9px; min-height: 44px; }
+.year { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.year select { width: 140px; }
+.yearNavigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.paidCount { font-size: 16px; margin: 22px 0; }
+.paidCount strong { color: var(--primary); font-size: 27px; margin: 0 8px; }
+.groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.groups h3 { padding: 12px; margin: 0; font-size: 15px; font-weight: 700; background: var(--muted); border-radius: 7px; }
+.groups ul { margin: 0; padding: 0; list-style: none; }
+.groups li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.groups li span { overflow-wrap: anywhere; }
+.groups button { font-size: 12px; padding: 10px; flex-shrink: 0; }
+.form { display: grid; gap: 16px; }
+.form label { display: grid; gap: 7px; font-size: 14px; font-weight: 600; }
+.help { color: var(--muted-foreground); font-size: 13px; }
+@media (max-width: 600px) {
+  .page { padding-left: 16px; padding-right: 16px; }
+  .panel { padding: 16px; }
+  .balance { padding: 22px; }
+  .groups { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .table th, .table td { padding: 12px 7px; }
+}

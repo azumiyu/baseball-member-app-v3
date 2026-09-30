@@ -1,13 +1,14 @@
 import { type TeamData } from "./model";
 import { type EquipmentData } from "./equipment";
+import type { AccountingData } from "./accounting";
 import { emptyPlayerStats, gameKey, parseGameKey, type StatsData, type PlateAppearanceResult, type StatsSchedulePage } from "./stats";
 import { db, digest, random, token } from "./server";
 import type { AuthMember } from "./auth-types";
 import { japanDate, upcomingSaturday, type ScheduleData, type ScheduleGame } from "./schedule";
 import { projectScheduleOrder, type SavedLineup } from "./schedule-order";
 
-export type DataScope = "team" | "equipment" | "stats" | "schedule";
-export type ScopeData = { team: TeamData; equipment: EquipmentData; stats: StatsData; schedule: ScheduleData };
+export type DataScope = "team" | "equipment" | "stats" | "schedule" | "accounting";
+export type ScopeData = { team: TeamData; equipment: EquipmentData; stats: StatsData; schedule: ScheduleData; accounting: AccountingData };
 type Cell = string | number | null;
 type Row = Cell[];
 type Tables = Record<string, Row[]>;
@@ -24,6 +25,10 @@ type Table = {
 // Parent tables precede children; removals run in the reverse order.
 // Role columns stay outside this allowlist so roster edits cannot grant access.
 const tables: Record<DataScope, Table[]> = {
+  accounting: [
+    { name: "accounting_entries", columns: ["id", "date", "category", "income", "expense", "created_by", "created_at"], keys: ["id"], order: "date DESC, created_at DESC, id" },
+    { name: "membership_payments", columns: ["year", "player_id", "paid", "paid_at"], keys: ["year", "player_id"], order: "year DESC, player_id" },
+  ],
   team: [
     { name: "players", columns: ["id", "name", "number", "kana", "sort_order", "bench_order", "absent_order"], keys: ["id"], order: "sort_order", filter: "sort_order IS NOT NULL", retire: true },
     { name: "team_settings", columns: ["id", "team_name", "manager", "tournament", "game_date", "opponent", "mode", "pitcher_id", "schedule_id", "start_time", "location", "map_url"], keys: ["id"], order: "id" },
@@ -112,6 +117,7 @@ function snapshotSql(scope: DataScope, partitioned: boolean, past = false, stats
           : partitioned ? "WHERE (game_date,game_number) IN (SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?))" : table.filter ? `WHERE ${table.filter}` : ""}
         ORDER BY ${past && table.name === "schedule_games" ? "date DESC,id DESC" : table.order}))`,
   );
+  if (scope === "accounting") entries.push("'accounting_players', (SELECT json_group_array(json_array(id,name)) FROM (SELECT id,name FROM players WHERE sort_order IS NOT NULL ORDER BY sort_order,id))");
   if (statsOptions) entries.push(
     `'stats_schedule_options', (SELECT json_group_array(json_array(id,date,start_time,title,opponent,location))
       FROM (SELECT id,date,start_time,title,opponent,location FROM schedule_games
@@ -162,6 +168,9 @@ export class StatsPermissionError extends Error {
 }
 
 export class StatsScheduleError extends Error {}
+export class AccountingPermissionError extends Error {
+  constructor() { super("会計を編集できるのは管理者だけです。"); }
+}
 
 export class LineupPermissionError extends Error {
   constructor() {
@@ -238,6 +247,11 @@ export async function readSnapshot(
 }
 
 export function decodeData(scope: DataScope, rows: Tables): ScopeData[DataScope] {
+  if (scope === "accounting") return {
+    entries: rows.accounting_entries.map((row) => ({ id: row[0] as string, date: row[1] as string, category: row[2] as string, income: row[3] as number, expense: row[4] as number, createdBy: row[5] as string, createdAt: row[6] as number })),
+    payments: rows.membership_payments.map((row) => ({ year: row[0] as number, playerId: row[1] as string, paid: row[2] === 1, paidAt: row[3] as number | null })),
+    players: (rows.accounting_players ?? []).map((row) => ({ id: row[0] as string, name: row[1] as string })),
+  } satisfies AccountingData;
   if (scope === "team") {
     const settings = rows.team_settings[0];
     if (!settings) throw new Error("Team migration is incomplete");
@@ -346,6 +360,13 @@ function encodeStats(data: StatsData): Tables {
 }
 
 export function encodeData(scope: DataScope, data: ScopeData[DataScope]): Tables {
+  if (scope === "accounting") {
+    const accounting = data as AccountingData;
+    return {
+      accounting_entries: accounting.entries.map((entry) => [entry.id, entry.date, entry.category, entry.income, entry.expense, entry.createdBy, entry.createdAt]),
+      membership_payments: accounting.payments.map((payment) => [payment.year, payment.playerId, payment.paid ? 1 : 0, payment.paidAt]),
+    };
+  }
   if (scope === "team") return encodeTeam(data as TeamData);
   if (scope === "stats") return encodeStats(data as StatsData);
   if (scope === "schedule") {
@@ -472,9 +493,22 @@ function normalizeScheduleRevisions(previous: Tables, next: Tables, memberId: st
 }
 
 /** Diff against the authenticated baseline; automatic order changes are derived afterwards. */
-export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: Tables, scheduleGameIds?: string[]): Promise<{ revision: number; data?: TeamData | ScheduleData } | null> {
+export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: Tables, scheduleGameIds?: string[]): Promise<{ revision: number; data?: TeamData | ScheduleData | AccountingData } | null> {
+  if (scope === "accounting" && snapshot.member.isAdmin !== true) throw new AccountingPermissionError();
   if (!snapshot.tables) return null;
   const previous = snapshot.tables;
+  if (scope === "accounting") {
+    const now = Date.now();
+    const entries = new Map(previous.accounting_entries.map((row) => [row[0], row]));
+    const payments = new Map(previous.membership_payments.map((row) => [`${row[0]}:${row[1]}`, row]));
+    next = {
+      accounting_entries: next.accounting_entries.map((row) => [...row.slice(0, 5), entries.get(row[0])?.[5] ?? snapshot.member.id, entries.get(row[0])?.[6] ?? now]),
+      membership_payments: next.membership_payments.map((row) => {
+        const old = payments.get(`${row[0]}:${row[1]}`);
+        return [...row.slice(0, 3), row[2] === 1 ? old?.[2] === 1 ? old[3] : now : null];
+      }),
+    };
+  }
   const normalizedSchedule = scope === "schedule" ? normalizeScheduleRevisions(previous, next, snapshot.member.id) : undefined;
   if (normalizedSchedule) next = encodeData("schedule", normalizedSchedule);
   const changes = changesBetween(scope, previous, next);
@@ -575,7 +609,7 @@ export async function writeChanges(scope: DataScope, snapshot: Snapshot, next: T
   }
   const savedData = scope === "team" ? projected : normalizedSchedule
     ? { games: normalizedSchedule.games.filter((game) => scheduleGameIds?.includes(game.id) ?? true) }
-    : undefined;
+    : scope === "accounting" ? decodeData("accounting", { ...next, accounting_players: previous.accounting_players }) as AccountingData : undefined;
   if (!groups.some(hasChanges) && week === undefined) return { revision: snapshot.revision, ...(savedData ? { data: savedData } : {}) };
 
   const revision = await commitChanges(db(), groups, snapshot.related
