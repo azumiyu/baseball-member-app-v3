@@ -12,7 +12,7 @@ export const BET_TYPES = [
 ] as const;
 export type BetTypeId = typeof BET_TYPES[number]["id"];
 export type BetType = BetTypeId;
-export type Horse = { number: number; name: string; frame: number; ability: number; winOddsTenths: number };
+export type Horse = { number: number; name: string; frame: number; ability: number; winOddsTenths: number; hot: boolean;};
 export type Ticket = { id: string; type: BetTypeId; selection: number[]; amount: number; oddsTenths: number };
 export type HorseRaceState = { kind: "horse-racing"; race: number; phase: "betting" | "result"; horses: Horse[]; tickets: Ticket[]; order: number[]; payout: number; balanceBefore: number };
 const names = [
@@ -59,6 +59,25 @@ function matches(type: BetTypeId, selection: number[], top: number[], frames: Ma
 export function ticketWins(ticket: Pick<Ticket, "type" | "selection">, order: number[], horses: Horse[]) {
   return matches(ticket.type, ticket.selection, order, new Map(horses.map((horse) => [horse.number, horse.frame])));
 }
+export function hasHotHorseBonus(
+  ticket: Ticket,
+  order: number[],
+  horses: Horse[],
+) {
+  const hotHorse = horses.find((horse) => horse.hot);
+
+  if (!hotHorse) return false;
+
+  // 枠連だけは選択値が馬番号ではなく「枠番号」
+  if (ticket.type === "bracket") {
+    return (
+      order.slice(0, 2).includes(hotHorse.number) &&
+      ticket.selection.includes(hotHorse.frame)
+    );
+  }
+
+  return ticket.selection.includes(hotHorse.number);
+}
 export function quoteOdds(horses: Horse[], type: BetTypeId, selection: number[]): number {
   if (!selectionValid(horses, type, selection)) throw new Error("馬・枠の組み合わせを確認してください。");
   const total = horses.reduce((sum, horse) => sum + horse.ability, 0);
@@ -76,13 +95,48 @@ export function quoteOdds(horses: Horse[], type: BetTypeId, selection: number[])
   }
   return Math.max(10, Math.floor(8 / probability + 1e-8));
 }
-export function createRace(race: number, random: () => number = Math.random): HorseRaceState {
-  const horses = names.map((name, index) => ({ number: index + 1, name, frame: Math.floor((index + 3) / 2), ability: 5 + Math.floor(draw(random) ** 2 * 96), winOddsTenths: 0 }));
-  const total = horses.reduce((sum, horse) => sum + horse.ability, 0);
-  horses.forEach((horse) => { horse.winOddsTenths = Math.max(10, Math.floor(8 * total / horse.ability + 1e-8)); });
-  return { kind: "horse-racing", race, phase: "betting", horses, tickets: [], order: [], payout: 0, balanceBefore: 0 };
-}
-export function purchaseTicket(state: HorseRaceState, balance: number, input: Pick<Ticket, "type" | "selection" | "amount">, id: string) {
+export function createRace(
+  race: number,
+  random: () => number = Math.random,
+): HorseRaceState {
+  const hotRace = draw(random) < 0.5;
+
+  const hotHorseNumber = hotRace
+    ? Math.floor(draw(random) * 15) + 1
+    : null;
+
+  const horses = names.map((name, index) => ({
+    number: index + 1,
+    name,
+    frame: Math.floor((index + 3) / 2),
+    ability: 5 + Math.floor(draw(random) ** 2 * 96),
+    winOddsTenths: 0,
+    hot: hotHorseNumber === index + 1,
+  }));
+
+  const total = horses.reduce(
+    (sum, horse) => sum + horse.ability,
+    0,
+  );
+
+  horses.forEach((horse) => {
+    horse.winOddsTenths = Math.max(
+      10,
+      Math.floor((8 * total) / horse.ability + 1e-8),
+    );
+  });
+
+  return {
+    kind: "horse-racing",
+    race,
+    phase: "betting",
+    horses,
+    tickets: [],
+    order: [],
+    payout: 0,
+    balanceBefore: 0,
+  };
+}export function purchaseTicket(state: HorseRaceState, balance: number, input: Pick<Ticket, "type" | "selection" | "amount">, id: string) {
   checkBalance(balance);
   if (state.phase !== "betting") throw new Error("このレースの購入受付は終了しました。");
   if (!Number.isSafeInteger(input.amount) || input.amount < 1 || input.amount > balance) throw new Error("所持金以内の1円以上の整数を入力してください。");
@@ -104,8 +158,25 @@ export function resolveRace(state: HorseRaceState, balance: number, random: () =
     while (index < remaining.length - 1 && value >= remaining[index].ability) value -= remaining[index++].ability;
     order.push(remaining.splice(index, 1)[0].number);
   }
-  const payout = state.tickets.reduce((sum, ticket) => sum + (ticketWins(ticket, order, state.horses) ? rawPayout(ticket) : BigInt(0)), BigInt(0));
-  return { state: { ...state, phase: "result" as const, order, payout: cap(payout), balanceBefore: balance }, balance: cap(BigInt(balance) + payout) };
+const payout = state.tickets.reduce((sum, ticket) => {
+  if (!ticketWins(ticket, order, state.horses)) {
+    return sum;
+  }
+
+  const basePayout = rawPayout(ticket);
+  const hotHorse = state.horses.find((horse) => horse.hot);
+
+  if (!hotHorse) {
+    return sum + basePayout;
+  }
+
+  const includesHotHorse =
+    ticket.type === "bracket"
+      ? ticket.selection.includes(hotHorse.frame)
+      : ticket.selection.includes(hotHorse.number);
+
+  return sum + (includesHotHorse ? basePayout * BigInt(10) : basePayout);
+}, BigInt(0));  return { state: { ...state, phase: "result" as const, order, payout: cap(payout), balanceBefore: balance }, balance: cap(BigInt(balance) + payout) };
 }
 export function formatYen(value: number) {
   let remaining = BigInt(value);
