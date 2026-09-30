@@ -15,7 +15,12 @@ import {
   type TeamData,
 } from "@/lib/model";
 import { useLineupSensors } from "../hooks/useLineupSensors";
-import { countActive, dragEndUpdater } from "../lib/lineup-actions";
+import {
+  countActive,
+  dragEndUpdater,
+  tapSwapPlayerUpdater,
+  tapSwapPositionUpdater,
+} from "../lib/lineup-actions";
 import { AbsentSection } from "./AbsentSection";
 import { BenchSection } from "./BenchSection";
 import { LineupRow } from "./LineupRow";
@@ -92,7 +97,35 @@ export function OrderPanel({
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const warningOpen =
     !readOnly && pendingMove !== null && pendingMove.source === data;
+  const [selectedPlayerKey, setSelectedPlayerKey] = useState<string | null>(
+    null,
+  );
+  const [selectedPositionIndex, setSelectedPositionIndex] = useState<
+    number | null
+  >(null);
+  const selectedPlayerKeyRef = useRef<string | null>(null);
+  const selectedTapPlayer = selectedPlayerKey
+    ? data.players.find((player) => {
+        if (selectedPlayerKey === "pitcher") {
+          return player.id === data.pitcher;
+        }
 
+        if (selectedPlayerKey.startsWith("slot:")) {
+          const index = Number(selectedPlayerKey.slice(5));
+          return player.id === data.slots[index]?.playerId;
+        }
+
+        if (selectedPlayerKey.startsWith("bench:")) {
+          return player.id === selectedPlayerKey.slice(6);
+        }
+
+        if (selectedPlayerKey.startsWith("absent:")) {
+          return player.id === selectedPlayerKey.slice(7);
+        }
+
+        return false;
+      })
+    : undefined;
   function confirmMove() {
     const move = pendingMove;
     setPendingMove(null);
@@ -103,6 +136,74 @@ export function OrderPanel({
         : current,
     );
   }
+
+  function handlePlayerTap(key: string) {
+    if (readOnly) return;
+
+    const current = selectedPlayerKeyRef.current;
+
+    // 1人目
+    if (current === null) {
+      selectedPlayerKeyRef.current = key;
+      setSelectedPlayerKey(key);
+      return;
+    }
+
+    // 同じ選手 → 解除
+    if (current === key) {
+      selectedPlayerKeyRef.current = null;
+      setSelectedPlayerKey(null);
+      return;
+    }
+
+    // 2人目 → 即交換
+    const updater = tapSwapPlayerUpdater(current, key);
+    const next = updater(structuredClone(data));
+
+    const warningPlayer = data.players.find(
+      (player) =>
+        player.number === "11" &&
+        playerDestination(data, player.id) !==
+          playerDestination(next, player.id),
+    );
+
+    // Reactの再描画を待たず、先にrefを即更新
+    selectedPlayerKeyRef.current = null;
+    setSelectedPlayerKey(null);
+
+    if (warningPlayer) {
+      setPendingMove({
+        source: data,
+        destination: playerDestination(next, warningPlayer.id),
+        updater,
+      });
+      return;
+    }
+
+    edit(updater);
+  }
+  
+  function handlePositionTap(index: number) {
+    if (readOnly) return;
+
+    // 1個目の守備を選択
+    if (selectedPositionIndex === null) {
+      setSelectedPositionIndex(index);
+      return;
+    }
+
+    // 同じ守備をもう一度タップ → 選択解除
+    if (selectedPositionIndex === index) {
+      setSelectedPositionIndex(null);
+      return;
+    }
+
+    // 2個目をタップ → 守備だけ交換
+    edit(tapSwapPositionUpdater(selectedPositionIndex, index));
+
+    setSelectedPositionIndex(null);
+  }
+
   const collisionDetection: CollisionDetection = (args) =>
     pointerWithin({
       ...args,
@@ -159,12 +260,20 @@ export function OrderPanel({
       {readOnly ? (
         <p className="lineup-readonly-note">閲覧専用</p>
       ) : (
-        <p className="drag-help">
-          <GripVertical size={14} />
-          打順・選手・守備はドラッグで入れ替え
+        <p className="drag-help" aria-live="polite">
+          {selectedTapPlayer ? (
+            <>
+              <strong>{selectedTapPlayer.name}</strong>
+              と入れ替える選手をタップ
+            </>
+          ) : (
+            <>
+              <GripVertical size={14} />
+              選手をタップして入れ替え・ドラッグでも移動できます
+            </>
+          )}
         </p>
       )}
-
       <GotoMoveDialog
         open={warningOpen}
         destination={pendingMove?.destination ?? "starter"}
@@ -230,7 +339,10 @@ export function OrderPanel({
                     : attendance[slot.playerId]
                 }
                 onPickPlayer={() => onPickPlayer(`slot:${i}`)}
-                onPickPosition={() => onPickPosition(i)}
+                onPickPosition={() => handlePositionTap(i)}
+                selected={selectedPlayerKey === `slot:${i}`}
+                positionSelected={selectedPositionIndex === i}
+                onPlayerTap={() => handlePlayerTap(`slot:${i}`)}
               />
             ))}
             {data.mode === "dh" && (
@@ -243,6 +355,8 @@ export function OrderPanel({
                     : attendance[pitcher.id]
                 }
                 onPick={() => onPickPlayer("pitcher")}
+                selected={selectedPlayerKey === "pitcher"}
+                onPlayerTap={() => handlePlayerTap("pitcher")}
               />
             )}
           </div>
@@ -252,7 +366,8 @@ export function OrderPanel({
             bench={bench}
             attendance={attendance}
             totalPlayers={data.players.length}
-            onEditPlayer={onEditPlayer}
+            selectedPlayerKey={selectedPlayerKey}
+            onPlayerTap={handlePlayerTap}
             onAddPlayer={onAddPlayer}
           />
         </div>
@@ -260,7 +375,8 @@ export function OrderPanel({
           readOnly={readOnly}
           absent={absent}
           attendance={attendance}
-          onEditPlayer={onEditPlayer}
+          selectedPlayerKey={selectedPlayerKey}
+          onPlayerTap={handlePlayerTap}
           onMoveNonAttendingToAbsent={() => {
             if (!attendance) return;
 

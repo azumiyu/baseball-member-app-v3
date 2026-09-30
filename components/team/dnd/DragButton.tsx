@@ -1,14 +1,13 @@
 "use client";
+
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import type { DragKey } from "../types";
 
 /**
- * 「ドラッグもできるし、ドロップ先にもなるボタン」。
- * 打順・選手・守備位置の 3 種類すべてでこのコンポーネントを使い回します。
- *
- * クリックすると onClick（モーダルを開く）、
- * ドラッグすると入れ替え、という二役をひとつの要素が担います。
+ * タップとドラッグを両立するボタン。
+ * 短いタップ → onClick
+ * 移動/長押しドラッグ → D&D
  */
 export function DragButton({
   item,
@@ -22,13 +21,29 @@ export function DragButton({
   children: ReactNode;
   onClick?: () => void;
   className?: string;
-  /** スクリーンリーダー向けのラベル（必須） */
   label: string;
   disabled?: boolean;
 }) {
   const id = `${item.kind}:${item.key}`;
-  const drag = useDraggable({ id, data: item, disabled });
-  const drop = useDroppable({ id, data: item, disabled });
+
+  const drag = useDraggable({
+    id,
+    data: item,
+    disabled,
+  });
+
+  const drop = useDroppable({
+    id,
+    data: item,
+    disabled,
+  });
+
+  const pointerStart = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const pointerMoved = useRef(false);
 
   return (
     <button
@@ -40,11 +55,62 @@ export function DragButton({
       {...drag.attributes}
       type="button"
       disabled={disabled}
-      onClick={onClick}
-      className={`${className} drag-button ${drag.isDragging ? "dragging" : ""} ${
-        drop.isOver ? "drop-over" : ""
-      }`}
+
+      onPointerDownCapture={(event) => {
+        pointerStart.current = {
+          x: event.clientX,
+          y: event.clientY,
+        };
+
+        pointerMoved.current = false;
+      }}
+
+      onPointerMoveCapture={(event) => {
+        const start = pointerStart.current;
+        if (!start) return;
+
+        const distance = Math.hypot(
+          event.clientX - start.x,
+          event.clientY - start.y,
+        );
+
+        if (distance > 6) {
+          pointerMoved.current = true;
+        }
+      }}
+
+      onPointerUpCapture={() => {
+        const isTap =
+          !pointerMoved.current &&
+          !drag.isDragging;
+
+        pointerStart.current = null;
+        pointerMoved.current = false;
+
+        if (isTap) {
+          onClick?.();
+        }
+      }}
+
+      onPointerCancelCapture={() => {
+        pointerStart.current = null;
+        pointerMoved.current = false;
+      }}
+
+      onClick={(event) => {
+        // Enter / Spaceなどキーボード操作だけここで処理。
+        // マウス・タッチはpointerUp側で処理済み。
+        if (event.detail === 0) {
+          onClick?.();
+        }
+      }}
+
+      className={`${className} drag-button ${
+        drag.isDragging ? "dragging" : ""
+      } ${drop.isOver ? "drop-over" : ""}`}
+
       aria-label={label}
+
       style={{
         transform: drag.transform
           ? `translate3d(${drag.transform.x}px,${drag.transform.y}px,0)`

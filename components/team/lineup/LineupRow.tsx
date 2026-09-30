@@ -18,6 +18,9 @@ export function LineupRow({
   position,
   player,
   attendance,
+  selected,
+  positionSelected,
+  onPlayerTap,
   onPickPlayer,
   onPickPosition,
 }: {
@@ -27,6 +30,9 @@ export function LineupRow({
   position: Position;
   player?: Player;
   attendance: PlayerAttendance;
+  selected: boolean;
+  positionSelected: boolean;
+  onPlayerTap: () => void;
   onPickPlayer: () => void;
   onPickPosition: () => void;
 }) {
@@ -44,28 +50,34 @@ export function LineupRow({
 
       <DragButton
         item={{ kind: "player", key: `slot:${index}` }}
-        className={`player-slot ${!player ? "empty" : ""}`}
-        label={`${index + 1}番 ${player?.name ?? (readOnly ? "未設定" : "選手を選択")}${attendanceDescription(attendance)}`}
-        onClick={onPickPlayer}
+        className={`player-slot ${!player ? "empty" : ""} ${
+          selected ? "drop-over" : ""
+        }`}
+        label={`${index + 1}番 ${
+          player?.name ?? (readOnly ? "未設定" : "選手を選択")
+        }${attendanceDescription(attendance)}`}
+        onClick={player ? onPlayerTap : onPickPlayer}
         disabled={readOnly}
       >
         {!readOnly && <GripVertical size={16} />}
+
         <span className="player-name">
           {player?.name ?? (readOnly ? "未設定" : "選手を選択")}
         </span>
+
         <span data-capture-hide="true">
           <span className="lineup-player-meta">
             <AttendanceBadge response={attendance} />
+
             <span className="jersey">
               {player ? `#${player.number}` : readOnly ? "—" : "＋"}
             </span>
           </span>
         </span>
       </DragButton>
-
       <DragButton
         item={{ kind: "position", key: String(index) }}
-        className="position"
+        className={`position ${positionSelected ? "drop-over" : ""}`}
         label={`${index + 1}番の守備 ${position}`}
         onClick={onPickPosition}
         disabled={readOnly}

@@ -114,6 +114,49 @@ function resolvePlayerId(d: TeamData, key: string): string | null {
  * @param target "pitcher" もしくは "slot:<index>"
  * @param playerId null なら選択解除（ベンチへ戻す）
  */
+
+export function tapSwapPositionUpdater(from: number, to: number) {
+  return (d: TeamData): TeamData => {
+    if (from === to) return d;
+    if (!d.slots[from] || !d.slots[to]) return d;
+
+    [d.slots[from].position, d.slots[to].position] = [
+      d.slots[to].position,
+      d.slots[from].position,
+    ];
+
+    return d;
+  };
+}
+
+export function tapSwapPlayerUpdater(from: string, to: string) {
+  return (d: TeamData): TeamData => {
+    if (from === to) return d;
+
+    // スタメン同士は
+    // 選手 + 守備位置をセットで交換
+    // → 打順も相手の打順へ移動する
+    if (from.startsWith("slot:") && to.startsWith("slot:")) {
+      const fromIndex = Number(from.slice(5));
+      const toIndex = Number(to.slice(5));
+
+      if (!d.slots[fromIndex] || !d.slots[toIndex]) {
+        return d;
+      }
+
+      [d.slots[fromIndex], d.slots[toIndex]] = [
+        d.slots[toIndex],
+        d.slots[fromIndex],
+      ];
+
+      return d;
+    }
+
+    // ベンチ・不参加・DH投手を含む交換は
+    // 既存の共通処理を利用
+    return swapPlayer(d, from, to);
+  };
+}
 export function selectPlayerUpdater(target: string, playerId: string | null) {
   return (d: TeamData): TeamData => {
     // 選択解除

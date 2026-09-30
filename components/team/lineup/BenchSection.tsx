@@ -15,14 +15,16 @@ export function BenchSection({
   attendance,
   readOnly,
   totalPlayers,
-  onEditPlayer,
+  selectedPlayerKey,
+  onPlayerTap,
   onAddPlayer,
 }: {
   bench: Player[];
   attendance: Record<string, ScheduleResponse> | null;
   readOnly: boolean;
   totalPlayers: number;
-  onEditPlayer: (player: Player) => void;
+  selectedPlayerKey: string | null;
+  onPlayerTap: (key: string) => void;
   onAddPlayer: () => void;
 }) {
   return (
@@ -56,25 +58,35 @@ export function BenchSection({
       >
         {bench.length ? (
           <div className="bench-grid">
-            {bench.map((p) => (
-              <DragButton
-                key={p.id}
-                item={{ kind: "player", key: `bench:${p.id}` }}
-                className="bench-player"
-                label={`控え ${p.name}${attendanceDescription(attendance === null ? null : attendance[p.id])}`}
-                onClick={() => onEditPlayer(p)}
-                disabled={readOnly}
-              >
-                {!readOnly && <GripVertical size={15} />}
-                <span>{p.name}</span>
-                <span className="lineup-player-meta" data-capture-hide="true">
-                  <AttendanceBadge
-                    response={attendance === null ? null : attendance[p.id]}
-                  />
-                  <span className="jersey">#{p.number}</span>
-                </span>
-              </DragButton>
-            ))}
+            {bench.map((p) => {
+              const key = `bench:${p.id}`;
+
+              return (
+                <DragButton
+                  key={p.id}
+                  item={{ kind: "player", key }}
+                  className={`bench-player ${
+                    selectedPlayerKey === key ? "dragging drop-over" : ""
+                  }`}
+                  label={`控え ${p.name}${attendanceDescription(
+                    attendance === null ? null : attendance[p.id],
+                  )}`}
+                  onClick={() => onPlayerTap(key)}
+                  disabled={readOnly}
+                >
+                  {!readOnly && <GripVertical size={15} />}
+
+                  <span>{p.name}</span>
+
+                  <span className="lineup-player-meta" data-capture-hide="true">
+                    <AttendanceBadge
+                      response={attendance === null ? null : attendance[p.id]}
+                    />
+                    <span className="jersey">#{p.number}</span>
+                  </span>
+                </DragButton>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-bench">

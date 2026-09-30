@@ -478,7 +478,9 @@ export function TeamApp() {
               }}
               edit={editLineup}
               readOnly={!canEditLineup}
-              selectionDisabled={team.saveState !== "saved"}
+              selectionDisabled={
+                lineupSwitching || team.saveState === "conflict"
+              }
               bench={bench}
               absent={absent}
               infoOpen={ui.infoOpen}

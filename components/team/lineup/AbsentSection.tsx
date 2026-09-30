@@ -1,4 +1,5 @@
 "use client";
+
 import { GripVertical } from "lucide-react";
 import type { Player } from "@/lib/model";
 import type { ScheduleResponse } from "@/lib/schedule";
@@ -11,13 +12,15 @@ export function AbsentSection({
   absent,
   attendance,
   readOnly,
-  onEditPlayer,
+  selectedPlayerKey,
+  onPlayerTap,
   onMoveNonAttendingToAbsent,
 }: {
   absent: Player[];
   attendance: Record<string, ScheduleResponse> | null;
   readOnly: boolean;
-  onEditPlayer: (player: Player) => void;
+  selectedPlayerKey: string | null;
+  onPlayerTap: (key: string) => void;
   onMoveNonAttendingToAbsent: () => void;
 }) {
   return (
@@ -35,29 +38,43 @@ export function AbsentSection({
       >
         {absent.length ? (
           <div className="bench-grid">
-            {absent.map((p) => (
-              <DragButton
-                key={p.id}
-                item={{ kind: "player", key: `absent:${p.id}` }}
-                className="bench-player"
-                label={`不参加 ${p.name}${attendanceDescription(attendance === null ? null : attendance[p.id])}`}
-                onClick={() => onEditPlayer(p)}
-                disabled={readOnly}
-              >
-                {!readOnly && <GripVertical size={15} />}
-                <span>{p.name}</span>
-                <span className="lineup-player-meta">
-                  <AttendanceBadge
-                    response={attendance === null ? null : attendance[p.id]}
-                  />
-                  <span className="jersey">#{p.number}</span>
-                </span>
-              </DragButton>
-            ))}
+            {absent.map((p) => {
+              const key = `absent:${p.id}`;
+
+              return (
+                <DragButton
+                  key={p.id}
+                  item={{ kind: "player", key }}
+                  className={`bench-player ${
+                    selectedPlayerKey === key ? "dragging drop-over" : ""
+                  }`}
+                  label={`不参加 ${p.name}${attendanceDescription(
+                    attendance === null ? null : attendance[p.id],
+                  )}`}
+                  onClick={() => onPlayerTap(key)}
+                  disabled={readOnly}
+                >
+                  {!readOnly && <GripVertical size={15} />}
+
+                  <span>{p.name}</span>
+
+                  <span className="lineup-player-meta">
+                    <AttendanceBadge
+                      response={
+                        attendance === null ? null : attendance[p.id]
+                      }
+                    />
+                    <span className="jersey">#{p.number}</span>
+                  </span>
+                </DragButton>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-absent">
-            {readOnly ? "不参加の選手はいません" : "来ない選手をここに移動"}
+            {readOnly
+              ? "不参加の選手はいません"
+              : "来ない選手をここに移動"}
           </div>
         )}
       </PlayerZone>
