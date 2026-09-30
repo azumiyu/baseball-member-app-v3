@@ -260,7 +260,7 @@ export function TeamApp() {
         throw new Error("Canvasの取得に失敗しました。");
       }
 
-      const outerRadius = 28; // 画像全体の角丸
+      const outerRadius = 0; // 画像全体の角丸
       const innerRadius = 18; // 白い内側カードの角丸
 
       // ① 全体を角丸でクリップ
