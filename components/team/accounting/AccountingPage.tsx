@@ -147,7 +147,7 @@ const unpaidPlayers =
 
 const disabled = busy || conflict || loading;  
   return <main className={`app-shell ${styles.page}`}>
-    <header className="topbar"><Link href="/" className="secondary"><ArrowLeft size={18} aria-hidden="true" />チームへ戻る</Link>{snapshot && <span className="login-member">{snapshot.member.name}</span>}</header>
+    <header className="topbar"><a href="/" className="secondary"><ArrowLeft size={18} aria-hidden="true" />チームへ戻る</a>{snapshot && <span className="login-member">{snapshot.member.name}</span>}</header>
     {/* <div className="page-heading"><div><p className="eyebrow">YG TEAM</p><h1><WalletCards size={27} aria-hidden="true" /> 会計</h1><p>部費・収支管理 {snapshot && !canEdit && <b>／ 閲覧専用</b>}</p></div></div> */}
     {error && <div className="error-banner" role="alert"><span>{error}</span>{unauthorized ? <Link href="/">ログイン画面へ</Link> : <button type="button" disabled={busy} onClick={() => { void load(); }}>{conflict ? "最新データを読み込む" : "再読み込み"}</button>}</div>}
     {loading && !snapshot ? <LoadingState /> : data && !unauthorized && <>
