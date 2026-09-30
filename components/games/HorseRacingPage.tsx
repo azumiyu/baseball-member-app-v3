@@ -161,7 +161,7 @@ export function HorseRacingPage() {
             <div className={styles.horseRow} role="row"><span role="columnheader">枠</span><span role="columnheader">馬番・馬名</span><span role="columnheader">能力</span><span role="columnheader">単勝</span></div>
             {race.horses.map((horse) => <div className={styles.horseRow} role="row" key={horse.number}>
               <span role="cell"><b className={styles.saddle} data-frame={horse.frame}>{horse.frame}</b></span>
-              <span role="cell" className={styles.horseName}><b>{horse.number}</b> {horse.name}</span>
+              <span role="cell" className={styles.horseName}><b>{horse.number}</b> {horse.name}{horse.hot && <span>🔥激熱10倍</span>}</span>
               <span role="cell" className={styles.ability} aria-label={`能力 ${horse.ability}`} title={`能力 ${horse.ability}`}><i style={{ width: `${horse.ability}%` }} /></span>
               <strong role="cell" className={horse.winOddsTenths === Math.min(...race.horses.map((entry) => entry.winOddsTenths)) ? styles.favorite : undefined}>{oddsLabel(horse.winOddsTenths)}</strong>
             </div>)}
