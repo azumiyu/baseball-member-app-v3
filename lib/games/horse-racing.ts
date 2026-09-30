@@ -15,8 +15,23 @@ export type BetType = BetTypeId;
 export type Horse = { number: number; name: string; frame: number; ability: number; winOddsTenths: number };
 export type Ticket = { id: string; type: BetTypeId; selection: number[]; amount: number; oddsTenths: number };
 export type HorseRaceState = { kind: "horse-racing"; race: number; phase: "betting" | "result"; horses: Horse[]; tickets: Ticket[]; order: number[]; payout: number; balanceBefore: number };
-const names = ["ナガヤスダッシュ", "カワタカサイコロ", "オシノロケット", "アズミノキセキ", "トダノイチゲキ", "ホリエノツバサ", "ネギシノイジ", "イケハラスマイル", "ゴトウノコトバ", "ダイヤモンドラン", "ベンチノヒーロー", "サヨナラアーチ", "マッハノウマドモ", "ブカツガエリ", "オオアナファイヤー"];
-const cap = (value: bigint) => Number(value > BigInt(MAX_BALANCE) ? BigInt(MAX_BALANCE) : value);
+const names = [
+  "ナガヤスウマノオウサマ",
+  "オシノチタンゴウキン",
+  "カワタカノキセキ",
+  "カワナベノサヨナラ",
+  "イケハラノタタキ",
+  "シバタオニギリターボ",
+  "チアキカイリキー",
+  "アズミイチワリニキ",
+  "ミサワローボールスクイ",
+  "カンチホウトビスギワロタ",
+  "ヤマキシャチョウ",
+  "コバヤシマラソン",
+  "ネギシティゴラシンジャ",
+  "トダゼンリョクガチパンツ",
+  "ホリエオチツイテクダサイ",
+];const cap = (value: bigint) => Number(value > BigInt(MAX_BALANCE) ? BigInt(MAX_BALANCE) : value);
 function checkBalance(balance: number) {
   if (!Number.isSafeInteger(balance) || balance < 0 || balance > MAX_BALANCE) throw new Error("所持金が不正です。");
 }
