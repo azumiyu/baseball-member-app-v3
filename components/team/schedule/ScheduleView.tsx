@@ -87,6 +87,7 @@ function ResponseEditor({
 }) {
   const fieldId = useId();
   const commentId = `schedule-comment-${gameId}-${player.id}-${fieldId}`;
+  const [commentOpen, setCommentOpen] = useState(Boolean(response?.comment));
   return (
     <div className="schedule-response-editor">
       <div className="schedule-attendance-buttons" role="group" aria-label={`${player.name}の出欠`}>
@@ -104,6 +105,10 @@ function ResponseEditor({
           </button>
         ))}
       </div>
+      <button type="button" className="schedule-comment-toggle" aria-expanded={commentOpen} aria-controls={`${commentId}-fields`} onClick={() => setCommentOpen(!commentOpen)}>
+        <span>コメント <small>{response?.comment ? "入力済み" : "任意"}</small></span><ChevronDown size={16} aria-hidden="true" />
+      </button>
+      <div id={`${commentId}-fields`} className="schedule-comment-fields" data-open={commentOpen}>
       <label htmlFor={commentId}>コメント <span>任意・全員に表示</span></label>
       <textarea
         id={commentId}
@@ -117,6 +122,7 @@ function ResponseEditor({
           comment: event.target.value,
         })}
       />
+      </div>
       <p className="schedule-autosave-note">出欠・コメントは自動保存されます。</p>
     </div>
   );
@@ -216,8 +222,18 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
       <h2 className="schedule-game-heading">
         <button type="button" id={`${detailsId}-toggle`} className="schedule-game-summary" aria-expanded={expanded} aria-controls={detailsId} onClick={onToggle}>
           <span className="schedule-game-heading-copy">
-            {featured && <span className="schedule-featured-label">{game.date === japanDate() ? "本日の試合" : "次の土曜日"}</span>}
-            <span className="schedule-game-date"><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time>{game.startTime && <span>{game.startTime}</span>}</span>
+            <span className="schedule-game-date">
+              <CalendarDays size={16} aria-hidden="true" />
+              <time dateTime={game.date}>
+                <span className="schedule-date-full">{formatDate(game.date)}</span>
+                <span className="schedule-date-compact">
+                  {game.date.slice(0, 4) !== japanDate().slice(0, 4) ? `${game.date.slice(0, 4)}/` : <span className="sr-only">{game.date.slice(0, 4)}年</span>}
+                  {Number(game.date.slice(5, 7))}/{Number(game.date.slice(8, 10))}（{weekday.format(new Date(`${game.date}T12:00:00+09:00`))}）
+                </span>
+              </time>
+              {game.startTime && <span className="schedule-start-time">{game.startTime}</span>}
+              {featured && <span className="schedule-featured-label">{game.date === japanDate() ? "本日" : "次の土曜"}</span>}
+            </span>
             <span className="schedule-game-title"><strong>{game.title || "大会名未設定"}</strong><span className={`schedule-game-status ${game.status}`}>{GAME_STATUSES.find((entry) => entry.status === game.status)?.label}</span>{onEdit && (<span className={`schedule-game-status ${game.umpireArranged ? "umpire-arranged" : "umpire-pending"}`}>{game.umpireArranged ? "審判手配済" : "審判未手配"}</span>)}</span>
             <span className="schedule-game-summary-info">{game.opponent ? `vs ${game.opponent}` : "対戦相手未定"}{game.location && ` ／ ${game.location}`}</span>
           </span>
@@ -231,10 +247,10 @@ function GameCard({ game, players, member, featured, expanded, onToggle, disable
           </button>
         )}
       <div className="schedule-game-info">
-        <p><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time></p>
+        <p className="schedule-detail-date"><CalendarDays size={16} aria-hidden="true" /><time dateTime={game.date}>{formatDate(game.date)}</time></p>
         <p><Clock3 size={16} aria-hidden="true" /><span>{scheduleTimeRange(game)}</span></p>
-        {game.opponent && <p><Users size={16} aria-hidden="true" /><span>対戦相手：{game.opponent}</span></p>}
-        <p><MapPin size={16} aria-hidden="true" /><span>{game.location || "場所は未定"}</span></p>
+        {game.opponent && <p className="schedule-detail-opponent"><Users size={16} aria-hidden="true" /><span>対戦相手：{game.opponent}</span></p>}
+        <p className="schedule-detail-location"><MapPin size={16} aria-hidden="true" /><span>{game.location || "場所は未定"}</span></p>
       </div>
       {maps && (
         <div className="schedule-map-links" aria-label="試合会場の地図">

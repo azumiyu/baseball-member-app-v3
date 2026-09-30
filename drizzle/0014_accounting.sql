@@ -14,7 +14,7 @@ CREATE TABLE `accounting_entries` (
 );
 
 --> statement-breakpoint
-CREATE INDEX `accounting_entries_date_idx` ON `accounting_entries` (`"date" DESC`,`"created_at" DESC`,`id`);
+CREATE INDEX `accounting_entries_date_idx` ON `accounting_entries` (`date` DESC,`created_at` DESC,`id`);
 --> statement-breakpoint
 CREATE TABLE `membership_payments` (
 	`year` integer NOT NULL,

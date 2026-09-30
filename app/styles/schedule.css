@@ -1,4 +1,6 @@
 .schedule-page { min-width: 0; }
+.schedule-date-compact, .schedule-comment-toggle { display: none; }
+.schedule-game-date > .schedule-featured-label { margin: 0; padding: 2px 6px; border-radius: 4px; background: #e5f2fc; font-size: 10px; white-space: nowrap; }
 .schedule-toolbar-count { color: #617a8e; font-size: 13px; }
 .schedule-reminder-list { display: grid; gap: 10px; margin: 0 0 18px; padding: 0; list-style: none; }
 .schedule-reminder-list li { display: grid; gap: 5px; padding: 12px; border-radius: 9px; background: #f1f7fc; color: #345970; font-size: 13px; overflow-wrap: anywhere; }
@@ -172,17 +174,78 @@
 .schedule-form-error p { margin: 0 0 6px; }
 .schedule-form-save-state { margin: 0; }
 @media (max-width: 600px) {
-  .schedule-game-summary { padding: 13px 14px; }
-  .schedule-game-summary-end { flex-direction: column; gap: 8px; }
-  .schedule-game-title > strong { font-size: 16px; }
-  .schedule-game-details { padding: 14px; }
-  .schedule-game-date { font-size: 12px; }
-  .schedule-edit-button { min-width: 44px; padding: 8px; }
-  .schedule-attendance-buttons { gap: 6px; }
-  .schedule-attendance-button { min-height: 54px; gap: 4px; font-size: 14px; }
+  .schedule-page-heading { margin: 20px 0 16px; }
+  .schedule-page-heading h1 { font-size: 24px; }
+  .schedule-page-heading .eyebrow { margin-bottom: 4px; font-size: 10px; }
+  .schedule-toolbar { gap: 8px; margin-bottom: 10px; }
+  .schedule-toolbar .primary { padding: 10px 13px; font-size: 12px; }
+  .schedule-game-list { gap: 8px; }
+  .schedule-game-card { border-radius: 10px; }
+  .schedule-game-card.featured { border-top-width: 3px; }
+  .schedule-game-summary { align-items: flex-start; min-height: 80px; gap: 8px; padding: 11px 12px; }
+  .schedule-game-summary-end { flex-direction: column; gap: 8px; padding-top: 2px; }
+  .schedule-game-summary-end .schedule-status-badge { min-width: 42px; padding: 3px 6px; text-align: center; font-size: 10px; }
+  .schedule-game-title { gap: 4px; }
+  .schedule-game-title > strong { font-size: 14px; line-height: 1.5; }
+  .schedule-game-title .schedule-game-status { padding: 2px 5px; font-size: 9px; }
+  .schedule-game-summary-info { margin-top: 3px; font-size: 11px; line-height: 1.5; }
+  .schedule-date-full { display: none; }
+  .schedule-date-compact { display: inline; }
+  .schedule-game-date { gap: 4px; margin-bottom: 5px; font-size: 13px; }
+  .schedule-game-date > svg { display: none; }
+  .schedule-start-time { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .schedule-game-details:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 8px; padding: 8px 12px 12px; }
+  .schedule-edit-button { grid-column: 2; grid-row: 1; min-width: 44px; padding: 8px; font-size: 11px; }
+  .schedule-game-info { grid-column: 1; grid-row: 1; gap: 5px; margin: 5px 0 8px; }
+  .schedule-game-info p { font-size: 12px; gap: 5px; line-height: 1.6; }
+  .schedule-game-info .schedule-detail-date, .schedule-game-info .schedule-detail-opponent { display: none; }
+  .schedule-map-links { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0 0 10px; }
+  .schedule-map-links a { justify-content: center; min-height: 44px; padding: 6px; font-size: 11px; }
+  .schedule-map-links a > svg { flex-shrink: 0; }
+  .schedule-own-response { grid-column: 1 / -1; padding-top: 10px; }
+  .schedule-own-response h3 { margin-bottom: 8px; font-size: 12px; }
+  .schedule-own-response h3 > span { font-size: 10px; }
+  .schedule-attendance-buttons { gap: 6px; margin-bottom: 0; }
+  .schedule-attendance-button { min-height: 44px; border-radius: 8px; gap: 4px; font-size: 13px; }
+  .schedule-attendance-button > span { font-size: 17px; }
   .schedule-attendance-button svg { width: 12px; }
+  .schedule-comment-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 44px; padding: 8px 2px; background: transparent; color: #526d82; text-align: left; font-size: 12px; }
+  .schedule-comment-toggle small { margin-left: 6px; color: #6c8091; font-size: 10px; }
+  .schedule-comment-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
+  .schedule-comment-fields[data-open="false"] { display: none; }
+  .schedule-comment-fields { padding-bottom: 6px; }
+  .schedule-response-editor textarea { min-height: 64px; margin-top: 5px; padding: 8px 10px; }
+  .schedule-autosave-note { margin-top: 3px; font-size: 10px; line-height: 1.5; }
+  .schedule-response-counts { grid-column: 1 / -1; gap: 4px; margin-top: 10px; }
+  .schedule-response-counts > button { flex-direction: row; gap: 4px; min-height: 44px; border-radius: 6px; font-size: 10px; }
+  .schedule-response-counts strong { font-size: 15px; }
+  .schedule-members { margin-top: 8px; }
+  .schedule-members li { padding: 8px 0; }
+  .schedule-member-comment { margin-top: 5px; padding: 7px 9px; font-size: 12px; }
   .schedule-member-edit > span { display: none; }
+  .schedule-game-form, .schedule-editor-fields { gap: 12px; }
   .schedule-date-time-fields { gap: 9px; }
+  .schedule-game-form input, .schedule-game-form select { min-height: 44px; margin-top: 5px; }
+  .schedule-name-input input { margin-top: 0; }
+  .schedule-game-status-buttons { margin-top: 6px; gap: 6px; }
+  .schedule-game-status-buttons button { min-height: 44px; font-size: 13px; }
+  .schedule-game-form .schedule-umpire-check { min-height: 44px; margin-top: 8px; padding: 8px 10px; }
+  .schedule-game-form > .schedule-editor-actions { gap: 8px; padding: 10px 0 4px; background: #fff; border-top: 1px solid var(--border); }
+  .schedule-editor-actions button { min-height: 44px; font-size: 13px; }
+  .schedule-saturday-empty { padding: 16px 12px; }
+  .schedule-empty-icon { width: 36px; height: 36px; margin-bottom: 7px; border-radius: 10px; }
+  .schedule-saturday-empty h2 { font-size: 16px; }
+  .schedule-saturday-empty > p:not(.schedule-featured-label) { margin: 8px 0; font-size: 12px; }
+  .schedule-past { margin-top: 12px; }
+  .schedule-section-title { margin-top: 8px; font-size: 12px; }
+  .schedule-reminder-list { gap: 8px; margin-bottom: 12px; }
+  .schedule-reminder-list li { gap: 4px; padding: 10px; font-size: 12px; }
+  .schedule-reminder-list .schedule-change-comparison { padding: 8px; }
+  .schedule-reminder-list .schedule-change-comparison dl { gap: 7px; margin-top: 7px; }
+}
+@media (max-width: 360px) {
+  .schedule-response-counts > button { flex-direction: column; gap: 1px; }
+  .schedule-game-date > .schedule-featured-label { font-size: 9px; }
 }
 @media (min-width: 850px) {
   .schedule-game-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
