@@ -530,7 +530,7 @@ export function ScheduleView({ players, member, nameOptions, appNavigation, onSa
   return (
     <section className="schedule-page">
       {schedule.loginGames && <ScheduleNotices games={schedule.data.games} initialGames={schedule.loginGames} memberId={member.id} suspended={editor !== null || responseGame !== undefined || schedule.loading} saveState={schedule.saveState} error={schedule.error} onResponse={(id, response) => updateResponse(id, member.id, response)} onRetry={schedule.retrySave} onOpenSchedule={(id) => { setExpandedGameId(id); onOpenSchedule(); }} />}
-      <header className="page-heading schedule-page-heading">
+      <header className="page-heading ">
         <div><p className="eyebrow">TEAM SCHEDULE</p><h1>スケジュール</h1><p>試合の予定を確認して、出欠を回答しましょう。</p></div>
       </header>
       {appNavigation}
