@@ -350,6 +350,14 @@
   letter-spacing: .04em;
 }
 
+.home-game-type-official {
+  color: #15803d;
+}
+
+.home-game-type-practice {
+  color: #2563eb;
+}
+
 .home-game-main strong {
   display: block;
   overflow: hidden;

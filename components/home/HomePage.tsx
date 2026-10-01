@@ -162,7 +162,11 @@ export function HomePage() {
                 </div>
 
                 <div className="home-game-main">
-                  <span className="home-game-type">{game.type || "試合"}</span>
+                  <span
+                    className={`home-game-type${game.type.includes("公式戦") ? " home-game-type-official" : game.type.includes("練習試合") ? " home-game-type-practice" : ""}`}
+                  >
+                    {game.type || "試合"}
+                  </span>
                   <strong>{game.opponent}</strong>
                 </div>
 
