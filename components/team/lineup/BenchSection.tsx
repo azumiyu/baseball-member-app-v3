@@ -58,7 +58,7 @@ export function BenchSection({
       >
         {bench.length ? (
           <div className="bench-grid">
-            {bench.map((p) => {
+            {bench.slice().sort((a, b) => Number(a.number) - Number(b.number)).map((p) => {
               const key = `bench:${p.id}`;
 
               return (

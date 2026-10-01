@@ -29,11 +29,11 @@ export function AppMenuModal({
           <small>成績・登録情報等</small>
         </button>
 
-        <button className="app-launcher-item" aria-disabled>
+        <a href="/home" className="app-launcher-item" onClick={onClose}>
           <Users size={26} />
           <strong>ホームページ</strong>
-          <small></small>
-        </button>
+          <small>YG FIRES 公式ホームページ</small>
+        </a>
 
         <a href="/accounting" className="app-launcher-item" onClick={onClose}>
           <WalletCards size={26} aria-hidden="true" />
