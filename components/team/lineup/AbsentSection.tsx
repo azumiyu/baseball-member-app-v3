@@ -38,7 +38,7 @@ export function AbsentSection({
       >
         {absent.length ? (
           <div className="bench-grid">
-            {absent.map((p) => {
+            {absent.slice().sort((a, b) => Number(a.number) - Number(b.number)).map((p) => {
               const key = `absent:${p.id}`;
 
               return (

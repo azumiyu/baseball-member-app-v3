@@ -77,6 +77,7 @@ export function RosterPanel({
         <div className="roster-list">
           {players
             .filter((p) => `${p.name} ${p.kana} ${p.number}`.includes(query))
+            .sort((a, b) => Number(a.number) - Number(b.number))
             .map((p) => (
               <button
                 className="roster-row"
