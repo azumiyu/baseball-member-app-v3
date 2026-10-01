@@ -1,5 +1,5 @@
-import { HomePage } from "@/components/home/HomePage";
+import { TeamApp } from "@/components/team";
 
 export default function Home() {
-  return <HomePage />;
+  return <TeamApp />;
 }

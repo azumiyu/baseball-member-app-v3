@@ -29,7 +29,7 @@ export function AppMenuModal({
           <small>成績・登録情報等</small>
         </button>
 
-        <a href="/" className="app-launcher-item" onClick={onClose}>
+        <a href="/home" className="app-launcher-item" onClick={onClose}>
           <Users size={26} />
           <strong>ホームページ</strong>
           <small>YG FIRES 公式ホームページ</small>

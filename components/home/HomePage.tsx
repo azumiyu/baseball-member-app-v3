@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, CalendarDays, Trophy } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert, Trophy } from "lucide-react";
 
 type RecentGame = {
   id: string;
@@ -21,9 +22,15 @@ type GamesResponse =
 const INSTAGRAM_URL = "https://www.instagram.com/yg_fires?stkn=bWo3MHYzcm01MzZ3";
 const TEAMS_URL = "https://teams.one/teams/ygfires/game";
 
+// お知らせは下記の3件を書き換えて更新します。
+const NOTICES = [
+  { id: "notice-1", text: "川鍋：台湾へ出張" },
+  { id: "notice-2", text: "芝田：深谷に移住" },
+  { id: "notice-3", text: "川高：9月打率8割" },
+];
+
 export function HomePage() {
   const [games, setGames] = useState<RecentGame[]>([]);
-  const [fetchedAt, setFetchedAt] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -41,7 +48,6 @@ export function HomePage() {
 
         if (active) {
           setGames(data.games);
-          setFetchedAt(data.fetchedAt);
           setError("");
         }
       } catch (cause) {
@@ -64,74 +70,60 @@ export function HomePage() {
     };
   }, []);
 
-  const formattedFetchedAt = fetchedAt
-    ? new Intl.DateTimeFormat("ja-JP", {
-        timeZone: "Asia/Tokyo",
-        month: "numeric",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(fetchedAt))
-    : "";
-
   return (
     <main className="home-page">
       <header className="home-header">
-        <a className="home-logo" href="/" aria-label="YG FIRES ホーム">
+        <Link className="home-logo" href="/home" aria-label="YG FIRES ホーム">
           <span className="home-logo-mark">Y</span>
           <span>
             <strong>YG</strong>
             <small>HOME PAGE</small>
           </span>
-        </a>
+        </Link>
 
         <nav className="home-nav" aria-label="メインナビゲーション">
           <a href="#games">試合結果</a>
           <a href="#columns">コラム</a>
           <a href="#follow">Follow Us</a>
-          <a className="home-member-link" href="/member">
-            メンバー向け
-          </a>
+          <Link className="home-member-link" href="/">
+            ログイン
+          </Link>
         </nav>
       </header>
 
       <section className="home-hero">
         <div className="home-hero-copy">
           <p className="home-eyebrow">YG · FIRES</p>
-          <h1>
-            野球を、もっと
-            <br />
-            <span>熱く。</span>
-          </h1>
-          <p className="home-lead">
-            YG FIRESの公式ホームページ。チームの試合結果や最新情報を、ここから。
-          </p>
-          <div className="home-hero-actions">
-            <a className="home-primary-button" href="#games">
-              直近5試合を見る <ArrowUpRight size={18} aria-hidden="true" />
-            </a>
-            <a
-              className="home-text-link"
-              href={TEAMS_URL}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Teamsで見る <ArrowUpRight size={17} aria-hidden="true" />
-            </a>
+          <div className="home-hero-card">
+            <div className="home-hero-card-inner">
+              <Image
+                src="/homepage/YGrogo.PNG"
+                alt="YG FIRES"
+                fill
+                priority
+                sizes="(max-width: 520px) 140px, 160px"
+                className="home-hero-logo"
+              />
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className="home-hero-card">
-          <div className="home-hero-card-inner">
-            <Image
-              src="/homepage/YGrogo.PNG"
-              alt="YG FIRES"
-              fill
-              priority
-              sizes="(max-width: 820px) 100vw, 500px"
-              className="home-hero-logo"
-            />
-          </div>
+      <section id="news" className="home-section home-news" aria-labelledby="home-news-title">
+        <div className="home-notice-panel">
+          <h2 id="home-news-title" className="home-notice-label">
+            <CircleAlert size={20} aria-hidden="true" />
+            お知らせ
+          </h2>
+          <ul className="home-notice-list">
+            {NOTICES.map((notice) => (
+              <li key={notice.id}>
+                <span className="home-notice-text" title={notice.text}>
+                  {notice.text}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -141,19 +133,6 @@ export function HomePage() {
             <p className="home-eyebrow">LATEST GAMES</p>
             <h2>直近5試合</h2>
           </div>
-          <a
-            className="home-outline-link"
-            href={TEAMS_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Teams <ArrowUpRight size={16} aria-hidden="true" />
-          </a>
-        </div>
-
-        <div className="home-games-meta">
-          <span>Teamsから自動取得</span>
-          {formattedFetchedAt && <span>最終取得 {formattedFetchedAt}</span>}
         </div>
 
         {loading ? (
@@ -191,7 +170,21 @@ export function HomePage() {
                 <div className="home-game-score">
                   <span>RESULT</span>
                   <strong>{game.score || "—"}</strong>
-                  {game.result && <small>{game.result}</small>}
+                  {game.result && (
+                    <small
+                      className={
+                        /勝/.test(game.result)
+                          ? "home-result-win"
+                          : /負|敗/.test(game.result)
+                            ? "home-result-loss"
+                            : /引|分/.test(game.result)
+                              ? "home-result-draw"
+                              : undefined
+                      }
+                    >
+                      {game.result}
+                    </small>
+                  )}
                 </div>
 
                 <ArrowUpRight
@@ -225,7 +218,7 @@ export function HomePage() {
           </div>
           <div className="home-column-copy">
             <p className="home-column-label">MEMBER RECRUITMENT</p>
-            <h3>メンバー募集</h3>
+            <h3>選手募集</h3>
             <p>
               YG FIRESでは、楽しみながら本気でプロスタを目指しているチームです。<br />興味のある方はぜひInstagramのDMにてご連絡ください。
             </p>
@@ -285,7 +278,7 @@ export function HomePage() {
           <strong>YG FIRES</strong>
           <span>BASEBALL TEAM</span>
         </div>
-        <a href="/member">メンバー向けアプリ →</a>
+        <Link href="/">メンバー向けアプリ →</Link>
         <small>© {new Date().getFullYear()} YG FIRES</small>
       </footer>
     </main>
