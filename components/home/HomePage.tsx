@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, CalendarDays, CircleAlert, Trophy } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert } from "lucide-react";
 
 type RecentGame = {
   id: string;
@@ -20,13 +20,13 @@ type GamesResponse =
   | { ok: false; error: string };
 
 const INSTAGRAM_URL = "https://www.instagram.com/yg_fires?stkn=bWo3MHYzcm01MzZ3";
-const TEAMS_URL = "https://teams.one/teams/ygfires/game";
+const YOUTUBE_URL = "https://www.youtube.com/@YG-fm1qt";
 
 // お知らせは下記の3件を書き換えて更新します。
 const NOTICES = [
-  { id: "notice-1", text: "川鍋：台湾へ出張" },
-  { id: "notice-2", text: "芝田：深谷に移住" },
-  { id: "notice-3", text: "川高：9月打率8割" },
+  { id: "notice-1", text: "川鍋：台湾へ出張🇹🇼" },
+  { id: "notice-2", text: "芝田：深谷に移住 筋トレにハマる" },
+  { id: "notice-3", text: "川高：直近5試合 脅威の打率.800" },
 ];
 
 export function HomePage() {
@@ -84,7 +84,6 @@ export function HomePage() {
         <nav className="home-nav" aria-label="メインナビゲーション">
           <a href="#games">試合結果</a>
           <a href="#columns">コラム</a>
-          <a href="#follow">Follow Us</a>
           <Link className="home-member-link" href="/">
             ログイン
           </Link>
@@ -226,59 +225,41 @@ export function HomePage() {
         </article>
       </section>
 
-      <section id="follow" className="home-section home-follow">
-        <div className="home-section-heading">
-          <div>
-            <p className="home-eyebrow">FOLLOW US</p>
-            <h2>YG FIRESの最新情報</h2>
+      <footer className="home-footer">
+        <div id="follow" className="home-footer-social" aria-label="SNSリンク">
+          <div className="home-social-grid">
+            <a
+              className="home-social-card"
+              href={INSTAGRAM_URL}
+              aria-label="YG FIRESのInstagram（新しいタブで開く）"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="home-social-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="25" height="25" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.8" />
+                  <circle cx="12" cy="12" r="4.1" stroke="currentColor" strokeWidth="1.8" />
+                  <circle cx="17.3" cy="6.8" r="1.1" fill="currentColor" />
+                </svg>
+              </span>
+            </a>
+
+            <a
+              className="home-social-card"
+              href={YOUTUBE_URL}
+              aria-label="YG FIRESのYouTube（新しいタブで開く）"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="home-social-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+                  <rect x="2" y="5" width="20" height="14" rx="4" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="m10 9 6 3-6 3V9Z" fill="currentColor" />
+                </svg>
+              </span>
+            </a>
           </div>
         </div>
-
-        <div className="home-social-grid">
-          <a
-            className="home-social-card"
-            href={INSTAGRAM_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <span className="home-social-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="25" height="25" fill="none">
-                <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.8" />
-                <circle cx="12" cy="12" r="4.1" stroke="currentColor" strokeWidth="1.8" />
-                <circle cx="17.3" cy="6.8" r="1.1" fill="currentColor" />
-              </svg>
-            </span>
-            <span>
-              <small>Instagram</small>
-              <strong>@yg_fires</strong>
-            </span>
-            <ArrowUpRight size={19} aria-hidden="true" />
-          </a>
-
-          <a
-            className="home-social-card"
-            href={TEAMS_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <span className="home-social-icon">
-              <Trophy size={24} aria-hidden="true" />
-            </span>
-            <span>
-              <small>Teams</small>
-              <strong>試合・チーム情報</strong>
-            </span>
-            <ArrowUpRight size={19} aria-hidden="true" />
-          </a>
-        </div>
-      </section>
-
-      <footer className="home-footer">
-        <div>
-          <strong>YG FIRES</strong>
-          <span>BASEBALL TEAM</span>
-        </div>
-        <Link href="/">メンバー向けアプリ →</Link>
         <small>© {new Date().getFullYear()} YG FIRES</small>
       </footer>
     </main>
