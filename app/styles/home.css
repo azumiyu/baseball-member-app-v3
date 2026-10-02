@@ -338,6 +338,16 @@
 .home-column-detail > a svg { flex-shrink: 0; }
 .home-column-track h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .home-notice-text { white-space: pre-wrap; }
+.home-about-link { display: flex; align-items: center; gap: 16px; width: min(1100px, calc(100% - 48px)); margin: 18px auto 0; padding: 18px 22px; border-left: 4px solid #c92332; background: #151516; color: #fff; border-radius: 8px; }
+.home-about-link > div { flex: 1; }
+.home-about-link > div > span { display: block; margin-bottom: 4px; color: #f66b77; font-size: 9px; font-weight: 800; letter-spacing: .16em; }
+.home-about-link strong { font-size: 19px; }
+.home-about-caption { color: #c8c1c5; font-size: 12px; }
+.home-about-link svg { flex-shrink: 0; }
+@media (max-width: 520px) {
+  .home-about-link { width: calc(100% - 28px); gap: 10px; padding: 14px; }
+  .home-about-caption { max-width: 110px; font-size: 10px; }
+}
 .home-content-date { display: block; margin-bottom: 5px; color: #746e70; font-size: 11px; font-variant-numeric: tabular-nums; }
 .home-column-copy .home-content-date { color: #bfb8bc; margin-bottom: 10px; }
 .home-editor-date { max-width: 220px; margin-bottom: 12px; }

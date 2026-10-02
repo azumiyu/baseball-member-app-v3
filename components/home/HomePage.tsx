@@ -209,6 +209,12 @@ export function HomePage({ nextGame, nextGameUnavailable = false, content }: {
         </div>
       </section>
 
+      <Link href="/home/about" className="home-about-link">
+        <div><span>ABOUT YG FIRES</span><strong>チーム紹介</strong></div>
+        <span className="home-about-caption">活動場所・戦歴・会費など</span>
+        <ArrowUpRight size={22} aria-hidden="true" />
+      </Link>
+
       <section id="games" className="home-section home-games">
         <div className="home-section-heading">
           <div>
