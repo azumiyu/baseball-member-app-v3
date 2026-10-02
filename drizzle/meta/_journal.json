@@ -106,6 +106,27 @@
       "when": 1790726400004,
       "tag": "0014_accounting",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1790726400005,
+      "tag": "0015_home_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1790726400006,
+      "tag": "0016_home_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790726400007,
+      "tag": "0017_home_content_dates",
+      "breakpoints": true
     }
   ]
 }

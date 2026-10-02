@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, primaryKey, foreignKey, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, primaryKey, foreignKey, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
 
 // Legacy JSON backups retained by 0003_normalize_data; application reads/writes
 // use the normalized tables below. Do not drop these until backups are archived.
@@ -225,6 +225,46 @@ export const membershipPayments = sqliteTable("membership_payments", {
     check("membership_payments_year_check", sql`${table.year} BETWEEN 1900 AND 9999`),
     check("membership_payments_paid_check", sql`${table.paid} IN (0, 1)`),
     check("membership_payments_paid_at_check", sql`(${table.paid} = 0 AND ${table.paidAt} IS NULL) OR (${table.paid} = 1 AND ${table.paidAt} IS NOT NULL)`),
+]);
+
+export const homeNotices = sqliteTable("home_notices", {
+    id: text("id").primaryKey(),
+    date: text("date").notNull().default(""),
+    text: text("text").notNull(),
+    published: integer("published").notNull().default(0),
+    sortOrder: integer("sort_order").notNull(),
+}, (table) => [
+    check("home_notices_text_check", sql`length(trim(${table.text})) BETWEEN 1 AND 180`),
+    check("home_notices_published_check", sql`${table.published} IN (0, 1)`),
+]);
+
+export const homeColumns = sqliteTable("home_columns", {
+    id: text("id").primaryKey(),
+    date: text("date").notNull().default(""),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    imageUrl: text("image_url").notNull().default(""),
+    imageAlt: text("image_alt").notNull().default(""),
+    linkUrl: text("link_url").notNull().default(""),
+    linkLabel: text("link_label").notNull().default(""),
+    published: integer("published").notNull().default(0),
+    sortOrder: integer("sort_order").notNull(),
+}, (table) => [
+    check("home_columns_title_check", sql`length(trim(${table.title})) BETWEEN 1 AND 100`),
+    check("home_columns_body_check", sql`length(trim(${table.body})) BETWEEN 1 AND 4000`),
+    check("home_columns_published_check", sql`${table.published} IN (0, 1)`),
+]);
+
+export const homeImages = sqliteTable("home_images", {
+    id: text("id").primaryKey(),
+    contentType: text("content_type").notNull(),
+    data: blob("data", { mode: "buffer" }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    createdBy: text("created_by").notNull().references(() => players.id),
+    createdAt: integer("created_at").notNull(),
+}, (table) => [
+    check("home_images_type_check", sql`${table.contentType} IN ('image/jpeg', 'image/png', 'image/webp')`),
+    check("home_images_size_check", sql`typeof(${table.data}) = 'blob' AND ${table.byteSize} BETWEEN 1 AND 786432 AND length(${table.data}) = ${table.byteSize}`),
 ]);
 
 export const authConfig = sqliteTable("auth_config", {
