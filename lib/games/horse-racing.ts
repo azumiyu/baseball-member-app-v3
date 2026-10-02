@@ -99,7 +99,7 @@ export function createRace(
   race: number,
   random: () => number = Math.random,
 ): HorseRaceState {
-  const hotRace = draw(random) < 0.5;
+  const hotRace = draw(random) < 0;
 
   const hotHorseNumber = hotRace
     ? Math.floor(draw(random) * 15) + 1
