@@ -115,15 +115,15 @@ export function HomePage({ nextGame, nextGameUnavailable = false, content }: {
         <nav className="home-nav" aria-label="メインナビゲーション">
           <a href="#games">試合結果</a>
           <a href="#columns">コラム</a>
-          <Link className="home-member-link" href="/">
+          <a className="home-member-link" href="/">
             ログイン
-          </Link>
+          </a>
         </nav>
       </header>
 
       {canEdit && <div className="home-admin-bar">
         <span>管理者メニュー</span>
-        <Link href="/home/edit"><Pencil size={15} aria-hidden="true" />お知らせ・コラムを編集</Link>
+        <a href="/home/edit"><Pencil size={15} aria-hidden="true" />お知らせ・コラムを編集</a>
       </div>}
 
       <section className="home-hero" aria-labelledby="home-next-title">
@@ -208,6 +208,12 @@ export function HomePage({ nextGame, nextGameUnavailable = false, content }: {
           </ul>
         </div>
       </section>
+
+      <Link href="/home/about" className="home-about-link">
+        <div><span>ABOUT YG FIRES</span><strong>チーム紹介</strong></div>
+        <span className="home-about-caption">活動場所・戦歴・会費など</span>
+        <ArrowUpRight size={22} aria-hidden="true" />
+      </Link>
 
       <section id="games" className="home-section home-games">
         <div className="home-section-heading">

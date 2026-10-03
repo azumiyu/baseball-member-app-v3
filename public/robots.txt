@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://site-creator-vinext-starter.hokuieren1212.workers.dev/sitemap.xml

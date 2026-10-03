@@ -1,9 +1,28 @@
+import type { Metadata } from "next";
 import { HomePage, type NextGame } from "@/components/home/HomePage";
 import { db } from "@/lib/server";
 import { japanDate } from "@/lib/schedule";
 import { readHomeContent } from "@/lib/home-content-store";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "YGファイヤーズ（YG FIRES）公式ホームページ",
+  description:
+    "草野球チーム・YGファイヤーズ（YG FIRES）の公式ホームページ。試合結果、次の試合、お知らせ、選手募集、Instagram・YouTubeの情報を掲載しています。",
+  robots: { index: true, follow: true },
+  alternates: {
+    canonical: "https://site-creator-vinext-starter.hokuieren1212.workers.dev/home",
+  },
+  openGraph: {
+    title: "YGファイヤーズ（YG FIRES）公式ホームページ",
+    description: "YGファイヤーズの試合情報、お知らせ、選手募集を紹介します。",
+    url: "https://site-creator-vinext-starter.hokuieren1212.workers.dev/home",
+    siteName: "YGファイヤーズ（YG FIRES）",
+    locale: "ja_JP",
+    type: "website",
+  },
+};
 
 export default async function Home() {
   const now = new Date();

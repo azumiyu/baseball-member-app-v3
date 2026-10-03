@@ -169,7 +169,7 @@ export function HomeEditor() {
 
   return <main className="home-page home-editor-page">
     <header className="home-header home-editor-header">
-      <Link className="home-editor-back" href="/home" onClick={(event) => { if ((dirty || uploadingId) && !window.confirm("保存していない変更を破棄して戻りますか？")) event.preventDefault(); }}><ArrowLeft size={18} aria-hidden="true" />ホームページ</Link>
+      <a className="home-editor-back" href="/home" onClick={(event) => { if ((dirty || uploadingId) && !window.confirm("保存していない変更を破棄して戻りますか？")) event.preventDefault(); }}><ArrowLeft size={18} aria-hidden="true" />ホームページ</a>
       <span>YG FIRES <small>／ 管理者限定</small></span>
     </header>
     <div className="home-editor-content">
