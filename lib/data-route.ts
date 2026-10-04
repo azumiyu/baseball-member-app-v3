@@ -139,6 +139,12 @@ export function dataRoute(scope: DataScope) {
         if (scope === "schedule") data = mergeScheduleChanges(snapshot, data as ScheduleData, removedSchedules);
         const result = await writeChanges(scope, snapshot, encodeData(scope, data), changedScheduleIds);
         if (result === null) return conflict();
+        if (scope === "stats") {
+          const saved = await readSnapshot(req, "stats", { revision: result.revision, mode: "matching" });
+          if (!saved) return json({ error: "再ログインしてください。" }, 401);
+          if (!saved.tables || saved.revision !== result.revision) return conflict();
+          return json({ revision: saved.revision, data: decodeData("stats", saved.tables) }, 200, renewSessionHeaders(req));
+        }
         if (scope === "team" && result.data) {
           snapshot.tables = encodeData("team", result.data);
           return json({ ...result, member: snapshot.member, ...teamScheduleMetadata(snapshot) }, 200, renewSessionHeaders(req));

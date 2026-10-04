@@ -17,7 +17,7 @@ function saveStats(data: StatsData, revision: number, savedJson: string) {
   );
   const removedGames = Object.keys(previous.games).filter((key) => !Object.hasOwn(data.games, key));
   const scheduleIds = Object.fromEntries(Object.keys(games).filter((key) => data.scheduleIds[key]).map((key) => [key, data.scheduleIds[key]]));
-  return api("/api/stats", "PUT", { data: { games, scheduleIds }, removedGames, partial: true, revision }, API_ERROR);
+  return api<{ revision: number; data: StatsData }>("/api/stats", "PUT", { data: { games, scheduleIds }, removedGames, partial: true, revision }, API_ERROR);
 }
 
 export function useStatsData() {
@@ -43,6 +43,7 @@ export function useStatsData() {
       return result;
     },
     save: saveStats,
+    acceptSavedData: true,
     loadError: "成績データを読み込めませんでした。",
   }), []);
   const stats = useAutosavedData(source);

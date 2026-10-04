@@ -111,6 +111,9 @@
 .plate-square.hit-result strong {
   color: #c62828;
 }
+.plate-square.walk-result strong {
+  color: #14532d;
+}
 @media (hover: none) {
   .plate-square:hover {
     border-color: #cbd9e5;
@@ -301,26 +304,50 @@
 }
 .stats-confirm-player {
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr) 140px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
   align-items: center;
   padding: 18px 20px;
   border-bottom: 1px solid #e3eaf1;
 }
+.stats-confirm-player-info {
+  display: contents;
+}
 .stats-confirm-summary {
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-row: 3;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-top: 8px;
+}
+.stats-summary-grid {
+  position: relative;
   display: grid;
   gap: 12px;
-  min-width: 0;
+  min-width: 652px;
+}
+.stats-summary-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 11列のうち左4列と右7列の間。列間の余白は8px。 */
+  left: calc((100% - 80px) / 11 * 4 + 28px);
+  width: 1px;
+  background: #d5dfe8;
+  pointer-events: none;
 }
 .stats-summary-row {
   display: grid;
   gap: 8px;
 }
-.stats-summary-row.first {
-  grid-template-columns: repeat(11, minmax(52px, 1fr));
-}
+.stats-summary-row.first,
 .stats-summary-row.second {
   grid-template-columns: repeat(11, minmax(52px, 1fr));
+}
+.stats-summary-row > span:nth-child(5) {
+  padding-left: 8px;
 }
 .stats-summary-row span {
   display: flex;
@@ -344,7 +371,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1;
 }
 .stats-edit-button,
@@ -375,13 +402,33 @@
 .stats-confirm-player:last-child {
   border-bottom: 0;
 }
-.stats-confirm-player-name strong,
-.stats-confirm-player-name small {
+.stats-confirm-player-name strong {
   display: block;
 }
-.stats-confirm-player-name small {
-  margin-top: 4px;
+.stats-confirm-player-details {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   color: #8393a2;
+  font-size: 12px;
+}
+.stats-confirm-player-details small {
+  flex-shrink: 0;
+  font-size: inherit;
+}
+.stats-confirm-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: #526678;
+}
+.stats-confirm-result-hit {
+  color: #dc2626;
+}
+.stats-confirm-result-walk {
+  color: #14532d;
 }
 .stats-error {
   margin-top: 40px;
@@ -393,7 +440,7 @@
     gap: 16px 12px;
     align-items: start;
   }
-  .stats-confirm-player-name {
+  .stats-confirm-player-info {
     grid-column: 1;
     grid-row: 1;
   }
@@ -403,16 +450,49 @@
     overflow-x: auto;
     padding-bottom: 4px;
   }
-  .stats-summary-row.first,
-  .stats-summary-row.second {
-    min-width: 650px;
-  }
   .stats-confirm-actions {
     grid-column: 2;
     grid-row: 1;
   }
 }
+@media (min-width: 701px) {
+  .stats-confirm-player-info {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .stats-confirm-player-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-top: 4px;
+  }
+}
+@media (min-width: 1001px) {
+  .stats-confirm-player {
+    grid-template-columns: 160px minmax(0, 1fr) 140px;
+    gap: 18px;
+  }
+  .stats-confirm-player-info {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .stats-confirm-summary {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+  }
+  .stats-confirm-actions {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
 @media (max-width: 700px) {
+  .stats-confirm-delete-action:not(:disabled) {
+    background: var(--color-destructive, #c43c40);
+    color: #fff;
+  }
+
   .stats-entry-card {
     padding: 20px 18px;
   }
@@ -444,7 +524,7 @@
   .stats-confirm-player {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 16px 12px;
+    gap: 4px 12px;
     align-items: start;
   }
   .stats-confirm-player-name {
@@ -453,7 +533,7 @@
   }
   .stats-confirm-summary {
     grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 3;
   }
   .stats-confirm-actions {
     grid-column: 2;
@@ -464,8 +544,6 @@
     overflow-x: auto;
     padding-bottom: 4px;
   }
-  .stats-summary-row.first { min-width: 650px; }
-  .stats-summary-row.second { min-width: 650px; }
 }
 @media (max-width: 360px) {
   .stats-game-fields {

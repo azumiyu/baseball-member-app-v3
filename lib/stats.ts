@@ -1,5 +1,7 @@
 import type { ScheduleGame } from "./schedule";
 
+export const MAX_REGISTERED_STATS_GAMES = 5;
+
 export const PLATE_APPEARANCE_RESULTS = [
   "安打", "二塁打", "三塁打", "本塁打", "凡退", "三振", "四球", "死球", "犠打", "犠飛", "併殺打", "敵失", "エンドラン",
 ] as const;

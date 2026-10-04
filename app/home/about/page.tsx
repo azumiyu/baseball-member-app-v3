@@ -61,6 +61,6 @@ export default function AboutPage() {
       </section>
       <div className={styles.join}><p className="home-eyebrow">JOIN YG FIRES</p><h2>メンバー募集中</h2><p>興味のある方は、InstagramのDMからご連絡ください。</p><a href="https://www.instagram.com/yg_fires?stkn=bWo3MHYzcm01MzZ3" target="_blank" rel="noreferrer">Instagramでチームを見る<ArrowUpRight size={18} aria-hidden="true" /><span className="sr-only">（新しいタブで開く）</span></a></div>
     </div>
-    <footer className="home-footer"><Link className={styles.back} href="/home"><ArrowLeft size={17} aria-hidden="true" />ホームへ戻る</Link><small>YG FIRES</small></footer>
+    <footer className="home-footer"><a className={styles.back} href="/home"><ArrowLeft size={17} aria-hidden="true" />ホームへ戻る</a><small>YG FIRES</small></footer>
   </main>;
 }

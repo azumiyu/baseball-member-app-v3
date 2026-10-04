@@ -1,7 +1,7 @@
 import { type TeamData } from "./model";
 import { type EquipmentData } from "./equipment";
 import type { AccountingData } from "./accounting";
-import { emptyPlayerStats, gameKey, parseGameKey, type StatsData, type PlateAppearanceResult, type StatsSchedulePage } from "./stats";
+import { emptyPlayerStats, gameKey, parseGameKey, MAX_REGISTERED_STATS_GAMES, type StatsData, type PlateAppearanceResult, type StatsSchedulePage } from "./stats";
 import { db, digest, random, token } from "./server";
 import type { AuthMember } from "./auth-types";
 import { japanDate, upcomingSaturday, type ScheduleData, type ScheduleGame } from "./schedule";
@@ -682,6 +682,21 @@ async function commitChanges(
         : `DELETE FROM ${table.name}`}
       WHERE ${keys} AND ${guard}
     `).bind(JSON.stringify(remove), scope, writeToken));
+  }
+  if (scope === "stats") {
+    // Enforce retention after authorized edits. This is a server policy, not
+    // permission for clients to delete another member's statistics.
+    // Parent deletes cascade to every player's stats and plate appearances.
+    statements.push(database.prepare(`
+      DELETE FROM stats_games
+      WHERE (game_date, game_number) IN (
+        SELECT g.game_date, g.game_number
+        FROM stats_games g LEFT JOIN schedule_games s ON s.id=g.schedule_id
+        ORDER BY COALESCE(s.date,g.game_date) DESC,
+          COALESCE(s.start_time,'') DESC, g.game_number DESC, g.game_date DESC
+        LIMIT -1 OFFSET ${MAX_REGISTERED_STATS_GAMES}
+      ) AND ${guard}
+    `).bind(scope, writeToken));
   }
   if (week !== undefined) {
     statements.push(database.prepare(`UPDATE team_settings SET schedule_week=? WHERE id=1 AND ${guard}`)

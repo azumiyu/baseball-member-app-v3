@@ -115,6 +115,7 @@ export function HomePage({ nextGame, nextGameUnavailable = false, content }: {
         <nav className="home-nav" aria-label="メインナビゲーション">
           <a href="#games">試合結果</a>
           <a href="#columns">コラム</a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- ログイン画面へは通常のページ遷移を使う */}
           <a className="home-member-link" href="/">
             ログイン
           </a>
