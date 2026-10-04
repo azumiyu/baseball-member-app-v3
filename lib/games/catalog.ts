@@ -4,6 +4,7 @@ export type GameDefinition = {
   description: string;
   href: string;
   image: string;
+  imageCrop?: "left-half";
   /** Display/documentation version. Use a new game ID for incompatible rankings. */
   version: number;
   scoreLabel: string;
@@ -55,6 +56,17 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     version: 1,
     scoreLabel: "総被害額",
     scoreUnit: "円",
+  },
+  {
+    id: "negishi-ramen",
+    title: "根岸のすすれ！ラーメン！",
+    description: "長押しですすり、緑で息継ぎ！20秒の真剣勝負、根岸ゾーンで限界の替え玉へ。",
+    href: "/game/negishi-ramen",
+    image: "/game/negishi_susuru.PNG",
+    imageCrop: "left-half",
+    version: 1,
+    scoreLabel: "すすった総重量",
+    scoreUnit: "g",
   },
 ];
 

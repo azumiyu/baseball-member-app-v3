@@ -28,6 +28,7 @@
 .gameLink { display: grid; grid-template-columns: 155px minmax(0, 1fr); background: var(--paper); color: var(--ink); }
 .cardArt { min-height: 250px; position: relative; overflow: hidden; background: #43554a; }
 .cardArt img { width: 100%; height: 100%; position: absolute; object-fit: cover; object-position: 50% 30%; }
+.cardArt[data-crop="left-half"] img { width: 200%; max-width: none; object-position: left center; }
 .cardArt > span { position: absolute; inset: auto 0 0; padding: 22px 10px 12px; background: linear-gradient(transparent, #14201be6); color: #fff0bb; font-size: 9px; font-weight: 700; letter-spacing: .08em; line-height: 1.5; }
 .cardCopy { padding: 25px 22px; }
 .cardCopy > small { color: #6b7856; font-size: 10px; letter-spacing: .13em; font-weight: 800; }

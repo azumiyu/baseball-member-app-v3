@@ -5,6 +5,7 @@ import { gameEngine } from "./registry";
 import { MAX_ELAPSED_MS } from "./fastball";
 import { MAX_BALANCE, type BetType } from "./horse-racing";
 import { MAX_SWING_MS } from "./horie-bench";
+import { RAMEN, validateRamenInputs } from "./ramen";
 
 type Score = Omit<LeaderboardEntry, "rank">;
 type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
@@ -62,6 +63,14 @@ export function parseGameRequest(value: unknown): GameRequest {
   }
   if (body.action === "start") return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null, turn: body.turn as number };
   const engine = gameEngine(body.gameId)!;
+  if (body.action === "ramen-finish" && engine.kind === "ramen" && isId(body.runId)) {
+    try {
+      return { action: "ramen-finish", gameId: body.gameId, requestId: body.requestId, runId: body.runId,
+        turn: body.turn as number, inputs: validateRamenInputs(body.inputs) };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "すすりの操作履歴を確認してください。");
+    }
+  }
   if (body.action === "bench-swing" && engine.kind === "bench" && isId(body.runId)
     && body.pitchIndex === 0
     && typeof body.elapsedMs === "number" && Number.isFinite(body.elapsedMs) && body.elapsedMs >= 0 && body.elapsedMs <= MAX_SWING_MS) {
@@ -118,7 +127,8 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
     const run: GameRun<GameResult> = { id: request.requestId, gameId: request.gameId, turn: 0, balance: engine.initialBalance, status: "playing", lastRequestId: request.requestId,
       lastResult: engine.kind === "fastball" ? { kind: "fastball-ready", releaseMs: engine.prepare(random) }
         : engine.kind === "horse-racing" ? engine.prepare(1, random)
-        : engine.kind === "bench" ? engine.prepare(random) : null };
+        : engine.kind === "bench" ? engine.prepare(random)
+        : engine.kind === "ramen" ? engine.prepare(now) : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
       SELECT ?,?,?,0,?,'playing',?,?,?,? WHERE ${authGuard}
@@ -150,6 +160,14 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
     if (!ready || !("kind" in ready) || ready.kind !== "bench-ready") return null;
     const result = engine.play(ready, request.pitchIndex, request.elapsedMs);
     run = { ...current, turn: current.turn + 1, balance: result.damage, status: "finished", lastResult: result, lastRequestId: request.requestId };
+  } else if (engine.kind === "ramen" && request.action === "ramen-finish") {
+    const ready = current.lastResult;
+    if (!ready || !("kind" in ready) || ready.kind !== "ramen-ready") return null;
+    if (!Number.isSafeInteger(ready.preparedAt) || now - ready.preparedAt < RAMEN.durationMs) {
+      throw new GameInputError("20秒の勝負が終わってから記録してください。");
+    }
+    const result = engine.play(request.inputs);
+    run = { ...current, turn: current.turn + 1, balance: result.grams, status: "finished", lastResult: result, lastRequestId: request.requestId };
   } else if (engine.kind === "horse-racing") {
     const state = current.lastResult;
     if (!state || !("kind" in state) || state.kind !== "horse-racing") return null;

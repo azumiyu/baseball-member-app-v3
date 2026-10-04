@@ -17,7 +17,7 @@ function GameCardContent({ game, api }: { game: GameDefinition; api: ReturnType<
   return (
     <article className={styles.gameCard}>
       <a href={game.href} className={styles.gameLink}>
-        <div className={styles.cardArt}><img src={game.image} alt="" /><span>TEAM RECORD<br />CHALLENGE</span></div>
+        <div className={styles.cardArt} data-crop={game.imageCrop}><img src={game.image} alt="" /><span>TEAM RECORD<br />CHALLENGE</span></div>
         <div className={styles.cardCopy}><small>YG ORIGINAL</small><h2>{game.title}</h2><p>{game.description}</p><span className={styles.playLink}>{api.snapshot?.run?.status === "playing" ? "つづきから遊ぶ" : "ゲームで遊ぶ"}<ArrowUpRight size={20} aria-hidden="true" /></span></div>
       </a>
       {api.loading || api.unauthorized || !api.snapshot ? <GameAccessState loading={api.loading} unauthorized={api.unauthorized} error={api.error} onRetry={() => { void api.read(); }} /> : <GameLeaderboard entries={api.snapshot.leaderboard} personalBest={api.snapshot.personalBest} memberId={api.snapshot.member.id} scoreUnit={game.scoreUnit} scoreScale={game.scoreScale} precision={game.precision} />}

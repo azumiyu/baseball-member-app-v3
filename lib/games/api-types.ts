@@ -3,10 +3,11 @@ import type { TurnResult } from "./chinchiro";
 import type { FastballResult } from "./fastball";
 import type { BetType, HorseRaceState } from "./horse-racing";
 import type { BenchRunResult } from "./horie-bench";
+import type { RamenInput, RamenRunResult } from "./ramen";
 
 export type FastballReady = { kind: "fastball-ready"; releaseMs: number };
 export type FastballRunResult = FastballReady | FastballResult;
-export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult;
+export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult;
 
 export type GameRun<TResult = TurnResult> = {
   id: string;
@@ -90,4 +91,13 @@ export type BenchSwingRequest = {
   elapsedMs: number;
 };
 
-export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest;
+export type RamenFinishRequest = {
+  action: "ramen-finish";
+  gameId: string;
+  requestId: string;
+  runId: string;
+  turn: number;
+  inputs: RamenInput[];
+};
+
+export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest;

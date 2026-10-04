@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   try {
     const session = await getSession(req);
     if (!session?.member) return json({ error: "ログインしてください。" }, 401);
-    if (!session.member.isAdmin) return forbidden();
+    if (!session.member.canEditLineup) return forbidden();
     return json({ ...await readHomeContent(), member: session.member }, 200, renewSessionHeaders(req));
   } catch {
     return json({ error: "ホームページの内容を読み込めませんでした。再試行してください。" }, 503);
@@ -21,7 +21,7 @@ export async function PUT(req: Request) {
   try {
     const session = await getSession(req);
     if (!session?.member) return json({ error: "再ログインしてください。" }, 401);
-    if (!session.member.isAdmin) return forbidden();
+    if (!session.member.canEditLineup) return forbidden();
     let data: HomeContent;
     let revision: number;
     try {
@@ -36,7 +36,7 @@ export async function PUT(req: Request) {
     if (savedRevision === null) {
       const current = await getSession(req);
       if (!current?.member) return json({ error: "再ログインしてください。" }, 401);
-      if (!current.member.isAdmin) return forbidden();
+      if (!current.member.canEditLineup) return forbidden();
       return json({ error: "別の端末で更新されています。入力内容を控えてから最新データを読み込んでください。" }, 409);
     }
     return json({ data, revision: savedRevision, member: session.member }, 200, renewSessionHeaders(req));
