@@ -6,18 +6,37 @@ import { readHomeContent } from "@/lib/home-content-store";
 
 export const dynamic = "force-dynamic";
 
+const HOME_URL = "https://site-creator-vinext-starter.hokuieren1212.workers.dev/home";
+const HOME_TITLE = "YGファイヤーズ（YG）公式ホームページ | YG FIRES";
+const HOME_DESCRIPTION =
+  "YG（YGファイヤーズ／YG FIRES）は、城東区を中心に毎週土曜日に活動する草野球チームです。公式ホームページで試合結果、次の試合、お知らせ、選手募集、Instagram・YouTubeの情報を掲載しています。";
+
+const teamStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "SportsTeam",
+  name: "YGファイヤーズ",
+  alternateName: ["YG", "YG FIRES", "YGファイヤーズ"],
+  description: HOME_DESCRIPTION,
+  sport: "野球",
+  url: HOME_URL,
+  logo: "https://site-creator-vinext-starter.hokuieren1212.workers.dev/homepage/YGrogo.PNG",
+  sameAs: [
+    "https://www.instagram.com/yg_fires/",
+    "https://www.youtube.com/@YG-fm1qt",
+  ],
+};
+
 export const metadata: Metadata = {
-  title: "YGファイヤーズ（YG FIRES）公式ホームページ",
-  description:
-    "草野球チーム・YGファイヤーズ（YG FIRES）の公式ホームページ。試合結果、次の試合、お知らせ、選手募集、Instagram・YouTubeの情報を掲載しています。",
+  title: HOME_TITLE,
+  description: HOME_DESCRIPTION,
   robots: { index: true, follow: true },
   alternates: {
-    canonical: "https://site-creator-vinext-starter.hokuieren1212.workers.dev/home",
+    canonical: HOME_URL,
   },
   openGraph: {
-    title: "YGファイヤーズ（YG FIRES）公式ホームページ",
-    description: "YGファイヤーズの試合情報、お知らせ、選手募集を紹介します。",
-    url: "https://site-creator-vinext-starter.hokuieren1212.workers.dev/home",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    url: HOME_URL,
     siteName: "YGファイヤーズ（YG FIRES）",
     locale: "ja_JP",
     type: "website",
@@ -45,5 +64,15 @@ export default async function Home() {
   }
 
   const content = await contentResult;
-  return <HomePage nextGame={nextGame} nextGameUnavailable={nextGameUnavailable} content={content?.data ?? null} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(teamStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      <HomePage nextGame={nextGame} nextGameUnavailable={nextGameUnavailable} content={content?.data ?? null} />
+    </>
+  );
 }
