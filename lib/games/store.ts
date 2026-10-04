@@ -4,6 +4,7 @@ import type { GameRequest, GameRun, GameSnapshot, LeaderboardEntry, GameResult }
 import { gameEngine } from "./registry";
 import { MAX_ELAPSED_MS } from "./fastball";
 import { MAX_BALANCE, type BetType } from "./horse-racing";
+import { MAX_SWING_MS } from "./horie-bench";
 
 type Score = Omit<LeaderboardEntry, "rank">;
 type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
@@ -61,6 +62,12 @@ export function parseGameRequest(value: unknown): GameRequest {
   }
   if (body.action === "start") return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null, turn: body.turn as number };
   const engine = gameEngine(body.gameId)!;
+  if (body.action === "bench-swing" && engine.kind === "bench" && isId(body.runId)
+    && body.pitchIndex === 0
+    && typeof body.elapsedMs === "number" && Number.isFinite(body.elapsedMs) && body.elapsedMs >= 0 && body.elapsedMs <= MAX_SWING_MS) {
+    return { action: "bench-swing", gameId: body.gameId, requestId: body.requestId, runId: body.runId,
+      turn: body.turn as number, pitchIndex: body.pitchIndex as number, elapsedMs: body.elapsedMs };
+  }
   if (body.action === "turn" && engine.kind === "chinchiro" && isId(body.runId) && Number.isSafeInteger(body.bet) && (body.bet as number) > 0) {
     return { action: "turn", gameId: body.gameId, requestId: body.requestId, runId: body.runId, turn: body.turn as number, bet: body.bet as number };
   }
@@ -110,7 +117,8 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
     if (engine.kind === "horse-racing" && current && current.status !== "finished") return null;
     const run: GameRun<GameResult> = { id: request.requestId, gameId: request.gameId, turn: 0, balance: engine.initialBalance, status: "playing", lastRequestId: request.requestId,
       lastResult: engine.kind === "fastball" ? { kind: "fastball-ready", releaseMs: engine.prepare(random) }
-        : engine.kind === "horse-racing" ? engine.prepare(1, random) : null };
+        : engine.kind === "horse-racing" ? engine.prepare(1, random)
+        : engine.kind === "bench" ? engine.prepare(random) : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
       SELECT ?,?,?,0,?,'playing',?,?,?,? WHERE ${authGuard}
@@ -137,6 +145,11 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
     // Neither the claimed speed nor a client-supplied target is accepted.
     const result = engine.play(request.elapsedMs, ready.releaseMs);
     run = { ...current, turn: current.turn + 1, balance: result.speed, status: "finished", lastResult: result, lastRequestId: request.requestId };
+  } else if (engine.kind === "bench" && request.action === "bench-swing") {
+    const ready = current.lastResult;
+    if (!ready || !("kind" in ready) || ready.kind !== "bench-ready") return null;
+    const result = engine.play(ready, request.pitchIndex, request.elapsedMs);
+    run = { ...current, turn: current.turn + 1, balance: result.damage, status: "finished", lastResult: result, lastRequestId: request.requestId };
   } else if (engine.kind === "horse-racing") {
     const state = current.lastResult;
     if (!state || !("kind" in state) || state.kind !== "horse-racing") return null;

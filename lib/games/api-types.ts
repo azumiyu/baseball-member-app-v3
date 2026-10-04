@@ -2,10 +2,11 @@ import type { AuthMember } from "../auth-types";
 import type { TurnResult } from "./chinchiro";
 import type { FastballResult } from "./fastball";
 import type { BetType, HorseRaceState } from "./horse-racing";
+import type { BenchRunResult } from "./horie-bench";
 
 export type FastballReady = { kind: "fastball-ready"; releaseMs: number };
 export type FastballRunResult = FastballReady | FastballResult;
-export type GameResult = TurnResult | FastballRunResult | HorseRaceState;
+export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult;
 
 export type GameRun<TResult = TurnResult> = {
   id: string;
@@ -79,4 +80,14 @@ export type HorseRaceRequest = {
   turn: number;
 };
 
-export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest;
+export type BenchSwingRequest = {
+  action: "bench-swing";
+  gameId: string;
+  requestId: string;
+  runId: string;
+  turn: number;
+  pitchIndex: number;
+  elapsedMs: number;
+};
+
+export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest;

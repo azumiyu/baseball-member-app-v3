@@ -14,9 +14,9 @@ const photos = [2, 3, 4, 5, 6, 7, 1];
 export default function AboutPage() {
   return <main className="home-page">
     <header className="home-header">
-      <Link className="home-logo" href="/home" aria-label="YG FIRES ホーム">
+      <a className="home-logo" href="/home" aria-label="YG FIRES ホーム">
         <span className="home-logo-mark">Y</span><span><strong>YG FIRES</strong><small>BASEBALL CLUB</small></span>
-      </Link>
+      </a>
       <a className={styles.back} href="/home"><ArrowLeft size={17} aria-hidden="true" />ホームへ戻る</a>
     </header>
 

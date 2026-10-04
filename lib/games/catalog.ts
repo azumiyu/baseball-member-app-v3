@@ -46,6 +46,16 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     scoreLabel: "最高持ち金",
     scoreUnit: "円",
   },
+  {
+    id: "horie-bench-breaker",
+    title: "堀江の引っ張れ！三塁ベンチ破壊！",
+    description: "コースは運、タイミングは腕。インコース1球勝負で引っ張り、三塁ベンチに大波乱！",
+    href: "/game/horie-bench-breaker",
+    image: "/game/horie.PNG",
+    version: 1,
+    scoreLabel: "総被害額",
+    scoreUnit: "円",
+  },
 ];
 
 export function getGame(id: string): GameDefinition | undefined {
