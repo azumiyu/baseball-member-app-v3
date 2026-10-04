@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
   title: "チーム紹介 | YGファイヤーズ",
   description: "YGファイヤーズの活動場所・参加大会・戦歴・会費をご紹介します。",
+  robots: { index: true, follow: true },
+  alternates: {
+    canonical: "https://site-creator-vinext-starter.hokuieren1212.workers.dev/home/about",
+  },
 };
 
 const photos = [2, 3, 4, 5, 6, 7, 1];

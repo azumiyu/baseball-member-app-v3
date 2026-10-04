@@ -164,7 +164,7 @@ export function HomePage({ nextGame, nextGameUnavailable = false, content }: {
               <div className="home-match-logo">
                 <Image
                   src="/homepage/YGrogo.PNG"
-                  alt="YG FIRES チームロゴ"
+                  alt="YGファイヤーズ（YG / YG FIRES）のチームロゴ"
                   fill
                   priority
                   sizes="(max-width: 520px) 100px, (max-width: 820px) 140px, 180px"

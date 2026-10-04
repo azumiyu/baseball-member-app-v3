@@ -6,6 +6,7 @@ import { MAX_ELAPSED_MS } from "./fastball";
 import { MAX_BALANCE, type BetType } from "./horse-racing";
 import { MAX_SWING_MS } from "./horie-bench";
 import { RAMEN, validateRamenInputs } from "./ramen";
+import { DODGE, validateDodgeMoves } from "./shibata-dodge";
 
 type Score = Omit<LeaderboardEntry, "rank">;
 type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
@@ -63,6 +64,15 @@ export function parseGameRequest(value: unknown): GameRequest {
   }
   if (body.action === "start") return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null, turn: body.turn as number };
   const engine = gameEngine(body.gameId)!;
+  if (body.action === "dodge-step" && engine.kind === "dodge" && isId(body.runId)
+    && Number.isSafeInteger(body.toTick) && (body.toTick as number) > 0) {
+    try {
+      return { action: "dodge-step", gameId: body.gameId, requestId: body.requestId, runId: body.runId,
+        turn: body.turn as number, toTick: body.toTick as number, moves: validateDodgeMoves(body.moves) };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "移動の操作履歴を確認してください。");
+    }
+  }
   if (body.action === "ramen-finish" && engine.kind === "ramen" && isId(body.runId)) {
     try {
       return { action: "ramen-finish", gameId: body.gameId, requestId: body.requestId, runId: body.runId,
@@ -128,7 +138,8 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
       lastResult: engine.kind === "fastball" ? { kind: "fastball-ready", releaseMs: engine.prepare(random) }
         : engine.kind === "horse-racing" ? engine.prepare(1, random)
         : engine.kind === "bench" ? engine.prepare(random)
-        : engine.kind === "ramen" ? engine.prepare(now) : null };
+        : engine.kind === "ramen" ? engine.prepare(now)
+        : engine.kind === "dodge" ? engine.prepare(random, now) : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
       SELECT ?,?,?,0,?,'playing',?,?,?,? WHERE ${authGuard}
@@ -168,6 +179,18 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
     }
     const result = engine.play(request.inputs);
     run = { ...current, turn: current.turn + 1, balance: result.grams, status: "finished", lastResult: result, lastRequestId: request.requestId };
+  } else if (engine.kind === "dodge" && request.action === "dodge-step") {
+    const state = current.lastResult;
+    if (!state || !("kind" in state) || state.kind !== "shibata-dodge") return null;
+    if (!Number.isSafeInteger(state.preparedAt) || now - state.preparedAt < request.toTick * DODGE.stepMs) {
+      throw new GameInputError("ゲームの経過時間を確認してください。");
+    }
+    try {
+      const result = engine.play(state, request.moves, request.toTick);
+      run = { ...current, turn: current.turn + 1, balance: result.score, status: result.status, lastResult: result, lastRequestId: request.requestId };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "移動の操作履歴を確認してください。");
+    }
   } else if (engine.kind === "horse-racing") {
     const state = current.lastResult;
     if (!state || !("kind" in state) || state.kind !== "horse-racing") return null;

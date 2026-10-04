@@ -178,3 +178,147 @@
   .dice[data-rolling="true"] .die { animation: none; }
   .primary:not(:disabled):active { transform: none; }
 }
+
+/* =================================
+   ミニゲーム横スライド
+================================= */
+
+.carouselNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 15px 0 10px;
+}
+
+.carouselNav > span {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* 左右の矢印 */
+.carouselNav > div {
+  display: flex;
+  gap: 8px;
+}
+
+.carouselNav button {
+  display: grid;
+  place-items: center;
+
+  width: 39px;
+  height: 39px;
+
+  border: 1px solid #b9a78b;
+  border-radius: 50%;
+
+  background: #fff7e8;
+  color: #633c28;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.carouselNav button:hover {
+  background: #f0d49b;
+}
+
+.carouselNav button:active {
+  transform: scale(0.92);
+}
+
+/* =================================
+   横スクロールエリア
+================================= */
+
+.gameTrack {
+  display: flex;
+  align-items: stretch;
+
+  gap: 16px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  padding: 5px 2px 18px;
+
+  /* カード単位でスナップ */
+  scroll-snap-type: x mandatory;
+
+  scroll-behavior: smooth;
+
+  /* スマホで滑らかにスワイプ */
+  -webkit-overflow-scrolling: touch;
+
+  overscroll-behavior-x: contain;
+}
+
+/* =================================
+   ゲームカード1枚
+================================= */
+
+.gameSlide {
+  /* PCでは複数枚、スマホでは約1枚 */
+  flex: 0 0 min(390px, 86%);
+
+  min-width: 0;
+
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* 既存ゲームカードを横幅いっぱいに */
+.gameSlide > .gameCard {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* =================================
+   スクロールバー
+================================= */
+
+.gameTrack::-webkit-scrollbar {
+  height: 6px;
+}
+
+.gameTrack::-webkit-scrollbar-track {
+  background: #dfd4be;
+  border-radius: 10px;
+}
+
+.gameTrack::-webkit-scrollbar-thumb {
+  background: #a87545;
+  border-radius: 10px;
+}
+
+/* =================================
+   スマートフォン
+================================= */
+
+@media (max-width: 480px) {
+
+  .gameTrack {
+    gap: 12px;
+    padding-bottom: 14px;
+  }
+
+  .gameSlide {
+    flex-basis: 88%;
+  }
+
+  .carouselNav button {
+    width: 35px;
+    height: 35px;
+  }
+
+}
+
+/* アニメーション軽減設定 */
+@media (prefers-reduced-motion: reduce) {
+  .gameTrack {
+    scroll-behavior: auto;
+  }
+}
