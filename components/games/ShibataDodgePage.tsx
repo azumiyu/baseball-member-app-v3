@@ -24,6 +24,7 @@ export function ShibataDodgePage() {
   const [playing, setPlaying] = useState(false);
   const [bestBefore, setBestBefore] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
+  const [scoreCue, setScoreCue] = useState<{ tick: number; score: number; amount: number; milestone: boolean } | null>(null);
   const active = useRef<Session | null>(null);
   const field = useRef<HTMLDivElement>(null);
   const pointer = useRef<{ id: number; startY: number; playerY: number } | null>(null);
@@ -43,6 +44,15 @@ export function ShibataDodgePage() {
     if (active.current) active.current.targetY = active.current.view.y;
   }
 
+  function stopKeyboardInput() {
+    keys.current.clear();
+    if (!pointer.current && active.current) active.current.targetY = active.current.view.y;
+  }
+
+  function focusForKeyboard() {
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) field.current?.focus({ preventScroll: true });
+  }
+
   function adopt(snapshot: GameSnapshot<DodgeState>, message = "") {
     active.current = null;
     stopInput();
@@ -51,6 +61,7 @@ export function ShibataDodgePage() {
     setView(snapshot.run?.lastResult ?? null);
     setBestBefore(null);
     setNotice(message);
+    setScoreCue(null);
   }
 
   async function flush(retry = false) {
@@ -114,8 +125,9 @@ export function ShibataDodgePage() {
     setView(current);
     setPlaying(true);
     setNotice("");
+    setScoreCue(null);
     setSessionKey(createEntityId());
-    field.current?.focus({ preventScroll: true });
+    focusForKeyboard();
   }
 
   function resume() {
@@ -127,7 +139,7 @@ export function ShibataDodgePage() {
       session.lastTime = performance.now();
       setPlaying(true);
       setNotice("");
-      field.current?.focus({ preventScroll: true });
+      focusForKeyboard();
     } else if (savedState && run) activate(savedState, run.id, run.turn);
   }
 
@@ -163,6 +175,7 @@ export function ShibataDodgePage() {
       if (active.current !== session) return;
       const now = performance.now();
       if (!session.paused && session.view.status === "playing") {
+        const previousScore = session.view.score;
         session.remainder += now - session.lastTime;
         let count = 0;
         while (session.remainder >= DODGE.stepMs && session.view.status === "playing" && count < DODGE.maxChunkTicks) {
@@ -173,6 +186,10 @@ export function ShibataDodgePage() {
           session.view = advanceDodge(session.view, moves, nextTick);
           session.remainder -= DODGE.stepMs;
           count += 1;
+        }
+        if (session.view.score > previousScore) {
+          const cue = { tick: session.view.tick, score: session.view.score, amount: session.view.score - previousScore, milestone: Math.floor(session.view.score / 10) > Math.floor(previousScore / 10) };
+          setScoreCue(previous => previous?.milestone && cue.tick - previous.tick < 40 && !cue.milestone ? previous : cue);
         }
         setView(session.view);
         if (session.view.status === "finished") {
@@ -186,14 +203,18 @@ export function ShibataDodgePage() {
       raf = requestAnimationFrame(tick);
     };
     const onVisibility = () => { if (document.hidden) pauseRef.current(); };
-    const onBlur = () => pauseRef.current();
+    // LINE の WebView は表示中のスワイプでも blur を送るため、非表示だけで停止する。
+    const onBlur = () => stopKeyboardInput();
+    const onPageHide = () => pauseRef.current();
     raf = requestAnimationFrame(tick);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("pagehide", onPageHide);
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, [sessionKey]);
 
@@ -202,7 +223,7 @@ export function ShibataDodgePage() {
     if (!session || session.paused || !event.isPrimary || event.button !== 0 || pointer.current) return;
     event.preventDefault();
     keys.current.clear();
-    field.current?.focus({ preventScroll: true });
+    if (event.pointerType === "mouse") field.current?.focus({ preventScroll: true });
     pointer.current = { id: event.pointerId, startY: event.clientY, playerY: session.view.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -212,6 +233,7 @@ export function ShibataDodgePage() {
     if (!drag || !session || drag.id !== event.pointerId || session.paused) return;
     event.preventDefault();
     const height = event.currentTarget.getBoundingClientRect().height;
+    if (height <= 0) return;
     session.targetY = Math.max(DODGE.playerMinY, Math.min(DODGE.playerMaxY, drag.playerY + (event.clientY - drag.startY) / height * DODGE.world));
   }
   function pointerUp(event: PointerEvent<HTMLDivElement>) {
@@ -240,21 +262,27 @@ export function ShibataDodgePage() {
   const stones = Boolean(state && state.stonesUntil > tick);
   const hit = Boolean(state && state.hitUntil > tick);
   const effect = state && state.lastEffect !== "none" && tick - state.effectAt < 70 ? state.lastEffect === "heal" && hp === DODGE.maxHp ? "HP 満タン！ まだまだいける！" : effectLabels[state.lastEffect] : "";
-  const level = dodgeDifficulty(tick).level;
+  const { level, seconds } = dodgeDifficulty(tick);
   const remaining = (until: number) => `${Math.max(0, (until - tick) * DODGE.stepMs / 1000).toFixed(1)}s`;
   const score = state?.score ?? 0;
   const best = api.snapshot.personalBest?.score ?? 0;
   const above = api.snapshot.leaderboard.filter(entry => entry.playerId !== api.snapshot!.member.id && entry.score >= Math.max(best, score)).at(-1);
+  const critical = hp > 0 && hp <= 2 && !invincible;
+  const direction = playing && !frozen && state && Math.abs(state.targetY - state.y) > 2 ? state.targetY < state.y ? "up" : "down" : "still";
+  const record = Boolean(ended && sessionKey && score > (bestBefore ?? 0));
+  const title = score >= 200 ? "死球回避の伝説" : score >= 100 ? "当たらない男・芝田" : score >= 60 ? "見切りの達人" : score >= 30 ? "ひらり、かわし職人" : score >= 10 ? "ナイス身のこなし！" : "ここからが本番！";
 
   return <GameShell isGame memberName={api.snapshot.member.name}>
     <div className={`${shared.gameHeading} ${styles.heading}`}><p>SHIBATA’S DEAD BALL SURVIVAL</p><h1>芝田の<span>避けろ！死球！！</span></h1><small>動けるのは、上下だけ。最後まで立っていろ！</small></div>
-    <section className={`${shared.machine} ${styles.machine}`} data-invincible={invincible} aria-label="芝田の死球回避ゲーム">
-      <div className={styles.scoreboard}><div><span>避けたボール</span><strong>{score.toLocaleString("ja-JP")}<small>球</small></strong></div><div className={styles.health} aria-label={`体力 ${hp} / ${DODGE.maxHp}`}><span>SHIBATA HP</span><div>{Array.from({ length: DODGE.maxHp }, (_, i) => <Heart key={i} size={21} fill={i < hp ? "currentColor" : "none"} data-empty={i >= hp} aria-hidden="true" />)}</div></div></div>
-      <div className={styles.field} ref={field} role="application" aria-label="上下にスワイプ、または上下矢印・W・Sキーで芝田を動かす" tabIndex={0} data-frozen={frozen} data-hit={hit} data-playing={playing} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} onKeyDown={event => keyboard(event, true)} onKeyUp={event => keyboard(event, false)} onBlur={stopInput} onContextMenu={event => event.preventDefault()}>
+    <section className={`${shared.machine} ${styles.machine}`} data-invincible={invincible} data-critical={critical} data-playing={playing} aria-label="芝田の死球回避ゲーム">
+      <div className={styles.scoreboard}><div><span>避けたボール</span><strong key={scoreCue?.tick ?? score} className={styles.scoreValue}>{score.toLocaleString("ja-JP")}<small>球</small></strong><small className={styles.bestTarget}>MY BEST {best.toLocaleString("ja-JP")} 球</small></div><div className={styles.health} data-critical={critical} aria-label={`体力 ${hp} / ${DODGE.maxHp}`}><span>{invincible ? "無敵！ いまがチャンス" : critical ? "踏ん張れ、芝田！" : "SHIBATA HP"}</span><div>{Array.from({ length: DODGE.maxHp }, (_, i) => <Heart key={i} size={21} fill={i < hp ? "currentColor" : "none"} data-empty={i >= hp} aria-hidden="true" />)}</div></div></div>
+      <div className={styles.levelProgress} aria-hidden="true"><span style={{ width: `${seconds % 15 / 15 * 100}%` }} /></div>
+      <div className={styles.field} ref={field} role="application" aria-label="上下にスワイプ、または上下矢印・W・Sキーで芝田を動かす" tabIndex={0} data-frozen={frozen} data-hit={hit} data-invincible={invincible} data-stones={stones} data-intensity={Math.min(3, level)} data-playing={playing} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} onKeyDown={event => keyboard(event, true)} onKeyUp={event => keyboard(event, false)} onBlur={stopKeyboardInput} onContextMenu={event => event.preventDefault()}>
         <div className={styles.fieldLines} aria-hidden="true" />
+        <div className={styles.speedLines} aria-hidden="true" />
         <div className={styles.fieldTop}><span>LEVEL {level}</span><span>{time(tick)} 秒</span></div>
         <div className={styles.dangerLane} aria-hidden="true">飛来注意<span>← ← ←</span></div>
-        <div className={styles.player} style={{ left: `${DODGE.playerX / 10}%`, top: `${(state?.y ?? 500) / 10}%` }} data-invincible={invincible} data-frozen={frozen} data-hit={hit}>
+        <div className={styles.player} style={{ left: `${DODGE.playerX / 10}%`, top: `${(state?.y ?? 500) / 10}%` }} data-invincible={invincible} data-frozen={frozen} data-hit={hit} data-moving={direction}>
           <img src="/game/shibata_yokeru.PNG" alt={!invincible ? "死球を避ける芝田" : ""} aria-hidden={invincible} data-visible={!invincible} draggable={false} />
           <img src="/game/shibata_muteki.PNG" alt={invincible ? "無敵になった芝田" : ""} aria-hidden={!invincible} data-visible={invincible} draggable={false} />
           {invincible && <Shield className={styles.shield} aria-hidden="true" />}
@@ -270,7 +298,9 @@ export function ShibataDodgePage() {
           </svg></span>;
         })}
         <div className={styles.effects} aria-label="特殊効果の残り時間">{frozen && <span className={styles.freezeBadge}>凍結 {remaining(state!.frozenUntil)}</span>}{invincible && <span className={styles.invincibleBadge}>無敵 {remaining(state!.invincibleUntil)}</span>}{stones && <span className={styles.stoneBadge}>石化 {remaining(state!.stonesUntil)}</span>}</div>
-        {effect && <strong className={styles.effectCallout} data-effect={state?.lastEffect} role="status">{effect}</strong>}
+        {effect && <strong key={state?.effectAt} className={styles.effectCallout} data-effect={state?.lastEffect} role="status">{effect}</strong>}
+        {/* {playing && scoreCue && tick - scoreCue.tick < 40 && <span key={scoreCue.tick} className={styles.scoreCallout} data-milestone={scoreCue.milestone} aria-hidden="true">{scoreCue.milestone ? `${Math.floor(scoreCue.score / 10) * 10} 球突破！` : `+${scoreCue.amount} NICE!`}</span>} */}
+        {playing && level > 1 && seconds % 15 < 1.4 && <strong key={level} className={styles.levelUp} aria-hidden="true"><small>まだまだ来るぞ！</small>LEVEL {level}</strong>}
         {!playing && <div className={styles.overlay}><strong>{ended ? "そこまで！" : state ? "ひと息、入れよう。" : "避けろ、芝田！"}</strong><span>{ended ? `${score.toLocaleString("ja-JP")} 球を回避！` : state ? "時間は止まっています" : "画面のどこでも、上下にスワイプ"}</span>{!ended && <ArrowDownUp size={28} aria-hidden="true" />}</div>}
         {playing && tick < 120 && <div className={styles.swipeHint}><ArrowDownUp size={18} aria-hidden="true" />上下にスワイプ！</div>}
       </div>
@@ -279,10 +309,10 @@ export function ShibataDodgePage() {
         {notice && <p className={styles.notice} role="status">{notice}</p>}
         {api.error && <div className={shared.error} role="alert"><p>{api.error}</p><button type="button" disabled={api.busy} onClick={() => { void retry(); }}>通信を再試行</button></div>}
         {playing ? <button type="button" className={styles.pauseButton} onClick={pause}><Pause size={17} aria-hidden="true" />一時停止</button> : state && !ended ? <button type="button" className={`${shared.primary} ${styles.primary}`} disabled={api.busy || api.retryPending || Boolean(api.error)} onClick={resume}><Play size={20} aria-hidden="true" />{api.busy ? "記録を保存中…" : "続きから、避けろ！"}</button> : <button type="button" className={`${shared.primary} ${styles.primary}`} disabled={api.busy || api.retryPending || Boolean(ended && !saved)} onClick={() => { void start(); }}>{ended ? <RotateCcw size={19} aria-hidden="true" /> : <Play size={19} aria-hidden="true" />}{api.busy || (ended && !saved) ? "記録を保存中…" : ended ? "もう一度、避けろ！" : "死球サバイバル、開始！"}</button>}
-        {ended && <section className={styles.result} aria-label="最終結果" aria-live="polite"><p>SHIBATA SURVIVED</p><h2>よくぞ、避けきった！</h2><strong>{score.toLocaleString("ja-JP")}<small>球</small></strong><div className={styles.best}>{!saved ? "記録を保存しています…" : bestBefore !== null && score > bestBefore ? "自己ベスト更新！！" : bestBefore === null && view ? "記録を保存しました！" : `自己ベスト ${best.toLocaleString("ja-JP")} 球`}</div><dl><div><dt>生存時間</dt><dd>{time(tick)}<small>秒</small></dd></div><div><dt>到達レベル</dt><dd>{level}</dd></div></dl>{saved && above && <p>{above.rank} 位の記録を超えるまで、あと <b>{(above.score - Math.max(best, score) + 1).toLocaleString("ja-JP")} 球</b>！</p>}</section>}
+        {ended && <section className={styles.result} data-record={record} aria-label="最終結果" aria-live="polite"><p>SHIBATA SURVIVAL RECORD</p><h2>ナイス回避、芝田！</h2><strong>{score.toLocaleString("ja-JP")}<small>球</small></strong><span className={styles.rankBadge}>{title}</span><div className={styles.best}>{!saved ? "記録を保存しています…" : record ? "自己ベスト更新！！" : `自己ベスト ${best.toLocaleString("ja-JP")} 球`}</div><dl><div><dt>生存時間</dt><dd>{time(tick)}<small>秒</small></dd></div><div><dt>到達レベル</dt><dd>{level}</dd></div></dl>{saved && above && <p>{above.rank} 位の記録を超えるまで、あと <b>{(above.score - Math.max(best, score) + 1).toLocaleString("ja-JP")} 球</b>！</p>}</section>}
         <p className={styles.note}>指を置いた場所から上下へスワイプ。マウスのドラッグ / ↑ ↓ / W S でも操作できます。</p>
       </div>
     </section>
-    {!playing && <><details className={shared.rules}><summary>サバイバルの心得<ChevronDown size={17} aria-hidden="true" /></summary><div className={shared.rulesBody}><p>体力はハート 5 個。右から飛んでくるボールを避けた数で勝負！ 時間がたつほど難易度アップ。体力がなくなるまで挑戦できます。</p><p>芝田の光る輪を守ろう。ボールに当たると HP −1、石は −2。♥ を取ると HP ＋1。? は運試し！「1 秒間動けない」「5 秒間無敵」「体力全回復」「1 秒間ボールが石になる」のどれかが発生します。</p><p>画面・タブを離れると一時停止します。「続きから」で再開。進行は定期的に保存され、再読み込みでは最後に保存されたところから再開します。</p></div></details><GameLeaderboard entries={api.snapshot.leaderboard} personalBest={api.snapshot.personalBest} memberId={api.snapshot.member.id} scoreUnit="球" /></>}
+    {!playing && <><details className={shared.rules}><summary>サバイバルの心得<ChevronDown size={17} aria-hidden="true" /></summary><div className={shared.rulesBody}><p>体力はハート 5 個。右から飛んでくるボールを避けた数で勝負！ 時間がたつほど難易度アップ。体力がなくなるまで挑戦できます。</p><p>芝田の光る輪を守ろう。ボールに当たると HP −1、石は −2。♥ を取ると HP ＋1。? は運試し！「1 秒間動けない」「5 秒間無敵」「体力全回復」「{DODGE.stonesTicks * DODGE.stepMs / 1000} 秒間ボールが石になる」のどれかが発生します。</p><p>画面・タブを離れると一時停止します。「続きから」で再開。進行は定期的に保存され、再読み込みでは最後に保存されたところから再開します。</p></div></details><GameLeaderboard entries={api.snapshot.leaderboard} personalBest={api.snapshot.personalBest} memberId={api.snapshot.member.id} scoreUnit="球" /></>}
   </GameShell>;
 }
