@@ -65,7 +65,7 @@ export function HomeEditor() {
   const alive = useRef(false);
   const writing = useRef(false);
   const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(snapshot?.data);
-  const canEdit = snapshot?.member.isAdmin === true && !accessError;
+  const canEdit = snapshot?.member.canEditLineup === true && !accessError;
   const disabled = busy || loading || conflict || uploadingId !== null;
 
   const load = useCallback(async () => {

@@ -93,7 +93,7 @@ export function HomePage({ nextGame, nextGameUnavailable = false, content }: {
 
     void loadGames();
     void api<AuthResponse>("/api/auth").then((auth) => {
-      if (active) setCanEdit(auth.authenticated && auth.member?.isAdmin === true);
+      if (active) setCanEdit(auth.authenticated && auth.member?.canEditLineup === true);
     }).catch(() => {});
 
     return () => {
