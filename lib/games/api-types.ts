@@ -4,10 +4,11 @@ import type { FastballResult } from "./fastball";
 import type { BetType, HorseRaceState } from "./horse-racing";
 import type { BenchRunResult } from "./horie-bench";
 import type { RamenInput, RamenRunResult } from "./ramen";
+import type { DodgeMove, DodgeState } from "./shibata-dodge";
 
 export type FastballReady = { kind: "fastball-ready"; releaseMs: number };
 export type FastballRunResult = FastballReady | FastballResult;
-export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult;
+export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult | DodgeState;
 
 export type GameRun<TResult = TurnResult> = {
   id: string;
@@ -100,4 +101,14 @@ export type RamenFinishRequest = {
   inputs: RamenInput[];
 };
 
-export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest;
+export type DodgeStepRequest = {
+  action: "dodge-step";
+  gameId: string;
+  requestId: string;
+  runId: string;
+  turn: number;
+  toTick: number;
+  moves: DodgeMove[];
+};
+
+export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest | DodgeStepRequest;

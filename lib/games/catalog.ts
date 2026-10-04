@@ -68,6 +68,16 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     scoreLabel: "すすった総重量",
     scoreUnit: "g",
   },
+  {
+    id: "shibata-dodge",
+    title: "芝田の避けろ！死球！！",
+    description: "上下にスワイプして死球を回避！回復とハテナに運命を託し、避けた球数で勝負。",
+    href: "/game/shibata-dodge",
+    image: "/game/shibata_yokeru.PNG",
+    version: 1,
+    scoreLabel: "避けたボール",
+    scoreUnit: "球",
+  },
 ];
 
 export function getGame(id: string): GameDefinition | undefined {
