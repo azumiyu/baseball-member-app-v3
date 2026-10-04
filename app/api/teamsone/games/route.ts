@@ -127,6 +127,7 @@ export async function GET() {
 
     const games = parseGames(html)
       .filter((game) => dateKey(game.date) <= today)
+      .filter((game) => !game.type.includes("その他") && !game.result.includes("その他"))
       .sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)))
       .slice(0, 5);
 
