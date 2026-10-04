@@ -10,7 +10,8 @@ export type DataSnapshot<T> = { data: T; revision: number };
 export interface AutosavedDataSource<T> {
   initialData: () => T;
   load: () => Promise<DataSnapshot<T>>;
-  save: (data: T, revision: number, savedJson: string) => Promise<{ revision: number }>;
+  save: (data: T, revision: number, savedJson: string) => Promise<{ revision: number; data?: T }>;
+  acceptSavedData?: boolean;
   loadError: string;
 }
 
@@ -85,10 +86,17 @@ export function useAutosavedData<T extends object>(source: AutosavedDataSource<T
       setSaveState("saving");
       try {
         const result = await source.save(data, revision, saved.current);
-        saved.current = payload;
+        const unchanged = currentDraft.current === payload;
+        if (source.acceptSavedData && result.data && unchanged) {
+          saved.current = JSON.stringify(result.data);
+          currentDraft.current = saved.current;
+          setData(result.data);
+        } else {
+          saved.current = payload;
+        }
         setRevision(result.revision);
         // Edits made during the request remain dirty and get a later save.
-        setSaveState(currentDraft.current === payload ? "saved" : "dirty");
+        setSaveState(unchanged ? "saved" : "dirty");
         setError("");
       } catch (cause) {
         const failure = cause as ApiError;

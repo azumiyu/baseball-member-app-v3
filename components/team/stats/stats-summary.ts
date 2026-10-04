@@ -12,18 +12,18 @@ export const SUMMARY_FIRST_ROW = [
   ["atBats", "打数"],
   ["hits", "安打"],
   ["homeRuns", "本塁打"],
-  ["rbis", "打点"],
-  ["runs", "得点"],
-  ["stolenBases", "盗塁"],
   ["doubles", "二塁打"],
   ["triples", "三塁打"],
   ["scoringAtBats", "得点圏打数"],
   ["scoringHits", "得点圏安打"],
-] as const;
-export const SUMMARY_SECOND_ROW = [
   ["strikeouts", "三振"],
   ["walks", "四球"],
   ["hitByPitches", "死球"],
+] as const;
+export const SUMMARY_SECOND_ROW = [
+  ["rbis", "打点"],
+  ["runs", "得点"],
+  ["stolenBases", "盗塁"],
   ["sacrificeBunts", "犠打"],
   ["sacrificeFlies", "犠飛"],
   ["doublePlays", "併殺打"],
@@ -44,8 +44,9 @@ export function summarizeStats(values: PlayerStats): SummaryValues {
   const completed = results.filter(
     (result): result is PlateAppearanceResult => result !== null,
   );
-  const scoringResults = completed.filter(
-    (_, index) => values.scoringPosition[index] === true,
+  const scoringResults = results.filter(
+    (result, index): result is PlateAppearanceResult =>
+      result !== null && values.scoringPosition[index] === true,
   );
   const count = (result: PlateAppearanceResult, source = completed) =>
     source.filter((item) => item === result).length;

@@ -18,6 +18,7 @@ import {
   parseGameKey,
   statsGameKeyForSchedule,
   PLATE_APPEARANCE_RESULTS,
+  MAX_REGISTERED_STATS_GAMES,
   type StatsScheduleOption,
   type PlateAppearanceResult,
   type PlayerStats,
@@ -39,7 +40,6 @@ const NUMBER_FIELDS = [
   ["errors", "失策"],
   ["caughtStealing", "盗塁阻止"],
 ] as const;
-const CONFIRMATION_PAGE_SIZE = 5;
 const STAT_NUMBER_OPTIONS = Array.from({ length: 11 }, (_, index) => index);
 const RBIS_NUMBER_OPTIONS = Array.from({ length: 21 }, (_, index) => index);
 const REGISTRATION_MESSAGE_MS = 1800;
@@ -68,10 +68,11 @@ export function StatsView({
   const [linkScheduleId, setLinkScheduleId] = useState("");
   const [statsTab, setStatsTab] = useState<"entry" | "confirmation">("entry");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
-  const [confirmationPage, setConfirmationPage] = useState(1);
-  const [gameToDelete, setGameToDelete] = useState<{
-    key: string;
-    label: string;
+  const [registrationToDelete, setRegistrationToDelete] = useState<{
+    gameKey: string;
+    playerId: string;
+    playerName: string;
+    gameLabel: string;
   } | null>(null);
   const [entryDraft, setEntryDraft] = useState<{ key: string; values: PlayerStats } | null>(null);
   const scheduleById = new Map(stats.schedules.map((game) => [game.id, game]));
@@ -236,25 +237,11 @@ export function StatsView({
       (a, b) =>
         (scheduleById.get(stats.data.scheduleIds[b.key])?.date ?? b.game.date)
           .localeCompare(scheduleById.get(stats.data.scheduleIds[a.key])?.date ?? a.game.date)
-          || a.game.number - b.game.number,
+          || (scheduleById.get(stats.data.scheduleIds[b.key])?.startTime ?? "").localeCompare(scheduleById.get(stats.data.scheduleIds[a.key])?.startTime ?? "")
+          || b.game.number - a.game.number,
     );
-  const confirmationPageCount = Math.max(
-    1,
-    Math.ceil(registeredGames.length / CONFIRMATION_PAGE_SIZE),
-  );
   const visibleLegacyGames = registeredGames.filter(({ key, game }) => !stats.data.scheduleIds[key] && (showPastSchedules || game.date >= today));
-  const currentConfirmationPage = Math.min(
-    confirmationPage,
-    confirmationPageCount,
-  );
-  const visibleRegisteredGames = registeredGames.slice(
-    (currentConfirmationPage - 1) * CONFIRMATION_PAGE_SIZE,
-    currentConfirmationPage * CONFIRMATION_PAGE_SIZE,
-  );
-  const changeConfirmationPage = (page: number) => {
-    setConfirmationPage(page);
-    window.scrollTo({ top: 0, behavior: "instant" });
-  };
+  const visibleRegisteredGames = registeredGames.slice(0, MAX_REGISTERED_STATS_GAMES);
   const editRegistration = (
     key: string,
     playerId: string,
@@ -324,21 +311,6 @@ export function StatsView({
       return { ...current, games, scheduleIds };
     });
   };
-  const deleteGameRegistration = (gameKeyToDelete: string) => {
-    if (!member.isAdmin) return;
-    setGameToDelete({ key: gameKeyToDelete, label: labelForKey(gameKeyToDelete) });
-  };
-  const confirmDeleteGameRegistration = () => {
-    if (!gameToDelete) return;
-    stats.edit((current: StatsData) => {
-      const games = { ...current.games };
-      delete games[gameToDelete.key];
-      const scheduleIds = { ...current.scheduleIds };
-      delete scheduleIds[gameToDelete.key];
-      return { ...current, games, scheduleIds };
-    });
-    setGameToDelete(null);
-  };
   const linkLegacyGame = () => {
     if (!member.isAdmin || !selectedGameKey || stats.data.scheduleIds[selectedGameKey] || stats.saveState !== "saved" ||
         !schedules.some((game) => game.id === linkScheduleId) || Object.values(stats.data.scheduleIds).includes(linkScheduleId)) return;
@@ -350,23 +322,29 @@ export function StatsView({
   return (
     <section className="stats-page">
       <AlertDialog
-        open={gameToDelete !== null}
+        open={registrationToDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setGameToDelete(null);
+          if (!open) setRegistrationToDelete(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>この試合の成績を削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle>この成績を削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              {gameToDelete
-                ? `${gameToDelete.label}の成績をすべて削除します。`
-                : ""}
+              {registrationToDelete && `${registrationToDelete.gameLabel}の${registrationToDelete.playerName}さんの成績を削除します。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteGameRegistration}>
+            <AlertDialogAction
+              variant="destructive"
+              className="stats-confirm-delete-action"
+              onClick={() => {
+                if (!registrationToDelete) return;
+                deleteRegistration(registrationToDelete.gameKey, registrationToDelete.playerId);
+                setRegistrationToDelete(null);
+              }}
+            >
               削除する
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -436,15 +414,6 @@ export function StatsView({
                     <h2>
                       {labelForKey(key)}
                     </h2>
-                    {member.isAdmin && (
-                      <button
-                        type="button"
-                        className="stats-delete-button"
-                        onClick={() => deleteGameRegistration(key)}
-                      >
-                        この試合を削除
-                      </button>
-                    )}
                   </div>
                   <div className="panel">
                     {players
@@ -457,7 +426,15 @@ export function StatsView({
                           values={stats.data.games[key][player.id]}
                           canEdit={canEditPlayer(player.id)}
                           onEdit={() => editRegistration(key, player.id)}
-                          onDelete={() => deleteRegistration(key, player.id)}
+                          onDelete={() => {
+                            if (!canEditPlayer(player.id)) return;
+                            setRegistrationToDelete({
+                              gameKey: key,
+                              playerId: player.id,
+                              playerName: player.name,
+                              gameLabel: labelForKey(key),
+                            });
+                          }}
                         />
                       ))}
                   </div>
@@ -465,33 +442,6 @@ export function StatsView({
               ))
             )}
           </div>
-          {confirmationPageCount > 1 && (
-            <nav className="stats-pagination" aria-label="成績登録確認ページ">
-              <button
-                type="button"
-                className="secondary"
-                disabled={currentConfirmationPage === 1}
-                onClick={() =>
-                  changeConfirmationPage(currentConfirmationPage - 1)
-                }
-              >
-                前へ
-              </button>
-              <span>
-                {currentConfirmationPage} / {confirmationPageCount}
-              </span>
-              <button
-                type="button"
-                className="secondary"
-                disabled={currentConfirmationPage === confirmationPageCount}
-                onClick={() =>
-                  changeConfirmationPage(currentConfirmationPage + 1)
-                }
-              >
-                次へ
-              </button>
-            </nav>
-          )}
           <div className="stats-actions">
             <button
               type="button"
@@ -586,7 +536,7 @@ export function StatsView({
                     >
                       <button
                         type="button"
-                        className={`plate-square ${result ? "filled" : ""}${isHitResult(result) ? " hit-result" : ""}`}
+                        className={`plate-square ${result ? "filled" : ""}${isHitResult(result) ? " hit-result" : ""}${result === "四球" || result === "死球" ? " walk-result" : ""}`}
                         aria-expanded={openPlate === index}
                         aria-controls={
                           openPlate === index
