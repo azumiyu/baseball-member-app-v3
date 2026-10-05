@@ -1708,3 +1708,109 @@
     transform: translateY(0);
   }
 }
+
+/* =====================================
+   NOTICE LIST
+===================================== */
+
+.home-notice-list {
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.home-notice-list li {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 24px;
+
+  padding: 4px 4px;
+
+  border-bottom:
+    1px solid rgba(38, 35, 38, 0.10);
+
+  position: relative;
+}
+
+
+/* 最初の行にも薄い罫線 */
+.home-notice-list li:first-child {
+  border-top:
+    1px solid rgba(38, 35, 38, 0.10);
+}
+
+
+/* 内容 */
+.home-notice-text {
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* 日付 */
+.home-notice-list .home-content-date {
+  flex-shrink: 0;
+
+  color: rgba(38, 35, 38, 0.45);
+
+  font-variant-numeric: tabular-nums;
+
+  letter-spacing: .05em;
+}
+
+
+/* 左端のアクセント */
+.home-notice-list li::before {
+  content: "";
+
+  position: absolute;
+
+  left: -10px;
+  top: 50%;
+
+  width: 3px;
+  height: 0;
+
+  border-radius: 999px;
+
+  background: var(--home-red);
+
+  transform: translateY(-50%);
+
+  transition:
+    height .3s cubic-bezier(.16, 1, .3, 1);
+}
+
+
+/* PCだけ軽いホバー */
+@media (hover: hover) {
+
+  .home-notice-list li {
+    transition:
+      padding-left .3s cubic-bezier(.16, 1, .3, 1),
+      background .3s ease;
+  }
+
+  .home-notice-list li:hover {
+    padding-left: 12px;
+
+    background:
+      rgba(255,255,255,.26);
+  }
+
+  .home-notice-list li:hover::before {
+    height: 55%;
+  }
+
+}
+

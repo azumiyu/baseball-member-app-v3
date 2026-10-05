@@ -151,9 +151,9 @@ export function HomePage({
       })
       .catch(() => {});
 
-const sections = document.querySelectorAll<HTMLElement>(
-  ".home-page .home-section, .home-page .home-about-link, .home-page .home-about-visual",
-);
+    const sections = document.querySelectorAll<HTMLElement>(
+      ".home-page .home-section, .home-page .home-about-link, .home-page .home-about-visual",
+    );
     // アニメーション軽減設定を尊重
     if (
       !("IntersectionObserver" in window) ||
@@ -482,23 +482,26 @@ const sections = document.querySelectorAll<HTMLElement>(
           <ul className="home-notice-list">
             {content?.notices.map((notice) => (
               <li key={notice.id}>
+                <span className="home-notice-text" title={notice.text}>
+                  {notice.text}
+                </span>
+
                 {notice.date && (
                   <time className="home-content-date" dateTime={notice.date}>
                     {notice.date.replaceAll("-", ".")}
                   </time>
                 )}
-                <span className="home-notice-text" title={notice.text}>
-                  {notice.text}
-                </span>
               </li>
             ))}
+
             {content?.notices.length === 0 && (
               <li>新しいお知らせはありません。</li>
             )}
+
             {!content && (
               <li role="status">お知らせを読み込めませんでした。</li>
             )}
-          </ul>
+          </ul>{" "}
         </div>
       </section>
 
