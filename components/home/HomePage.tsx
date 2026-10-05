@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CircleAlert,
   Pencil,
+  Menu,
   X,
 } from "lucide-react";
 import type { AuthResponse } from "@/lib/auth-types";
@@ -62,6 +63,9 @@ export function HomePage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [canEdit, setCanEdit] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menuCloseButton = useRef<HTMLButtonElement>(null);
   const [columnIndex, setColumnIndex] = useState(0);
   const [openedColumn, setOpenedColumn] = useState<HomeColumn | null>(null);
   const columnTrack = useRef<HTMLDivElement>(null);
@@ -88,6 +92,23 @@ export function HomePage({
         timeZone: "Asia/Tokyo",
       }).format(matchDate)
     : "";
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const trigger = menuButton.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    menuCloseButton.current?.focus({ preventScroll: true });
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+      trigger?.focus({ preventScroll: true });
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     let active = true;
@@ -139,7 +160,7 @@ export function HomePage({
       !("IntersectionObserver" in window) ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      return;
+      return () => { active = false; };
     }
 
     const observer = new IntersectionObserver(
@@ -163,26 +184,29 @@ export function HomePage({
       observer.observe(section);
     });
 
-    return () => observer.disconnect();
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
   }, []);
 
   return (
     <main className="home-page">
       {/* 背景全体に散らばる小さな炎 */}
-<div className="home-fire-particles" aria-hidden="true">
-  {Array.from({ length: 60 }, (_, i) => (
-    <span
-      key={i}
-      className="home-fire-particle"
-      style={{
-        left: `${((i * 73 + i * i * 17) % 997) / 9.97}%`,
-        top: `${((i * 251 + i * i * 59) % 991) / 9.91}%`,
-        animationDelay: `-${(i % 13) * 0.46}s`,
-        animationDuration: `${3.4 + (i % 7) * 0.6}s`,
-      }}
-    />
-  ))}
-</div>
+      <div className="home-fire-particles" aria-hidden="true">
+        {Array.from({ length: 60 }, (_, i) => (
+          <span
+            key={i}
+            className="home-fire-particle"
+            style={{
+              left: `${((i * 73 + i * i * 17) % 997) / 9.97}%`,
+              top: `${((i * 251 + i * i * 59) % 991) / 9.91}%`,
+              animationDelay: `-${(i % 13) * 0.46}s`,
+              animationDuration: `${3.4 + (i % 7) * 0.6}s`,
+            }}
+          />
+        ))}
+      </div>
       {/* オープニング演出 */}
       <div className="home-opening" aria-hidden="true">
         <div className="home-opening-panel home-opening-left" />
@@ -208,31 +232,111 @@ export function HomePage({
       <header className="home-header">
         <Link className="home-logo" href="/home" aria-label="YG FIRES ホーム">
           <span className="home-logo-mark">Y</span>
+
           <span>
             <strong>YG FIRES</strong>
             <small>BASEBALL CLUB</small>
           </span>
         </Link>
 
-        <nav className="home-nav" aria-label="メインナビゲーション">
-          <a href="#games">試合結果</a>
-          <a href="#columns">コラム</a>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- ログイン画面へは通常のページ遷移を使う */}
-          <a className="home-member-link" href="/">
-            ログイン
-          </a>
-        </nav>
-      </header>
+        {/* ハンバーガーボタン */}
+        <button
+          ref={menuButton}
+          type="button"
+          className="home-menu-button"
+          aria-label="メニューを開く"
+          aria-expanded={menuOpen}
+          aria-controls="home-global-menu"
+          onClick={() => setMenuOpen(true)}
+        >
+          <Menu size={27} aria-hidden="true" />
+        </button>
 
-      {canEdit && (
-        <div className="home-admin-bar">
-          <span>管理者メニュー</span>
-          <a href="/home/edit">
-            <Pencil size={15} aria-hidden="true" />
-            お知らせ・コラムを編集
-          </a>
-        </div>
-      )}
+        {/* 背景 */}
+        <div
+          className={`home-menu-overlay ${
+            menuOpen ? "home-menu-overlay-open" : ""
+          }`}
+          onClick={() => setMenuOpen(false)}
+          aria-hidden="true"
+        />
+
+        {/* ハンバーガーメニュー本体 */}
+        <aside
+          id="home-global-menu"
+          className={`home-menu-drawer ${
+            menuOpen ? "home-menu-drawer-open" : ""
+          }`}
+          aria-hidden={!menuOpen}
+          inert={!menuOpen}
+        >
+          <div className="home-menu-header">
+            <div>
+              <span>YG FIRES</span>
+              <small>BASEBALL CLUB</small>
+            </div>
+
+            <button
+              ref={menuCloseButton}
+              type="button"
+              className="home-menu-close"
+              onClick={() => setMenuOpen(false)}
+              aria-label="メニューを閉じる"
+            >
+              <X size={25} aria-hidden="true" />
+            </button>
+          </div>
+
+          <nav className="home-menu-nav" aria-label="メインメニュー">
+            <a href="/home/about" onClick={() => setMenuOpen(false)}>
+              <span>01</span>
+              <strong>チーム紹介</strong>
+              <ArrowUpRight size={19} />
+            </a>
+
+            <a href="#games" onClick={() => setMenuOpen(false)}>
+              <span>02</span>
+              <strong>直近の試合</strong>
+              <ArrowUpRight size={19} />
+            </a>
+
+            <a href="#columns" onClick={() => setMenuOpen(false)}>
+              <span>03</span>
+              <strong>コラム</strong>
+              <ArrowUpRight size={19} />
+            </a>
+
+            <Link href="/" onClick={() => setMenuOpen(false)}>
+              <span>04</span>
+              <strong>メンバー専用ページ</strong>
+              <ArrowUpRight size={19} />
+            </Link>
+
+            {/* 編集権限を持つ人だけ表示 */}
+            {canEdit && (
+              <a
+                href="/home/edit"
+                className="home-menu-admin"
+                onClick={() => setMenuOpen(false)}
+              >
+                <span>ADMIN</span>
+
+                <strong>
+                  <Pencil size={16} />
+                  お知らせ・コラムを編集
+                </strong>
+
+                <ArrowUpRight size={19} />
+              </a>
+            )}
+          </nav>
+
+          <div className="home-menu-footer">
+            <span>WE PLAY.</span>
+            <strong>WIN&LAUGH</strong>
+          </div>
+        </aside>
+      </header>
 
       <section className="home-cover">
         <div className="home-cover-content">

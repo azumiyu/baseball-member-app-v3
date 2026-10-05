@@ -1,10 +1,18 @@
+.page > .header:global(.home-header) { animation: none; }
 .content { width: min(1100px, calc(100% - 40px)); margin: 0 auto; padding-bottom: 48px; }
 .back { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; font-size: 13px; }
 .heading { padding: 36px 0 24px; }
 .heading h1 { margin: 0; font-size: clamp(30px, 5vw, 48px); font-weight: 900; letter-spacing: .06em; }
 .heading > p:last-child { margin: 10px 0 0; color: #746e70; font-size: 14px; }
-.heroPhoto { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px 14px 0 0; background: #151516; }
-.heroPhoto img { object-fit: contain; }
+.heroPhoto { position: relative; display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; aspect-ratio: 9 / 4; overflow: hidden; border-radius: 14px 14px 0 0; background: #151516; }
+.photoFrame { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #151516; }
+.photoFrame::after { content: ""; position: absolute; inset: 50% 0 0; background: linear-gradient(transparent, rgb(10 12 14 / .7)); pointer-events: none; }
+.photoFrame img { object-fit: cover; }
+.teamPhoto { grid-row: 1 / 3; }
+.teamPhoto img { object-fit: contain; }
+.photoLabel { position: absolute; left: 20px; bottom: 18px; z-index: 1; display: flex; align-items: center; gap: 10px; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+.photoLabel small { padding-right: 10px; border-right: 1px solid rgb(255 255 255 / .45); font-size: 9px; font-variant-numeric: tabular-nums; letter-spacing: .08em; }
+.heroPhoto::after { content: ""; position: absolute; inset: auto 0 0; z-index: 2; height: 3px; background: #c92332; transform-origin: left; pointer-events: none; }
 .heroCaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 16px 22px; border-left: 5px solid #c92332; border-radius: 0 0 12px 12px; background: #151516; color: #fff; font-size: 13px; }
 .section { padding: 38px 0 8px; }
 .section h2, .join h2 { margin: 0 0 22px; font-size: clamp(23px, 3vw, 30px); font-weight: 800; }
@@ -30,10 +38,42 @@
 .join h2 { margin-bottom: 12px; }
 .join > p:not(:first-child) { font-size: 14px; line-height: 1.9; }
 .join a { display: inline-flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; margin-top: 18px; padding: 12px 18px; border-radius: 6px; background: #c92332; color: #fff; font-size: 13px; font-weight: 700; }
+/* The photos reveal once in place, so navigation and page content stay available. */
+@media (prefers-reduced-motion: no-preference) {
+  .heading { animation: headingArrive .65s cubic-bezier(.2, .7, .2, 1) both; }
+  .photoFrame { animation: photoReveal .85s cubic-bezier(.22, .7, .2, 1) both; }
+  .battingPhoto { animation-delay: .13s; }
+  .benchPhoto { animation-delay: .26s; }
+  .photoFrame img { animation: photoSettle 1.3s cubic-bezier(.2, .7, .2, 1) both; }
+  .battingPhoto img { animation-delay: .13s; }
+  .benchPhoto img { animation-delay: .26s; }
+  .heroPhoto::after { animation: photoRule .8s ease-out .3s both; }
+}
+@keyframes headingArrive {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes photoReveal {
+  from { clip-path: inset(100% 0 0); }
+  to { clip-path: inset(0); }
+}
+@keyframes photoSettle {
+  from { transform: scale(1.045) translateY(6px); }
+  to { transform: scale(1) translateY(0); }
+}
+@keyframes photoRule {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 @media (max-width: 600px) {
   .content { width: calc(100% - 28px); padding-bottom: 28px; }
   .back { font-size: 11px; }
   .heading { padding: 24px 0 18px; }
+  .heroPhoto { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 4px; aspect-ratio: auto; border-radius: 10px 10px 0 0; }
+  .photoFrame { aspect-ratio: 3 / 2; }
+  .teamPhoto { grid-column: 1 / 3; grid-row: auto; }
+  .photoLabel { left: 10px; bottom: 10px; gap: 6px; font-size: 8px; letter-spacing: .1em; }
+  .photoLabel small { padding-right: 6px; font-size: 8px; }
   .heroCaption { padding: 12px 14px; font-size: 11px; }
   .section { padding-top: 28px; }
   .section h2 { margin-bottom: 16px; }

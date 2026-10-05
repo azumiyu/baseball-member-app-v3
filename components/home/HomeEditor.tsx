@@ -64,30 +64,32 @@ export function HomeEditor() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const alive = useRef(false);
   const writing = useRef(false);
+  const loadRequest = useRef(0);
   const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(snapshot?.data);
   const canEdit = snapshot?.member.canEditLineup === true && !accessError;
   const disabled = busy || loading || conflict || uploadingId !== null;
 
   const load = useCallback(async () => {
+    const request = ++loadRequest.current;
     setLoading(true);
     try {
       const next = await api<Snapshot>("/api/home-content");
-      if (!alive.current) return;
+      if (!alive.current || request !== loadRequest.current) return;
       setSnapshot(next); setDraft(next.data); setAccessError(0); setConflict(false);
       setError(""); setMessage(""); setEditingColumn(null);
     } catch (cause) {
-      if (!alive.current) return;
+      if (!alive.current || request !== loadRequest.current) return;
       const status = (cause as ApiError).status;
       setAccessError(status === 401 || status === 403 ? status : 0);
       setError(cause instanceof Error ? cause.message : "編集内容を読み込めませんでした。");
-    } finally { if (alive.current) setLoading(false); }
+    } finally { if (alive.current && request === loadRequest.current) setLoading(false); }
   }, []);
 
   useEffect(() => {
     alive.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Load the admin-only snapshot on entry.
     void load();
-    return () => { alive.current = false; };
+    return () => { alive.current = false; loadRequest.current += 1; };
   }, [load]);
 
   useEffect(() => {
@@ -97,8 +99,12 @@ export function HomeEditor() {
     return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty, uploadingId]);
 
-  function update(data: HomeContent) { setDraft(data); setMessage(""); }
+  function update(data: HomeContent) {
+    setDraft(data); setMessage("");
+    if (!accessError && !conflict) setError("");
+  }
   function reload() {
+    if (loading || writing.current) return;
     if (!dirty || window.confirm("編集中の変更を破棄して、最新の内容を読み込みますか？")) void load();
   }
   function move(kind: "notices" | "columns", index: number, direction: number) {
@@ -169,13 +175,13 @@ export function HomeEditor() {
 
   return <main className="home-page home-editor-page">
     <header className="home-header home-editor-header">
-      <a className="home-editor-back" href="/home" onClick={(event) => { if ((dirty || uploadingId) && !window.confirm("保存していない変更を破棄して戻りますか？")) event.preventDefault(); }}><ArrowLeft size={18} aria-hidden="true" />ホームページ</a>
+      <a className="home-editor-back" href="/home"><ArrowLeft size={18} aria-hidden="true" />ホームページ</a>
       <span>YG FIRES <small>／ 管理者限定</small></span>
     </header>
     <div className="home-editor-content">
       <div className="home-editor-heading"><div><p className="home-eyebrow">HOME EDITOR</p><h1>お知らせ・コラム編集</h1></div><Link href="/home" target="_blank" rel="noreferrer">公開ページを見る<ArrowUpRight size={16} aria-hidden="true" /><span className="sr-only">（新しいタブで開く）</span></Link></div>
       <p className="home-editor-help">内容や表示順を編集し、「変更を保存」で反映します。非公開の項目はホームページに表示されません。</p>
-      {error && <div className="home-editor-error" role="alert"><p>{error}</p>{accessError === 401 ? <Link href="/">ログイン画面へ</Link> : accessError === 403 ? <p>管理者アカウントでログインしてください。</p> : <button type="button" disabled={busy || loading} onClick={reload}>{conflict ? "最新の内容を読み込む" : "再読み込み"}</button>}</div>}
+      {error && <div className="home-editor-error" role={draft && canEdit ? undefined : "alert"}><p>{error}</p>{accessError === 401 ? <Link href="/">ログイン画面へ</Link> : accessError === 403 ? <p>管理者アカウントでログインしてください。</p> : <button type="button" disabled={busy || loading || uploadingId !== null} onClick={reload}>{conflict ? "最新の内容を読み込む" : "再読み込み"}</button>}</div>}
       {loading && <p role="status">編集内容を読み込んでいます…</p>}
       {draft && canEdit && <form onSubmit={(event) => { void save(event); }}>
         <fieldset className="home-editor-fields" disabled={disabled}>

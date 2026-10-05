@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 const photos = [2, 3, 4, 5, 6, 7, 1];
 
 export default function AboutPage() {
-  return <main className="home-page">
-    <header className="home-header">
+  return <main className={`home-page ${styles.page}`}>
+    <header className={`home-header ${styles.header}`}>
       <a className="home-logo" href="/home" aria-label="YG FIRES ホーム">
         <span className="home-logo-mark">Y</span><span><strong>YG FIRES</strong><small>BASEBALL CLUB</small></span>
       </a>
@@ -26,7 +26,20 @@ export default function AboutPage() {
     <div className={styles.content}>
       <section className={styles.hero} aria-labelledby="about-title">
         <div className={styles.heading}><p className="home-eyebrow">ABOUT YG FIRES</p><h1 id="about-title">チーム紹介</h1><p>YGファイヤーズ</p></div>
-        <div className={styles.heroPhoto}><Image src="/homepage/introduce/8.JPEG" alt="打席でバットを振り抜く選手と、後方で構える捕手" fill priority sizes="(max-width: 800px) 100vw, 1100px" /></div>
+        <div className={styles.heroPhoto}>
+          <div className={`${styles.photoFrame} ${styles.teamPhoto}`}>
+            <Image src="/homepage/introduce/8.JPEG" alt="球場で優勝カップと賞状を囲むYGファイヤーズのメンバー" fill priority sizes="(max-width: 600px) calc(100vw - 28px), (max-width: 1140px) 66vw, 730px" />
+            <span className={styles.photoLabel} aria-hidden="true"><small>01</small> TEAM</span>
+          </div>
+          <div className={`${styles.photoFrame} ${styles.battingPhoto}`}>
+            <Image src="/homepage/introduce/2.JPEG" alt="打席でバットを振り抜くYGファイヤーズの選手" fill loading="eager" sizes="(max-width: 600px) 50vw, (max-width: 1140px) 33vw, 365px" />
+            <span className={styles.photoLabel} aria-hidden="true"><small>02</small> GAME</span>
+          </div>
+          <div className={`${styles.photoFrame} ${styles.benchPhoto}`}>
+            <Image src="/homepage/introduce/3.JPEG" alt="ベンチから声援を送るYGファイヤーズのメンバー" fill loading="eager" sizes="(max-width: 600px) 50vw, (max-width: 1140px) 33vw, 365px" />
+            <span className={styles.photoLabel} aria-hidden="true"><small>03</small> DUGOUT</span>
+          </div>
+        </div>
         <div className={styles.heroCaption}><span>城東区をメインに活動</span><span>毎週土曜日</span></div>
       </section>
 
