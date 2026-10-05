@@ -16,11 +16,11 @@ export default function RootLayout({
         <html lang="ja">
             <body>{children}</body>
 
-            <script
+            <Script
                 type="module"
                 src="https://static.cloudflareinsights.com/beacon.min.js"
                 data-cf-beacon='{"token": "7cb7a310e5cc4d7a9e34506718100aab"}'
-            ></script>
+            ></Script>
         </html>
     );
 }
