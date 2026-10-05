@@ -4,9 +4,21 @@
   --home-ink: #262326;
   --home-muted: #746e70;
   --home-line: #e3ddda;
+
   min-height: 100dvh;
-  background: #f8f6f3;
   color: var(--home-ink);
+
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f8f5ef 0%,
+      #f3ece1 45%,
+      #efe6da 100%
+    );
 }
 
 .home-page a:focus-visible {
@@ -365,3 +377,638 @@
 .home-editor-image-field > small { color: var(--home-muted); font-size: 11px; line-height: 1.7; }
 .home-editor-image-remove { display: inline-flex; justify-self: start; align-items: center; gap: 6px; min-height: 44px; padding: 8px 12px; border-radius: 6px; background: #fff; color: #a71f2c; font-size: 12px; }
 .home-editor-image-url summary { min-height: 44px; padding: 10px 0; color: var(--home-muted); font-size: 12px; cursor: pointer; }
+/* ===================================
+   YG FIRES OPENING
+=================================== */
+
+.home-opening {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+  pointer-events: none;
+
+  animation: openingGone 0s linear 1.9s forwards;
+}
+
+/* 左右のシャッター */
+.home-opening-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+
+  width: 51%;
+
+  background: linear-gradient(
+    145deg,
+    #32191e,
+    #641f28
+  );
+}
+
+.home-opening-left {
+  left: 0;
+
+  animation: shutterLeft
+    .75s cubic-bezier(.76, 0, .24, 1)
+    1.05s forwards;
+}
+
+.home-opening-right {
+  right: 0;
+
+  animation: shutterRight
+    .75s cubic-bezier(.76, 0, .24, 1)
+    1.05s forwards;
+}
+
+/* 中央のブランド */
+.home-opening-brand {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  color: #f6e8c7;
+
+  animation:
+    logoAppear .65s ease-out both,
+    logoDisappear .3s ease-in .85s forwards;
+}
+
+.home-opening-logo {
+  width: 95px;
+  height: 95px;
+  object-fit: contain;
+
+  margin-bottom: 14px;
+
+  filter: drop-shadow(0 0 18px #ffc66d44);
+}
+
+.home-opening-brand strong {
+  font-size: clamp(38px, 10vw, 65px);
+  font-weight: 900;
+  letter-spacing: .08em;
+  line-height: 1.1;
+}
+
+.home-opening-brand span {
+  font-size: 12px;
+  letter-spacing: .35em;
+  margin-top: 8px;
+  color: #e3c38f;
+}
+
+.home-opening-brand small {
+  font-size: 10px;
+  letter-spacing: .2em;
+  margin-top: 24px;
+  color: #bea68d;
+}
+
+/* ===================================
+   ANIMATIONS
+=================================== */
+
+/* ロゴが下から浮かび上がる */
+@keyframes logoAppear {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(.92);
+    filter: blur(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ロゴが消える */
+@keyframes logoDisappear {
+  to {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+/* 左側が開く */
+@keyframes shutterLeft {
+  to {
+    transform: translateX(-101%);
+  }
+}
+
+/* 右側が開く */
+@keyframes shutterRight {
+  to {
+    transform: translateX(101%);
+  }
+}
+
+/* 完全に非表示 */
+@keyframes openingGone {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* ===================================
+   HOMEPAGE ENTRANCE
+=================================== */
+
+/* ヘッダーが登場 */
+.home-page > .home-header {
+  animation: homeRise .65s ease-out .95s both;
+}
+
+/* メインコンテンツが登場 */
+.home-page .home-hero {
+  animation: homeRise .8s ease-out 1.15s both;
+}
+
+@keyframes homeRise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* アニメーションを減らす設定への対応 */
+@media (prefers-reduced-motion: reduce) {
+  .home-opening {
+    display: none;
+  }
+
+  .home-page > .home-header,
+  .home-page .home-hero {
+    animation: none !important;
+  }
+}
+
+/* =====================================
+   YG FIRES BRAND COVER
+===================================== */
+
+.home-cover {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  background:
+    /* 右上から差し込む光 */
+    radial-gradient(
+      ellipse at 85% 22%,
+      rgba(242, 180, 104, 0.24),
+      transparent 43%
+    ),
+
+    /* 左下の赤い光 */
+    radial-gradient(
+      ellipse at 10% 90%,
+      rgba(165, 42, 60, 0.35),
+      transparent 55%
+    ),
+
+    /* 斜めの装飾ライン */
+    repeating-linear-gradient(
+      125deg,
+      transparent 0,
+      transparent 78px,
+      rgba(255, 225, 170, 0.035) 79px,
+      transparent 80px,
+      transparent 155px
+    ),
+
+    /* ベース */
+    linear-gradient(
+      135deg,
+      #421d25 0%,
+      #26151b 55%,
+      #130e13 100%
+    );
+}
+/* 細い装飾ライン */
+.home-cover::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+
+  border: 1px solid #ffffff20;
+
+  pointer-events: none;
+}
+
+/* 背景に大きな文字 */
+.home-cover::after {
+  content: "YG";
+  position: absolute;
+
+  right: -3%;
+  bottom: -18%;
+
+  font-size: clamp(200px, 35vw, 550px);
+  font-weight: 900;
+
+  color: #ffffff08;
+
+  pointer-events: none;
+}
+
+/* 左側 */
+.home-cover-content {
+  position: relative;
+  z-index: 2;
+
+  max-width: 680px;
+
+  animation: homeCoverAppear 1s ease-out both;
+}
+
+.home-cover-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: .25em;
+
+  color: #dfb982;
+
+  margin-bottom: 25px;
+}
+
+/* 巨大タイトル */
+.home-cover-title {
+  margin: 0;
+
+  font-size: clamp(54px, 9vw, 120px);
+  line-height: .95;
+
+  font-weight: 900;
+  letter-spacing: -.055em;
+}
+
+.home-cover-title span {
+  color: #e9b777;
+}
+
+/* キャッチコピー */
+.home-cover-lead {
+  margin-top: 32px;
+
+  font-size: clamp(14px, 2vw, 18px);
+  line-height: 2;
+
+  color: #ead7c7;
+}
+
+/* ボタン */
+.home-cover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  margin-top: 35px;
+}
+
+.home-cover-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+
+  padding: 14px 22px;
+
+  border: 1px solid #c9a076;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  text-decoration: none;
+
+  transition:
+    transform .25s,
+    background .25s,
+    color .25s;
+}
+
+.home-cover-actions a:first-child {
+  background: #e5b579;
+  color: #341d1c;
+}
+
+.home-cover-actions a:last-child {
+  background: transparent;
+  color: #f8e7d3;
+}
+
+.home-cover-actions a:hover {
+  transform: translateY(-3px);
+  background: #fff0cf;
+  color: #341d1c;
+}
+
+/* 右側のロゴ */
+.home-cover-art {
+  position: absolute;
+  z-index: 1;
+
+  right: 5%;
+  top: 50%;
+
+  width: min(36vw, 440px);
+  aspect-ratio: 1;
+
+  transform: translateY(-50%);
+
+  opacity: .85;
+}
+
+.home-cover-logo {
+  object-fit: contain;
+  filter: drop-shadow(0 0 55px #e3a34c33);
+}
+
+/* 下部 */
+.home-cover-bottom {
+  position: absolute;
+
+  bottom: 30px;
+  left: clamp(24px, 6vw, 90px);
+  right: clamp(24px, 6vw, 90px);
+
+  display: flex;
+  justify-content: space-between;
+
+  font-size: 10px;
+  letter-spacing: .15em;
+
+  color: #b9a298;
+}
+
+/* 登場アニメーション */
+@keyframes homeCoverAppear {
+  from {
+    opacity: 0;
+    transform: translateY(35px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* スマートフォン */
+@media (max-width: 600px) {
+
+  .home-cover {
+    min-height: 510px;
+    padding: 55px 25px;
+  }
+
+  .home-cover-art {
+    width: 240px;
+    right: -65px;
+    top: 42%;
+    opacity: .18;
+  }
+
+  .home-cover-title {
+    font-size: clamp(51px, 13vw, 76px);
+  }
+
+  .home-cover-bottom {
+    left: 25px;
+    right: 25px;
+    bottom: 23px;
+    font-size: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-cover-content {
+    animation: none;
+  }
+
+  .home-cover-actions a {
+    transition: none;
+  }
+}
+
+/* ====================================
+   表紙：文字の登場演出
+==================================== */
+
+/* 既存の全体アニメーションを解除 */
+.home-cover .home-cover-content {
+  animation: none;
+}
+
+/* 文字が下から現れるための表示枠 */
+.home-cover-line {
+  display: block;
+  overflow: hidden;
+  line-height: 1.13;
+}
+
+/* 文字本体 */
+.home-cover-line-inner {
+  display: block;
+
+  animation: coverTextReveal
+    .85s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+/* PLAY FREE. */
+.home-cover-line:first-child .home-cover-line-inner {
+  color: #fff5e5;
+  animation-delay: 1.55s;
+}
+
+/* WIN TOGETHER. */
+.home-cover-line:last-child .home-cover-line-inner {
+  color: #e9b777;
+
+  /* 長い英語なので少し小さく */
+  font-size: .76em;
+
+  animation-delay: 1.78s;
+}
+
+/* 見出し上の小さい英語 */
+.home-cover-eyebrow {
+  animation: coverFadeUp
+    .7s ease-out 1.4s both;
+}
+
+/* 日本語キャッチコピー */
+.home-cover-lead {
+  animation: coverFadeUp
+    .8s ease-out 2.05s both;
+}
+
+/* ボタン */
+.home-cover-actions {
+  animation: coverFadeUp
+    .8s ease-out 2.25s both;
+}
+
+/* 下部の文字 */
+.home-cover-bottom {
+  animation: coverFadeUp
+    .8s ease-out 2.4s both;
+}
+
+/* 一行ずつ下からせり上がる */
+@keyframes coverTextReveal {
+  from {
+    opacity: 0;
+    transform: translateY(110%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ふわっと浮かび上がる */
+@keyframes coverFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ====================================
+   ロゴ・写真のアニメーション
+==================================== */
+
+.home-cover-logo {
+  /* 既存のobject-fitなどは維持 */
+
+  animation:
+    coverImageReveal 1.2s ease-out 1.65s both,
+    coverImageFloat 6s ease-in-out 2.85s infinite alternate;
+
+  will-change: transform;
+}
+
+/* 写真が上から徐々に姿を現す */
+@keyframes coverImageReveal {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ゆっくり浮遊 */
+@keyframes coverImageFloat {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-10px);
+  }
+}
+
+@media (max-width: 600px) {
+  .home-cover-line:last-child .home-cover-line-inner {
+    font-size: .68em;
+  }
+
+  .home-cover-logo {
+    animation-duration: 1.2s, 8s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-cover-line-inner,
+  .home-cover-eyebrow,
+  .home-cover-lead,
+  .home-cover-actions,
+  .home-cover-bottom,
+  .home-cover-logo {
+    animation: none !important;
+  }
+
+  .home-cover-logo {
+    clip-path: none;
+    will-change: auto;
+  }
+}
+
+/* =====================================
+   YG FIRES - GRADIENT BACKGROUND
+===================================== */
+
+.home-page {
+  background:
+
+    /* 左上：淡いレッド */
+    radial-gradient(
+      ellipse 85% 22% at 0% 18%,
+      rgba(191, 69, 76, 0.30),
+      transparent 100%
+    ),
+
+    /* 右中：暖かいオレンジ */
+    radial-gradient(
+      ellipse 65% 26% at 100% 40%,
+      rgba(235, 150, 105, 0.38),
+      transparent 100%
+    ),
+
+    /* 左下：落ち着いたワインレッド */
+    radial-gradient(
+      ellipse 76% 23% at 0% 72%,
+      rgba(149, 56, 79, 0.23),
+      transparent 100%
+    ),
+
+    /* 右下：淡いゴールド */
+    radial-gradient(
+      ellipse 84% 25% at 100% 98%,
+      rgba(230, 168, 105, 0.29),
+      transparent 100%
+    ),
+
+    /* 全体のベースグラデーション */
+    linear-gradient(
+      165deg,
+      #fcf9f6 0%,
+      #f0dfdf 32%,
+      #ead8d5 60%,
+      #f6e9df 100%
+    );
+}
+
+/* 前回のダイヤモンド装飾・炎レイヤーを無効化 */
+.home-page::before,
+.home-page::after {
+  content: none;
+}
