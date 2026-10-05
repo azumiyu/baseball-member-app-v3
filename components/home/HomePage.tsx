@@ -151,16 +151,17 @@ export function HomePage({
       })
       .catch(() => {});
 
-    const sections = document.querySelectorAll<HTMLElement>(
-      ".home-page .home-section, .home-page .home-about-link",
-    );
-
+const sections = document.querySelectorAll<HTMLElement>(
+  ".home-page .home-section, .home-page .home-about-link, .home-page .home-about-visual",
+);
     // アニメーション軽減設定を尊重
     if (
       !("IntersectionObserver" in window) ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
 
     const observer = new IntersectionObserver(
@@ -501,15 +502,34 @@ export function HomePage({
         </div>
       </section>
 
-      <a href="/home/about" className="home-about-link">
-        <div>
-          <span>ABOUT YG FIRES</span>
-          <strong>チーム紹介</strong>
+      <a href="/home/about" className="home-about-visual">
+        <div className="home-about-photo">
+          <Image
+            src="/homepage/introduce/9.png"
+            alt="YG FIRES チーム紹介"
+            fill
+            sizes="(max-width: 820px) 100vw, 1100px"
+            className="home-about-image"
+          />
         </div>
-        <span className="home-about-caption">活動場所・戦歴・会費など</span>
-        <ArrowUpRight size={22} aria-hidden="true" />
-      </a>
 
+        <div className="home-about-overlay" />
+
+        <div className="home-about-visual-copy">
+          <p>ABOUT YG FIRES</p>
+
+          <div className="home-about-visual-bottom">
+            <div>
+              <strong>チーム紹介</strong>
+              <small>活動場所・戦歴・会費・チームについて</small>
+            </div>
+
+            <span className="home-about-arrow">
+              <ArrowUpRight size={24} aria-hidden="true" />
+            </span>
+          </div>
+        </div>
+      </a>
       <section id="games" className="home-section home-games">
         <div className="home-section-heading">
           <div>
