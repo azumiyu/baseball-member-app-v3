@@ -353,7 +353,7 @@ export function StatsView({
       <header className="page-heading">
         <div>
           <p className="eyebrow">GAME STATS</p>
-          <h1>{statsTab === "confirmation" ? "成績登録確認" : "ああああああ"}</h1>
+          <h1>{statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
           <p>
             {statsTab === "confirmation"
               ? "試合ごとの成績を確認できます。"
