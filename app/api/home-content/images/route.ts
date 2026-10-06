@@ -2,14 +2,14 @@ import { HOME_IMAGE_MAX_BYTES, HOME_IMAGE_MAX_COUNT, HOME_IMAGE_MAX_STORAGE, HOM
 import { db, getSession, json, random, renewSessionHeaders, sameOrigin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
-const forbidden = () => json({ error: "画像をアップロードできるのは管理者だけです。" }, 403);
+const forbidden = () => json({ error: "お知らせ・コラムの画像をアップロードする権限がありません。" }, 403);
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return json({ error: "リクエストを確認できません。" }, 403);
   try {
     const session = await getSession(req);
     if (!session?.member) return json({ error: "再ログインしてください。" }, 401);
-    if (!session.member.isAdmin) return forbidden();
+    if (session.member.canEditLineup !== true) return forbidden();
     const type = req.headers.get("Content-Type")?.toLowerCase();
     if (!type || !["image/jpeg", "image/png", "image/webp"].includes(type)) return json({ error: "JPEG・PNG・WebPの画像を選んでください。" }, 415);
     const tooLarge = () => json({ error: "画像が大きすぎます。別の画像を選んでください。" }, 413);
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     const guard = `EXISTS (SELECT 1 FROM sessions s
       JOIN member_devices d ON d.hash=s.device_hash JOIN players p ON p.id=d.player_id
       WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
-        AND p.id=? AND p.sort_order IS NOT NULL AND p.is_admin=1)`;
+        AND p.id=? AND p.sort_order IS NOT NULL AND p.can_edit_lineup=1)`;
     const results = await database.batch([
       // Keep every saved article's image; abandoned uploads expire after a day.
       database.prepare(`DELETE FROM home_images WHERE created_at<?
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     if (!results[1]?.results.length) {
       const current = await getSession(req);
       if (!current?.member) return json({ error: "再ログインしてください。" }, 401);
-      if (!current.member.isAdmin) return forbidden();
+      if (current.member.canEditLineup !== true) return forbidden();
       return json({ error: "画像の保存上限に達しました。使わないコラム画像を外して保存し、翌日以降に再度お試しください。" }, 507);
     }
     return json({ url }, 201, renewSessionHeaders(req));

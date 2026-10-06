@@ -10,14 +10,15 @@ async function imageResponse(req: Request, context: Context, head: boolean) {
   if (!HOME_IMAGE_ID.test(id)) return new Response(null, { status: 404, headers });
   try {
     const session = await getSession(req);
+    const editor = session?.member?.canEditLineup === true ? session : null;
     const image = await db().prepare(`SELECT content_type,byte_size,${head ? "NULL" : "data"} AS data
       FROM home_images WHERE id=? AND (
         EXISTS (SELECT 1 FROM home_columns WHERE image_url=? AND published=1)
         OR EXISTS (SELECT 1 FROM sessions s
           JOIN member_devices d ON d.hash=s.device_hash JOIN players p ON p.id=d.player_id
           WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
-            AND p.id=? AND p.sort_order IS NOT NULL AND p.is_admin=1)
-      )`).bind(id, HOME_IMAGE_PATH + id, session?.hash ?? "", Date.now(), session?.member?.id ?? "")
+            AND p.id=? AND p.sort_order IS NOT NULL AND p.can_edit_lineup=1)
+      )`).bind(id, HOME_IMAGE_PATH + id, editor?.hash ?? "", Date.now(), editor?.member?.id ?? "")
       .first<{ content_type: string; byte_size: number; data: number[] | ArrayBuffer | null }>();
     if (!image) return new Response(null, { status: 404, headers });
     const body = !head && image.data ? new Uint8Array(image.data as ArrayBuffer) : null;
