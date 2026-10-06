@@ -1,17 +1,27 @@
 import { db, random, type AuthSession } from "@/lib/server";
 import { type HomeContent, type HomeNotice, type HomeColumn } from "@/lib/home-content";
 
-export async function readHomeContent(publicOnly = false): Promise<{ data: HomeContent; revision: number }> {
+export class HomeContentPermissionError extends Error {}
+
+export async function readHomeContent(publicOnly = false, session?: AuthSession): Promise<{ data: HomeContent; revision: number }> {
+  if (!publicOnly && session?.member?.canEditLineup !== true) throw new HomeContentPermissionError();
   const result = await db().prepare(`
-    SELECT revision,
+    SELECT revision, (?=1 OR EXISTS (
+      SELECT 1 FROM sessions s
+      JOIN member_devices d ON d.hash=s.device_hash JOIN players p ON p.id=d.player_id
+      WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
+        AND p.id=? AND p.sort_order IS NOT NULL AND p.can_edit_lineup=1
+    )) AS authorized,
       (SELECT json_group_array(json_object('id',id,'date',date,'text',text,'published',published))
        FROM (SELECT id,date,text,published FROM home_notices WHERE ?=0 OR published=1 ORDER BY sort_order,id)) AS notices,
       (SELECT json_group_array(json_object('id',id,'date',date,'title',title,'body',body,'imageUrl',image_url,
         'imageAlt',image_alt,'linkUrl',link_url,'linkLabel',link_label,'published',published))
        FROM (SELECT * FROM home_columns WHERE ?=0 OR published=1 ORDER BY sort_order,id)) AS columns
     FROM app_revisions WHERE scope='home_content'
-  `).bind(Number(publicOnly), Number(publicOnly)).first<{ revision: number; notices: string; columns: string }>();
+  `).bind(Number(publicOnly), session?.hash ?? "", Date.now(), session?.member?.id ?? "",
+    Number(publicOnly), Number(publicOnly)).first<{ revision: number; authorized: number; notices: string; columns: string }>();
   if (!result) throw new Error("ホームページの保存先を準備中です。");
+  if (result.authorized !== 1) throw new HomeContentPermissionError();
   const notices = JSON.parse(result.notices) as (Omit<HomeNotice, "published"> & { published: number })[];
   const columns = JSON.parse(result.columns) as (Omit<HomeColumn, "published"> & { published: number })[];
   return { revision: result.revision, data: {
@@ -21,7 +31,7 @@ export async function readHomeContent(publicOnly = false): Promise<{ data: HomeC
 }
 
 export async function writeHomeContent(data: HomeContent, revision: number, session: AuthSession): Promise<number | null> {
-  if (!session.member?.isAdmin) return null;
+  if (session.member?.canEditLineup !== true) return null;
   const database = db();
   const writeToken = random();
   const guard = "EXISTS (SELECT 1 FROM app_revisions WHERE scope='home_content' AND write_token=?)";
@@ -32,7 +42,7 @@ export async function writeHomeContent(data: HomeContent, revision: number, sess
       JOIN member_devices d ON d.hash=s.device_hash
       JOIN players p ON p.id=d.player_id
       WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
-        AND p.id=? AND p.sort_order IS NOT NULL AND p.is_admin=1
+        AND p.id=? AND p.sort_order IS NOT NULL AND p.can_edit_lineup=1
     )
   `).bind(writeToken, revision, session.hash, Date.now(), session.member.id),
   database.prepare(`DELETE FROM home_notices WHERE ${guard}`).bind(writeToken),
