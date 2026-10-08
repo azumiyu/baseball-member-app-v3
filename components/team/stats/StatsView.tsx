@@ -17,10 +17,8 @@ import {
   emptyPlayerStats,
   parseGameKey,
   statsGameKeyForSchedule,
-  PLATE_APPEARANCE_RESULTS,
   MAX_REGISTERED_STATS_GAMES,
   type StatsScheduleOption,
-  type PlateAppearanceResult,
   type PlayerStats,
   type StatsData,
 } from "@/lib/stats";
@@ -28,20 +26,11 @@ import { japanDate } from "@/lib/schedule";
 import { useStatsData } from "../hooks/useStatsData";
 import type { SaveState } from "../types";
 import { LoadingState } from "../common/LoadingState";
-import { StatsValues } from "./StatsValues";
-import { isHitResult } from "./stats-summary";
+import { StatsEntryFields } from "./StatsEntryFields";
+import { StatsConfirmation } from "./StatsConfirmation";
+import { comparePlayersByNumber, removeStatsRegistration } from "./stats-actions";
 import { compareScheduleChoices, defaultScheduleChoice, shortScheduleLabel } from "../lib/schedule-options";
 
-const NUMBER_FIELDS = [
-  ["rbis", "打点"],
-  ["runs", "得点"],
-  ["stolenBases", "盗塁"],
-  ["caughtStealingAttempts", "盗塁死"],
-  ["errors", "失策"],
-  ["caughtStealing", "盗塁阻止"],
-] as const;
-const STAT_NUMBER_OPTIONS = Array.from({ length: 11 }, (_, index) => index);
-const RBIS_NUMBER_OPTIONS = Array.from({ length: 21 }, (_, index) => index);
 const REGISTRATION_MESSAGE_MS = 1800;
 
 function scheduleLabel(game: StatsScheduleOption) {
@@ -108,24 +97,6 @@ export function StatsView({
     onSaveStateChange?.(stats.saveState);
   }, [stats.saveState, onSaveStateChange]);
 
-  useEffect(() => {
-    if (openPlate === null) return;
-    const closeOnOutsideInteraction = (event: FocusEvent | PointerEvent) => {
-      const target = event.target;
-      if (
-        !(target instanceof Element) ||
-        target.closest(".plate-entry")?.getAttribute("data-plate-index") !==
-          String(openPlate)
-      )
-        setOpenPlate(null);
-    };
-    document.addEventListener("focusin", closeOnOutsideInteraction);
-    document.addEventListener("pointerdown", closeOnOutsideInteraction);
-    return () => {
-      document.removeEventListener("focusin", closeOnOutsideInteraction);
-      document.removeEventListener("pointerdown", closeOnOutsideInteraction);
-    };
-  }, [openPlate]);
   if (stats.loading)
     return <LoadingState label="成績データを読み込んでいます…" />;
   if (stats.error && stats.saveState === "saved") {
@@ -152,15 +123,9 @@ export function StatsView({
     selectedValues.plateAppearances.some((result) => result !== null),
   );
   const isSaving = stats.saveState === "dirty" || stats.saveState === "saving";
-  const sortByNumber = (a: Player, b: Player) => {
-    const numberDiff = Number(a.number) - Number(b.number);
-    return Number.isNaN(numberDiff)
-      ? a.number.localeCompare(b.number, "ja")
-      : numberDiff;
-  };
   const selectablePlayers = players
     .filter((player) => canEditPlayer(player.id))
-    .sort(sortByNumber);
+    .sort(comparePlayersByNumber);
   const clearRegistrationMessage = () => {
     if (registrationTimer.current !== null) {
       window.clearTimeout(registrationTimer.current);
@@ -178,13 +143,6 @@ export function StatsView({
     clearRegistrationMessage();
     return true;
   };
-  const togglePastSchedules = () => {
-    if (showPastSchedules && ((selectedSchedule && selectedSchedule.date < today) || (legacyKey && (parseGameKey(legacyKey)?.date ?? "") < today))) {
-      if (!changeSelection(defaultGame ? `schedule:${defaultGame.id}` : "")) return;
-    }
-    if (showPastSchedules) setLinkScheduleId("");
-    setShowPastSchedules((current) => !current);
-  };
   const editPlayer = (updater: (current: PlayerStats) => PlayerStats) => {
     if (!selectedGameKey || !selectedPlayer || !canEditPlayer(selectedPlayer.id))
       return;
@@ -195,36 +153,6 @@ export function StatsView({
     setEntryDraft((current) => ({ key: entryKey, values: updater(current?.key === entryKey ? current.values : savedValues) }));
   };
 
-  const updatePlate = (index: number, result: PlateAppearanceResult | null) => {
-    editPlayer((current) => {
-      const plateAppearances = [...current.plateAppearances];
-      plateAppearances[index] = result;
-      const scoringPosition = [...current.scoringPosition];
-      if (result === null) scoringPosition[index] = false;
-      return { ...current, plateAppearances, scoringPosition };
-    });
-    setOpenPlate(null);
-  };
-  const addPlate = () =>
-    editPlayer((current) => ({
-      ...current,
-      plateAppearances: [...current.plateAppearances, null],
-      scoringPosition: [...current.scoringPosition, false],
-    }));
-  const updateScoringPosition = (index: number, checked: boolean) =>
-    editPlayer((current) => {
-      const scoringPosition = [...current.scoringPosition];
-      scoringPosition[index] = checked;
-      return { ...current, scoringPosition };
-    });
-  const updateNumber = (
-    field: (typeof NUMBER_FIELDS)[number][0],
-    value: string,
-  ) =>
-    editPlayer((current) => ({
-      ...current,
-      [field]: Math.max(0, Number.parseInt(value, 10) || 0),
-    }));
   const registeredGames = Object.keys(stats.data.games)
     .map((key) => ({ key, game: parseGameKey(key) }))
     .filter(
@@ -300,16 +228,7 @@ export function StatsView({
   };
   const deleteRegistration = (gameKeyToDelete: string, playerId: string) => {
     if (!canEditPlayer(playerId)) return;
-    stats.edit((current: StatsData) => {
-      const game = { ...(current.games[gameKeyToDelete] ?? {}) };
-      delete game[playerId];
-      const games = { ...current.games };
-      if (Object.keys(game).length === 0) delete games[gameKeyToDelete];
-      else games[gameKeyToDelete] = game;
-      const scheduleIds = { ...current.scheduleIds };
-      if (!games[gameKeyToDelete]) delete scheduleIds[gameKeyToDelete];
-      return { ...current, games, scheduleIds };
-    });
+    stats.edit((current) => removeStatsRegistration(current, gameKeyToDelete, playerId));
   };
   const linkLegacyGame = () => {
     if (!member.isAdmin || !selectedGameKey || stats.data.scheduleIds[selectedGameKey] || stats.saveState !== "saved" ||
@@ -401,57 +320,21 @@ export function StatsView({
         </button>
       </nav>
       {statsTab === "confirmation" ? (
-        <>
-          <div className="stats-confirm-list">
-            {registeredGames.length === 0 ? (
-              <div className="panel">
-                <p className="stats-empty">まだ成績が登録されていません。</p>
-              </div>
-            ) : (
-              visibleRegisteredGames.map(({ key }, index) => (
-                <section className="stats-game-group" key={key}>
-                  <div className={`stats-game-heading ${index === 0 ? 'is-first' : ''}`}>
-                    <h2>
-                      {labelForKey(key)}
-                    </h2>
-                  </div>
-                  <div className="panel">
-                    {players
-                      .filter((player) => stats.data.games[key]?.[player.id])
-                      .sort(sortByNumber)
-                      .map((player) => (
-                        <StatsValues
-                          key={player.id}
-                          player={player}
-                          values={stats.data.games[key][player.id]}
-                          canEdit={canEditPlayer(player.id)}
-                          onEdit={() => editRegistration(key, player.id)}
-                          onDelete={() => {
-                            if (!canEditPlayer(player.id)) return;
-                            setRegistrationToDelete({
-                              gameKey: key,
-                              playerId: player.id,
-                              playerName: player.name,
-                              gameLabel: labelForKey(key),
-                            });
-                          }}
-                        />
-                      ))}
-                  </div>
-                </section>
-              ))
-            )}
-          </div>
-          <div className="stats-actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setStatsTab("entry")}
-            >
-              成績を追加登録
-            </button>
-          </div>
-        </>
+        <StatsConfirmation
+          games={visibleRegisteredGames}
+          data={stats.data}
+          players={players}
+          canEditPlayer={canEditPlayer}
+          gameLabel={labelForKey}
+          onEdit={editRegistration}
+          onDelete={(key, player) => setRegistrationToDelete({
+            gameKey: key,
+            playerId: player.id,
+            playerName: player.name,
+            gameLabel: labelForKey(key),
+          })}
+          onAdd={() => setStatsTab("entry")}
+        />
       ) : (
         <div className="stats-entry-card panel">
           <div className="stats-game-fields">
@@ -466,7 +349,6 @@ export function StatsView({
               </select>
               {selectedSchedule && <p className="stats-schedule-details">{selectedSchedule.startTime || "時刻未定"}{selectedSchedule.opponent && ` · vs ${selectedSchedule.opponent}`}{selectedSchedule.location && <span>{selectedSchedule.location}</span>}</p>}
               {!visibleSchedules.length && <p className="stats-schedule-details">{showPastSchedules ? "試合はまだ表示されていません。" : "本日以降の試合は登録されていません。"}新しい試合はスケジュール管理から登録できます。</p>}
-              {/* <button type="button" className="secondary stats-load-schedules" aria-pressed={showPastSchedules} onClick={togglePastSchedules}>{showPastSchedules ? "過去の試合を非表示" : "過去の試合も表示"}</button> */}
               {showPastSchedules && (stats.hasMoreSchedules || stats.scheduleError) && <button type="button" className="secondary stats-load-schedules" disabled={stats.schedulesLoading} onClick={() => void stats.loadOlderSchedules()}>{stats.schedulesLoading ? "読み込み中…" : stats.scheduleError ? "過去の試合を再読み込み" : "さらに過去の試合を表示"}</button>}
               {showPastSchedules && stats.scheduleError && <p role="alert" className="stats-schedule-details">{stats.scheduleError}</p>}
             </div>
@@ -507,139 +389,12 @@ export function StatsView({
             </div>
           )}
           {selectedPlayer && selectedGameKey ? (
-            <>
-              <h2 className="stats-section-heading">打席結果</h2>
-              <div className="plate-entry-grid">
-                {selectedValues.plateAppearances.map(
-                  (result: PlateAppearanceResult | null, index: number) => (
-                    <div
-                      className="plate-entry"
-                      data-plate-index={index}
-                      key={index}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape" && openPlate === index) {
-                          event.preventDefault();
-                          setOpenPlate(null);
-                          event.currentTarget
-                            .querySelector<HTMLButtonElement>(".plate-square")
-                            ?.focus();
-                        }
-                      }}
-                      onBlur={(event) => {
-                        if (
-                          !event.currentTarget.contains(
-                            event.relatedTarget as Node | null,
-                          )
-                        )
-                          setOpenPlate(null);
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className={`plate-square ${result ? "filled" : ""}${isHitResult(result) ? " hit-result" : ""}${result === "四球" || result === "死球" ? " walk-result" : ""}`}
-                        aria-expanded={openPlate === index}
-                        aria-controls={
-                          openPlate === index
-                            ? `plate-result-menu-${index}`
-                            : undefined
-                        }
-                        onClick={() =>
-                          setOpenPlate(openPlate === index ? null : index)
-                        }
-                      >
-                        <small>{index + 1}打席目</small>
-                        <strong>{result ?? "選択"}</strong>
-                      </button>
-                      {openPlate === index && (
-                        <div
-                          className="plate-result-menu"
-                          id={`plate-result-menu-${index}`}
-                          role="group"
-                          aria-label={`${index + 1}打席目の結果`}
-                          onClick={(event) => {
-                            event.currentTarget
-                              .closest(".plate-entry")
-                              ?.querySelector<HTMLButtonElement>(
-                                ".plate-square",
-                              )
-                              ?.focus();
-                          }}
-                        >
-                          {PLATE_APPEARANCE_RESULTS.map((option) => (
-                            <button
-                              type="button"
-                              key={option}
-                              aria-pressed={result === option}
-                              onPointerDown={(event) => event.preventDefault()}
-                              onClick={() => updatePlate(index, option)}
-                            >
-                              {option}
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className="plate-clear-button"
-                            disabled={
-                              result === null &&
-                              selectedValues.scoringPosition[index] !== true
-                            }
-                            onPointerDown={(event) => event.preventDefault()}
-                            onClick={() => updatePlate(index, null)}
-                          >
-                            未入力に戻す
-                          </button>
-                        </div>
-                      )}
-                      <label className="scoring-position-field">
-                        <span>得点圏</span>
-                        <input
-                          type="checkbox"
-                          aria-label={`${index + 1}打席目の得点圏`}
-                          checked={
-                            selectedValues.scoringPosition[index] === true
-                          }
-                          onChange={(event) =>
-                            updateScoringPosition(index, event.target.checked)
-                          }
-                        />
-                      </label>
-                    </div>
-                  ),
-                )}
-                <button
-                  type="button"
-                  className="plate-add-button"
-                  onClick={addPlate}
-                  aria-label="打席を追加"
-                >
-                  ＋<small>打席追加</small>
-                </button>
-              </div>
-              <h2 className="stats-section-heading">その他の成績</h2>
-              <div className="stats-number-grid">
-                {NUMBER_FIELDS.map(([field, label]) => (
-                  <label key={field} htmlFor={`stat-${field}`}>
-                    <span>{label}</span>
-                    <select
-                      id={`stat-${field}`}
-                      value={selectedValues[field]}
-                      onChange={(event) =>
-                        updateNumber(field, event.target.value)
-                      }
-                    >
-                      {(field === "rbis"
-                        ? RBIS_NUMBER_OPTIONS
-                        : STAT_NUMBER_OPTIONS
-                      ).map((number) => (
-                        <option key={number} value={number}>
-                          {number}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-            </>
+            <StatsEntryFields
+              values={selectedValues}
+              openPlate={openPlate}
+              onOpenPlateChange={setOpenPlate}
+              onChange={editPlayer}
+            />
           ) : (
             <p className="stats-entry-placeholder">
               {!selectedGameKey

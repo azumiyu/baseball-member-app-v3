@@ -7,13 +7,20 @@
 | `app/page.tsx` / `components/team/TeamApp.tsx` | チーム画面の入口、各画面・モーダルの接続 |
 | `components/team/hooks/useTeamUiState.ts` | タブ、選手選択、モーダルの開閉 |
 | `components/team/hooks/useTeamData.ts` | ログイン、チームの取得・保存、定期取得、再認証 |
+| `components/team/lib/team-save.ts` | 保存中に追加した編集の再適用、試合切替後のスタメンの保持 |
+| `components/team/hooks/useImageExport.ts` / `components/team/lib/lineup-image.ts` | オーダー画像の生成・共有・プレビューURL管理 / PNG変換・余白描画 |
 | `components/team/hooks/useAutosavedData.ts` | 道具・成績で共通の読み込み、自動保存、競合状態 |
 | `components/team/hooks/useEquipmentData.ts` | 道具APIへの接続 |
 | `components/team/hooks/useStatsData.ts` | 成績APIへの接続、変更した試合・削除した試合だけの送信 |
 | `components/team/hooks/useScheduleData.ts` / `components/team/schedule/` | 予定・出欠の部分取得・差分保存・履歴ページング / 予定管理画面・変更案内 |
+| `components/team/schedule/ScheduleGameCard.tsx` / `ScheduleGameEditor.tsx` | 試合カード / 予定編集・保存と案内文のコピー |
+| `components/team/schedule/ScheduleResponseControls.tsx` / `ScheduleResponsesModal.tsx` | 出欠入力・集計 / メンバー別の出欠・コメント確認と編集 |
+| `components/team/schedule/schedule-presentation.ts` / `hooks/use-unsaved-warning.ts` | 予定画面の共通型・表示項目・日付書式 / 未保存入力の離脱確認 |
 | `components/team/lib/api.ts` | JSON通信、HTTPエラーの変換 |
 | `components/team/lib/lineup-actions.ts` / `lib/model.ts` | オーダー・選手のデータ操作と検証 |
-| `components/team/stats/StatsView.tsx` | 成績の入力・確認画面と操作 |
+| `components/team/stats/StatsView.tsx` | 試合・選手の選択、入力下書き、成績登録・予定との連携 |
+| `components/team/stats/StatsEntryFields.tsx` / `StatsConfirmation.tsx` | 打席・数値の入力欄 / 登録済み成績の一覧 |
+| `components/team/stats/stats-actions.ts` | 成績入力の更新、選手の並べ替え、成績削除と紐付けの整理 |
 | `components/team/stats/StatsValues.tsx` / `stats-summary.ts` | 確認画面の表示 / 成績集計・安打判定 |
 | `components/team/common/Modal.tsx` | 共通モーダル、キーボード表示時の高さ・フォーカス調整 |
 | `app/api/*/route.ts` | API入口 |
@@ -35,6 +42,8 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 - 待ち時間は `components/team/lib/sync-config.ts`。自動保存650ms、チームの条件付き取得60秒を維持しています。
 - 道具・成績のデータソースは各フックのモジュール直下に定義します。レンダー中に作り直すと、共通フックの読み込みが再実行されます。
 - 共通フックは編集時に複製したデータを渡します。保存中の追加入力は次の保存対象に残し、409の競合は明示的な読み直しまで保持します。
+- チーム保存中の追加入力は `mergeSavedTeamData` でサーバーの保存結果に重ねます。週次更新で別の試合が選ばれた場合は、名簿・チーム設定・名前候補だけを再適用し、前の試合の配置は引き継ぎません。
+- オーダー画像のPNG変換と余白描画は `lineup-image.ts` にまとめています。プレビューの差し替え・閉じる操作・画面破棄でURLを解放し、ログアウト後に生成結果が届いても表示しません。
 - 成績は試合単位の差分送信です。全件PUTへ置き換えないでください。登録済み予定のIDは `stats_games.schedule_id` に保存し、成績の既存キー `game_date` / `game_number` は変更しません。予定情報は同じ成績GETに含め、試合切り替えの追加取得を避けます。公開前の `0011_stats_schedules.sql` 適用、既存成績の連携条件と確認項目は [成績と予定の連携](stats-schedules.md) を参照してください。
 - 認証・データ保存は既存のCookieとD1を使います。チーム・後藤ページ・パチンコで新たなlocalStorage/sessionStorage保存は行っていません。
 - `TabNav.tsx` のモジュール変数は、画面切り替えによる再マウント後にもタブの横スクロール位置を戻すために残しています。
@@ -112,3 +121,15 @@ OSの「視差効果を減らす」設定は `hooks/use-reduced-motion.ts` で�
 - ブラウザーでの描画・操作、ビルド、DB接続、LINE実送信は実施していません。
 
 `.wrangler/` や `dist/` は生成物としてLint対象から除外しています。既にGitで追跡されている生成物は、監視プロセスによってソース変更時に差分が生じるため、ソースの差分と区別して確認してください。
+
+## 自動チェック
+
+Node.js 22.13以降で次を実行します。
+
+```bash
+npm run lint
+npx tsc --noEmit --incremental false
+npm run build
+```
+
+画像の共有・保存は実機ブラウザーで確認してください。
