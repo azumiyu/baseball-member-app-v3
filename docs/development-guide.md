@@ -129,7 +129,10 @@ Node.js 22.13以降で次を実行します。
 ```bash
 npm run lint
 npx tsc --noEmit --incremental false
+node scripts/verify-team-schedule-switch.cjs
 npm run build
 ```
+
+`verify-team-schedule-switch.cjs` はMiniflareの隔離したD1で、試合切り替えの保存・オーダー復元・成績の打順・権限・競合・週次更新を確認します。既存のローカルDBや本番DBには接続しません。D1固有のSQL上限を含む変更では、通常のSQLiteだけでなくこの検証も実行してください。
 
 画像の共有・保存は実機ブラウザーで確認してください。

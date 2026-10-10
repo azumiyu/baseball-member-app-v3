@@ -86,43 +86,45 @@ type SnapshotSelection = {
   statsPageOnly?: boolean;
 };
 
-/** All schedule snapshots share a bounded/indexed ID selection. UNION keeps the
- * active order available even when its selected date lies in the archived past.
+/** All schedule snapshots share a bounded/indexed ID selection. Keep this a
+ * single SELECT: D1 limits compound SELECTs to five terms, and saves include
+ * both the current game and the requested game, including archived dates.
  */
 function scheduleSelectionSql(scope: "team" | "schedule", selection: SnapshotSelection = {}, now = new Date()) {
   const values: Cell[] = [];
   const query = selection.schedule ?? { kind: "upcoming" };
-  const parts: string[] = [];
+  const conditions: string[] = [];
   if (scope === "team" || query.kind === "upcoming") {
-    parts.push("SELECT id FROM schedule_games WHERE date>=?");
+    conditions.push("date>=?");
     values.push(japanDate(now));
   } else if (query.kind === "past") {
-    parts.push(`SELECT id FROM (SELECT id FROM schedule_games WHERE date<?
+    conditions.push(`id IN (SELECT id FROM schedule_games WHERE date<?
       ${query.before ? "AND (date,id)<(?,?)" : ""}
       ORDER BY date DESC,id DESC LIMIT ${SCHEDULE_PAGE_SIZE + 1})`);
     values.push(japanDate(now), ...(query.before ? [query.before.date, query.before.id] : []));
   } else if (query.kind === "single") {
-    parts.push("SELECT id FROM schedule_games WHERE id=?");
+    conditions.push("id=?");
     values.push(query.id);
   } else {
-    parts.push("SELECT id FROM schedule_games WHERE id IN (SELECT value FROM json_each(?))");
+    conditions.push("id IN (SELECT value FROM json_each(?))");
     values.push(JSON.stringify(query.ids));
   }
   if (scope === "team" || query.kind === "write") {
-    parts.push("SELECT id FROM retained_lineup_schedules");
-    parts.push("SELECT id FROM schedule_games WHERE id=(SELECT schedule_id FROM team_settings WHERE id=1)");
-    parts.push("SELECT id FROM schedule_games WHERE date=(SELECT game_date FROM team_settings WHERE id=1)");
+    conditions.push("id IN (SELECT id FROM retained_lineup_schedules)");
+    conditions.push("id=(SELECT schedule_id FROM team_settings WHERE id=1)");
+    conditions.push("date=(SELECT game_date FROM team_settings WHERE id=1)");
     if (query.kind === "write") {
-      parts.push("SELECT id FROM schedule_games WHERE date=?");
+      conditions.push("date=?");
       values.push(upcomingSaturday(now));
     }
     if (selection.team) {
-      parts.push("SELECT id FROM schedule_games WHERE id=?");
-      parts.push("SELECT id FROM schedule_games WHERE date=?");
+      conditions.push("id=?");
+      conditions.push("date=?");
       values.push(selection.team.scheduleId, selection.team.date);
     }
   }
-  return { sql: `WITH retained_lineup_schedules AS (${retainedLineupScheduleSql()}), schedule_selection AS (${parts.join(" UNION ")})`, values: [japanDate(now), ...values] };
+  return { sql: `WITH retained_lineup_schedules AS (${retainedLineupScheduleSql()}),
+    schedule_selection AS (SELECT id FROM schedule_games WHERE ${conditions.join(" OR ")})`, values: [japanDate(now), ...values] };
 }
 
 function snapshotSql(scope: DataScope, partitioned: boolean, past = false, statsOptions = false, statsPageOnly = false, statsLineups = false) {
