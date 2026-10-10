@@ -1,14 +1,15 @@
 "use client";
 
 import type { Player } from "@/lib/model";
-import type { StatsData } from "@/lib/stats";
+import type { StatsData, StatsLineups } from "@/lib/stats";
 import { StatsValues } from "./StatsValues";
-import { comparePlayersByNumber } from "./stats-actions";
+import { registeredPlayersByBattingOrder } from "./stats-actions";
 
-export function StatsConfirmation({ games, data, players, canEditPlayer, gameLabel, onEdit, onDelete, onAdd }: {
+export function StatsConfirmation({ games, data, players, lineups, canEditPlayer, gameLabel, onEdit, onDelete, onAdd }: {
   games: Array<{ key: string }>;
   data: StatsData;
   players: Player[];
+  lineups: StatsLineups;
   canEditPlayer: (playerId: string) => boolean;
   gameLabel: (key: string) => string;
   onEdit: (gameKey: string, playerId: string) => void;
@@ -31,13 +32,12 @@ export function StatsConfirmation({ games, data, players, canEditPlayer, gameLab
                 </h2>
               </div>
               <div className="panel">
-                {players
-                  .filter((player) => data.games[key]?.[player.id])
-                  .sort(comparePlayersByNumber)
-                  .map((player) => (
+                {registeredPlayersByBattingOrder(players, data.games[key], lineups[data.scheduleIds[key]])
+                  .map(({ player, battingOrder }) => (
                     <StatsValues
                       key={player.id}
                       player={player}
+                      battingOrder={battingOrder}
                       values={data.games[key][player.id]}
                       canEdit={canEditPlayer(player.id)}
                       onEdit={() => onEdit(key, player.id)}

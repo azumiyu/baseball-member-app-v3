@@ -19,6 +19,8 @@ export type PlayerStats = {
 };
 export type GameStats = Record<string, PlayerStats>;
 export type StatsData = { games: Record<string, GameStats>; scheduleIds: Record<string, string> };
+export type StatsLineups = Record<string, Array<string | null>>;
+export type StatsLineupData = { lineups: StatsLineups };
 export type StatsScheduleOption = Pick<ScheduleGame, "id" | "date" | "startTime" | "title" | "opponent" | "location">;
 export type StatsSchedulePage = {
   schedules: StatsScheduleOption[];

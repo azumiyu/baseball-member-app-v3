@@ -250,6 +250,7 @@ export function TeamApp() {
           key={team.member.id}
           member={team.member}
           players={data.players}
+          currentLineup={lineupSwitching ? undefined : data}
           appNavigation={appNavigation}
           onSaveStateChange={setStatsSaveState}
         />

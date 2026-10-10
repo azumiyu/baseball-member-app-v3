@@ -1,7 +1,7 @@
 import { type TeamData } from "./model";
 import { type EquipmentData } from "./equipment";
 import type { AccountingData } from "./accounting";
-import { emptyPlayerStats, gameKey, parseGameKey, MAX_REGISTERED_STATS_GAMES, type StatsData, type PlateAppearanceResult, type StatsSchedulePage } from "./stats";
+import { emptyPlayerStats, gameKey, parseGameKey, MAX_REGISTERED_STATS_GAMES, type StatsData, type PlateAppearanceResult, type StatsSchedulePage, type StatsLineupData, type StatsLineups } from "./stats";
 import { db, digest, random, token } from "./server";
 import type { AuthMember } from "./auth-types";
 import { japanDate, upcomingSaturday, type ScheduleData, type ScheduleGame } from "./schedule";
@@ -55,7 +55,22 @@ const lineupTables: Table[] = [
 ];
 
 function lineupSnapshotSql() {
-  return `json_object(${lineupTables.map((table) => `'${table.name}',(SELECT json_group_array(json_array(${table.columns.join(",")})) FROM (SELECT ${table.columns.join(",")} FROM ${table.name} WHERE schedule_id IN (SELECT id FROM schedule_selection) ORDER BY ${table.order}))`).join(",")})`;
+  return `json_object(${lineupTables.map((table) => `'${table.name}',(SELECT json_group_array(json_array(${table.columns.join(",")})) FROM (SELECT ${table.columns.join(",")} FROM ${table.name} WHERE schedule_id IN (SELECT id FROM schedule_selection) ORDER BY ${table.order}))`).join(",")},
+    'retained_lineup_schedule_ids',(SELECT json_group_array(json_array(id)) FROM retained_lineup_schedules))`;
+}
+
+/** Keep recent games available before stats are entered, as well as the games
+ * still shown in the registered-stats confirmation and the working order.
+ */
+function retainedLineupScheduleSql() {
+  return `SELECT id FROM (SELECT id FROM schedule_games WHERE date<?
+      ORDER BY date DESC,start_time DESC,id DESC LIMIT ${MAX_REGISTERED_STATS_GAMES})
+    UNION SELECT schedule_id AS id FROM (
+      SELECT g.schedule_id FROM stats_games g LEFT JOIN schedule_games s ON s.id=g.schedule_id
+      ORDER BY COALESCE(s.date,g.game_date) DESC,
+        COALESCE(s.start_time,'') DESC, g.game_number DESC, g.game_date DESC
+      LIMIT ${MAX_REGISTERED_STATS_GAMES}) WHERE schedule_id IS NOT NULL
+    UNION SELECT schedule_id AS id FROM team_settings WHERE id=1 AND schedule_id IS NOT NULL`;
 }
 
 export const SCHEDULE_PAGE_SIZE = 20;
@@ -94,6 +109,7 @@ function scheduleSelectionSql(scope: "team" | "schedule", selection: SnapshotSel
     values.push(JSON.stringify(query.ids));
   }
   if (scope === "team" || query.kind === "write") {
+    parts.push("SELECT id FROM retained_lineup_schedules");
     parts.push("SELECT id FROM schedule_games WHERE id=(SELECT schedule_id FROM team_settings WHERE id=1)");
     parts.push("SELECT id FROM schedule_games WHERE date=(SELECT game_date FROM team_settings WHERE id=1)");
     if (query.kind === "write") {
@@ -106,10 +122,10 @@ function scheduleSelectionSql(scope: "team" | "schedule", selection: SnapshotSel
       values.push(selection.team.scheduleId, selection.team.date);
     }
   }
-  return { sql: `WITH schedule_selection AS (${parts.join(" UNION ")})`, values };
+  return { sql: `WITH retained_lineup_schedules AS (${retainedLineupScheduleSql()}), schedule_selection AS (${parts.join(" UNION ")})`, values: [japanDate(now), ...values] };
 }
 
-function snapshotSql(scope: DataScope, partitioned: boolean, past = false, statsOptions = false, statsPageOnly = false) {
+function snapshotSql(scope: DataScope, partitioned: boolean, past = false, statsOptions = false, statsPageOnly = false, statsLineups = false) {
   const entries = tables[scope].map((table) =>
     `'${table.name}', (SELECT json_group_array(json_array(${table.columns.join(",")}))
       FROM (SELECT ${table.columns.join(",")} FROM ${table.name}
@@ -126,6 +142,17 @@ function snapshotSql(scope: DataScope, partitioned: boolean, past = false, stats
         ORDER BY date DESC,start_time,id))`,
     "'stats_schedule_page', (SELECT json_group_array(json_array(date,id)) FROM (SELECT date,id FROM stats_schedule_page ORDER BY date DESC,id DESC))",
   );
+  if (statsLineups) entries.push(
+    `'stats_lineup_slots', (SELECT json_group_array(json_array(schedule_id,batting_order,player_id))
+      FROM (SELECT schedule_id,batting_order,player_id FROM schedule_lineup_slots
+        WHERE schedule_id IN (SELECT schedule_id FROM stats_games WHERE schedule_id IS NOT NULL)
+          AND schedule_id IS NOT (SELECT schedule_id FROM team_settings WHERE id=1)
+        UNION ALL
+        SELECT settings.schedule_id,slots.batting_order,slots.player_id
+          FROM team_settings settings CROSS JOIN lineup_slots slots
+          WHERE settings.id=1 AND settings.schedule_id IN (SELECT schedule_id FROM stats_games WHERE schedule_id IS NOT NULL)
+        ORDER BY schedule_id,batting_order))`,
+  );
   return `json_object(${entries.join(",")})`;
 }
 
@@ -139,6 +166,19 @@ export function statsScheduleMetadata(snapshot: Snapshot): StatsSchedulePage {
     hasMoreSchedules,
     nextScheduleCursor: hasMoreSchedules && last ? { date: last[0] as string, id: last[1] as string } : null,
   };
+}
+
+export function statsLineupMetadata(snapshot: Snapshot): StatsLineupData {
+  const lineups: StatsLineups = Object.create(null);
+  for (const row of snapshot.tables?.stats_lineup_slots ?? []) {
+    const scheduleId = row[0] as string;
+    const battingOrder = row[1] as number;
+    const slots = lineups[scheduleId] ?? [];
+    while (slots.length <= battingOrder) slots.push(null);
+    slots[battingOrder] = row[2] as string | null;
+    lineups[scheduleId] = slots;
+  }
+  return { lineups };
 }
 
 export type Snapshot = {
@@ -222,7 +262,8 @@ export async function readSnapshot(
       ${linked ? "related.revision AS related_revision, settings.schedule_week," : ""}
       CASE WHEN ${predicate} THEN ${linked
         ? `json_object('primary', ${snapshotSql(scope, false)}, 'related', ${snapshotSql(otherScope, false)}, 'lineups', ${lineupSnapshotSql()})`
-        : snapshotSql(scope, partition !== null, selection.schedule?.kind === "past", statsOptions, selection.statsPageOnly)} END AS data
+        : snapshotSql(scope, partition !== null, selection.schedule?.kind === "past", statsOptions, selection.statsPageOnly,
+          scope === "stats" && gameKeys === undefined && selection.statsPageOnly !== true)} END AS data
     FROM sessions AS s
     JOIN member_devices AS d ON d.hash=s.device_hash
     JOIN players AS p ON p.id=d.player_id AND p.sort_order IS NOT NULL
@@ -409,22 +450,24 @@ function decodeLineups(rows?: Tables): Map<string, SavedLineup> {
 }
 
 /** Save only starters. The current order remains the working copy; the selected
- * game's snapshot is restored when switching, and past snapshots are discarded.
+ * game's snapshot is restored when switching, retaining recent confirmations.
  */
 function lineupChanges(rows: Tables | undefined, before: TeamData, after: TeamData, schedule: ScheduleData, now: Date) {
   const previous = rows ?? { schedule_lineups: [], schedule_lineup_slots: [] };
   const stored = decodeLineups(previous);
+  const retained = new Set((previous.retained_lineup_schedule_ids ?? []).map((row) => row[0] as string));
   const games = new Map(schedule.games.map((game) => [game.id, game]));
   const today = japanDate(now);
   for (const id of stored.keys()) {
-    if (!games.has(id) || games.get(id)!.date < today) stored.delete(id);
+    if (!games.has(id) || (games.get(id)!.date < today && !retained.has(id))) stored.delete(id);
   }
   for (const team of before.scheduleId !== after.scheduleId ? [before, after] : [after]) {
-    if (team.scheduleId && (games.get(team.scheduleId)?.date ?? "") >= today) {
+    if (team.scheduleId && games.has(team.scheduleId) &&
+        (games.get(team.scheduleId)!.date >= today || retained.has(team.scheduleId) || team.scheduleId === after.scheduleId)) {
       stored.set(team.scheduleId, { mode: team.mode, pitcher: team.pitcher, slots: team.slots, count: team.slots.length });
     }
   }
-  const next: Tables = { schedule_lineups: [], schedule_lineup_slots: [] };
+  const next: Tables = { schedule_lineups: [], schedule_lineup_slots: [], retained_lineup_schedule_ids: previous.retained_lineup_schedule_ids ?? [] };
   for (const [id, lineup] of stored) {
     next.schedule_lineups.push([id, lineup.mode, lineup.pitcher]);
     lineup.slots.forEach((slot, index) => next.schedule_lineup_slots.push([id, index, slot.position, slot.playerId]));
@@ -701,8 +744,9 @@ async function commitChanges(
   if (week !== undefined) {
     statements.push(database.prepare(`UPDATE team_settings SET schedule_week=? WHERE id=1 AND ${guard}`)
       .bind(week, scope, writeToken));
-    statements.push(database.prepare(`DELETE FROM schedule_lineups WHERE schedule_id IN (SELECT id FROM schedule_games WHERE date<?) AND ${guard}`)
-      .bind(japanDate(now), scope, writeToken));
+    statements.push(database.prepare(`DELETE FROM schedule_lineups WHERE schedule_id IN (SELECT id FROM schedule_games WHERE date<?)
+        AND schedule_id NOT IN (${retainedLineupScheduleSql()}) AND ${guard}`)
+      .bind(japanDate(now), japanDate(now), scope, writeToken));
   }
 
   // D1 batch is transactional: FK failures also roll back the revision change.
@@ -713,9 +757,12 @@ async function commitChanges(
 export function teamScheduleMetadata(snapshot: Snapshot) {
   const schedule = snapshot.related?.tables ? decodeData("schedule", snapshot.related.tables) as ScheduleData : null;
   const selectedId = snapshot.tables?.team_settings[0]?.[8];
+  const selectedDate = snapshot.tables?.team_settings[0]?.[4];
+  const today = japanDate();
   return {
     scheduleRevision: snapshot.related?.revision ?? 0,
-    schedules: schedule?.games.map((game) => ({ id: game.id, date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, mapUrl: game.mapUrl, status: game.status, umpireArranged: game.umpireArranged, detailsRevision: game.detailsRevision, previousStartTime: game.previousStartTime, previousEndTime: game.previousEndTime, previousLocation: game.previousLocation, changedBy: game.changedBy })) ?? [],
+    schedules: schedule?.games.filter((game) => game.date >= today || game.id === selectedId || game.date === selectedDate)
+      .map((game) => ({ id: game.id, date: game.date, startTime: game.startTime, endTime: game.endTime, title: game.title, opponent: game.opponent, location: game.location, mapUrl: game.mapUrl, status: game.status, umpireArranged: game.umpireArranged, detailsRevision: game.detailsRevision, previousStartTime: game.previousStartTime, previousEndTime: game.previousEndTime, previousLocation: game.previousLocation, changedBy: game.changedBy })) ?? [],
     attendance: schedule?.games.find((game) => game.id === selectedId)?.responses ?? {},
     attendanceScheduleId: (selectedId as string | null | undefined) ?? null,
   };

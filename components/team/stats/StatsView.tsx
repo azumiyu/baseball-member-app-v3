@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AuthMember } from "@/lib/auth-types";
-import type { Player } from "@/lib/model";
+import type { Player, TeamData } from "@/lib/model";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,11 +39,13 @@ function scheduleLabel(game: StatsScheduleOption) {
 
 export function StatsView({
   players,
+  currentLineup,
   member,
   appNavigation,
   onSaveStateChange,
 }: {
   players: Player[];
+  currentLineup?: Pick<TeamData, "scheduleId" | "slots">;
   member: AuthMember;
   appNavigation?: ReactNode;
   onSaveStateChange?: (state: SaveState) => void;
@@ -324,6 +326,10 @@ export function StatsView({
           games={visibleRegisteredGames}
           data={stats.data}
           players={players}
+          lineups={currentLineup?.scheduleId ? {
+            ...stats.lineups,
+            [currentLineup.scheduleId]: currentLineup.slots.map((slot) => slot.playerId),
+          } : stats.lineups}
           canEditPlayer={canEditPlayer}
           gameLabel={labelForKey}
           onEdit={editRegistration}

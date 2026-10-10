@@ -10,6 +10,25 @@ export function comparePlayersByNumber(a: Player, b: Player): number {
     : difference;
 }
 
+/** 空いている打順も数え、オーダー外の選手は打順のある選手の後ろに表示する。 */
+export function registeredPlayersByBattingOrder(
+  players: Player[],
+  game: StatsData["games"][string],
+  lineup: Array<string | null> = [],
+): Array<{ player: Player; battingOrder: number | undefined }> {
+  const battingOrders = new Map<string, number>();
+  lineup.forEach((playerId, index) => {
+    if (playerId && !battingOrders.has(playerId)) battingOrders.set(playerId, index + 1);
+  });
+  return players
+    .filter((player) => game?.[player.id])
+    .map((player) => ({ player, battingOrder: battingOrders.get(player.id) }))
+    .sort((a, b) =>
+      (a.battingOrder ?? Infinity) - (b.battingOrder ?? Infinity)
+      || comparePlayersByNumber(a.player, b.player),
+    );
+}
+
 export function updatePlateAppearance(
   current: PlayerStats,
   index: number,
