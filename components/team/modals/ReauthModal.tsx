@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import type { AuthMember, AuthResponse, LoginMember } from "@/lib/auth-types";
 import { Modal } from "../common/Modal";
@@ -10,29 +10,28 @@ import { api, type ApiError } from "../lib/api";
  * 保存中にセッションが切れた（401）ときに出る再ログインモーダル。
  * 編集中の内容は画面に残したまま、ログインし直して保存を再開します。
  */
-export function ReauthModal({
-  open,
-  onClose,
-  onSuccess,
-}: {
+type ReauthModalProps = {
   open: boolean;
   onClose: () => void;
   /** ログイン成功時。同じメンバーであることを確認してから保存を再開する。 */
   onSuccess: (member: AuthMember) => void | Promise<void>;
-}) {
+};
+
+export function ReauthModal(props: ReauthModalProps) {
+  // 閉じるとフォームを破棄し、次に開いたときは初期状態から始める。
+  return props.open ? <ReauthForm {...props} /> : null;
+}
+
+function ReauthForm({
+  open,
+  onClose,
+  onSuccess,
+}: ReauthModalProps) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [members, setMembers] = useState<LoginMember[] | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState("");
-
-  useEffect(() => {
-    if (open) return;
-    setPassword("");
-    setMembers(null);
-    setSelectedMemberId("");
-    setError("");
-  }, [open]);
 
   async function acceptAuth(result: AuthResponse) {
     if (result.needsMemberSelection) {

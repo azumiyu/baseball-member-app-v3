@@ -2,11 +2,7 @@
 
 import { ImageDown } from "lucide-react";
 import { Modal } from "../common/Modal";
-
-type ImagePreview = {
-  url: string;
-  blob: Blob;
-};
+import type { ImagePreview } from "../hooks/useImageExport";
 
 /** オーダー画像のプレビュー・保存モーダル */
 export function ImageReadyModal({
