@@ -222,12 +222,17 @@
     transform 0.2s;
 }
 
-.carouselNav button:hover {
+.carouselNav button:not(:disabled):hover {
   background: #f0d49b;
 }
 
-.carouselNav button:active {
+.carouselNav button:not(:disabled):active {
   transform: scale(0.92);
+}
+
+.carouselNav button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* =================================

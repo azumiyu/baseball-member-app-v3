@@ -78,6 +78,16 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     scoreLabel: "避けたボール",
     scoreUnit: "球",
   },
+  {
+    id: "goto-nanairo",
+    title: "後藤の投げろ！七色のシンカー！",
+    description: "フルカウントから5打者勝負！七色の軌道とリリースで三振を奪え。魔球も失投も、運しだい。",
+    href: "/game/goto-nanairo",
+    image: "/nanairo/top.png",
+    version: 1,
+    scoreLabel: "合計ポイント",
+    scoreUnit: "pt",
+  },
 ];
 
 export function getGame(id: string): GameDefinition | undefined {

@@ -5,10 +5,11 @@ import type { BetType, HorseRaceState } from "./horse-racing";
 import type { BenchRunResult } from "./horie-bench";
 import type { RamenInput, RamenRunResult } from "./ramen";
 import type { DodgeMove, DodgeState } from "./shibata-dodge";
+import type { NanairoPoint, NanairoState } from "./nanairo";
 
 export type FastballReady = { kind: "fastball-ready"; releaseMs: number };
 export type FastballRunResult = FastballReady | FastballResult;
-export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult | DodgeState;
+export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult | DodgeState | NanairoState;
 
 export type GameRun<TResult = TurnResult> = {
   id: string;
@@ -111,4 +112,14 @@ export type DodgeStepRequest = {
   moves: DodgeMove[];
 };
 
-export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest | DodgeStepRequest;
+export type NanairoPitchRequest = {
+  action: "nanairo-pitch";
+  gameId: string;
+  requestId: string;
+  runId: string;
+  turn: number;
+  target: NanairoPoint;
+  elapsedMs: number;
+};
+
+export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest | DodgeStepRequest | NanairoPitchRequest;

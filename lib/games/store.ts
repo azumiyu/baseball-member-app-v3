@@ -7,6 +7,7 @@ import { MAX_BALANCE, type BetType } from "./horse-racing";
 import { MAX_SWING_MS } from "./horie-bench";
 import { RAMEN, validateRamenInputs } from "./ramen";
 import { DODGE, validateDodgeMoves } from "./shibata-dodge";
+import { validateNanairoInput, normalizeNanairo } from "./nanairo";
 
 type Score = Omit<LeaderboardEntry, "rank">;
 type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
@@ -38,9 +39,13 @@ export async function readGameContext(req: Request, gameId: string): Promise<Gam
     WHERE session.hash=? AND (session.expires=0 OR session.expires>?)
   `).bind(gameId, gameId, sessionHash, Date.now()).first<ContextRow>();
   if (!row) return null;
+  const run = row.run_json ? JSON.parse(row.run_json) as GameRun<GameResult> : null;
+  if (run?.lastResult && "kind" in run.lastResult && run.lastResult.kind === "nanairo") {
+    run.lastResult = normalizeNanairo(run.lastResult);
+  }
   return {
     member: { id: row.id, name: row.name, number: row.number, isAdmin: row.is_admin === 1, canEditLineup: row.can_edit_lineup === 1 },
-    sessionHash, run: row.run_json ? JSON.parse(row.run_json) as GameRun<GameResult> : null,
+    sessionHash, run,
     scores: JSON.parse(row.scores_json) as Score[],
   };
 }
@@ -64,6 +69,15 @@ export function parseGameRequest(value: unknown): GameRequest {
   }
   if (body.action === "start") return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null, turn: body.turn as number };
   const engine = gameEngine(body.gameId)!;
+  if (body.action === "nanairo-pitch" && engine.kind === "nanairo" && isId(body.runId)) {
+    try {
+      const input = validateNanairoInput(body.target, body.elapsedMs);
+      return { action: "nanairo-pitch", gameId: body.gameId, requestId: body.requestId, runId: body.runId,
+        turn: body.turn as number, ...input };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "投球の操作を確認してください。");
+    }
+  }
   if (body.action === "dodge-step" && engine.kind === "dodge" && isId(body.runId)
     && Number.isSafeInteger(body.toTick) && (body.toTick as number) > 0) {
     try {
@@ -139,6 +153,7 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
         : engine.kind === "horse-racing" ? engine.prepare(1, random)
         : engine.kind === "bench" ? engine.prepare(random)
         : engine.kind === "ramen" ? engine.prepare(now)
+        : engine.kind === "nanairo" ? engine.prepare(random)
         : engine.kind === "dodge" ? engine.prepare(random, now) : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
@@ -190,6 +205,16 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
       run = { ...current, turn: current.turn + 1, balance: result.score, status: result.status, lastResult: result, lastRequestId: request.requestId };
     } catch (error) {
       throw new GameInputError(error instanceof Error ? error.message : "移動の操作履歴を確認してください。");
+    }
+  } else if (engine.kind === "nanairo" && request.action === "nanairo-pitch") {
+    const state = current.lastResult;
+    if (!state || !("kind" in state) || state.kind !== "nanairo" || state.history.length !== current.turn) return null;
+    try {
+      const result = engine.play(state, request.target, request.elapsedMs, random);
+      run = { ...current, turn: current.turn + 1, balance: Math.max(0, result.total),
+        status: result.ready ? "playing" : "finished", lastResult: result, lastRequestId: request.requestId };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "投球の操作を確認してください。");
     }
   } else if (engine.kind === "horse-racing") {
     const state = current.lastResult;

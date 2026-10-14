@@ -132,6 +132,8 @@ Worker名は `yg-weekly-schedule`、実行設定は `0 15 * * SAT`（土曜15時
 
 認証と必要なデータの取得は1回のSELECTにまとめます。チーム取得・連携保存では対象の予定・出欠・試合別スタメンも同時に読み、選手ごとの取得ループはありません。チームの定期取得は両revisionと週次記録を確認し、変更がなければ明細を読みません。予定保存後は未保存のオーダー編集がない場合にチーム情報を1回再取得し、反映された出欠を表示します。通常のチーム保存は反映後のデータと出欠をレスポンスに含め、追加取得を避けます。
 
+予定IDの選択は `schedule_games` に対する1つのSELECTのOR条件で行います。現在の試合・切り替え先・過去オーダーの保持対象をUNIONで追加すると、Cloudflareの実行環境が設定する[複合SELECTの上限5件](https://github.com/cloudflare/workerd/blob/main/src/workerd/util/sqlite.c%2B%2B#L1318)を超え、取得できても保存時に `too many terms in compound SELECT` で失敗します。保持対象の独立したCTEは3件のSELECTに限定しています。
+
 `schedule_week` は内部の週次処理用で、APIの編集データには含めません。予定IDを伴わない既存オーダーでも、予定がなければ従来の情報を保持します。
 
 ## 手元での確認項目
