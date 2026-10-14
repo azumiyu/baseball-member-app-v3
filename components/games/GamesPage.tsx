@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 /* eslint-disable @next/next/no-img-element -- Local game artwork needs no image service. */
 import { ArrowUpRight, Gamepad2,  ChevronLeft,
   ChevronRight,
@@ -33,6 +33,30 @@ export function GamesPage() {
 
   // 横スクロール用
   const trackRef = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState({ left: false, right: false });
+  const showGames = !api.loading && !api.unauthorized && Boolean(api.snapshot);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!showGames || !track) return;
+
+    const update = () => {
+      const maximum = Math.max(0, track.scrollWidth - track.clientWidth);
+      const left = track.scrollLeft > 1;
+      const right = track.scrollLeft < maximum - 1;
+      setScrollable(current => current.left === left && current.right === right ? current : { left, right });
+    };
+    const frame = requestAnimationFrame(update);
+    const observer = new ResizeObserver(update);
+    observer.observe(track);
+    if (track.firstElementChild) observer.observe(track.firstElementChild);
+    track.addEventListener("scroll", update, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      track.removeEventListener("scroll", update);
+    };
+  }, [showGames]);
 
   // 左右ボタンでカード1枚分スクロール
   function slide(direction: -1 | 1) {
@@ -104,6 +128,7 @@ export function GamesPage() {
             <button
               type="button"
               onClick={() => slide(-1)}
+              disabled={!scrollable.left}
               aria-label="前のゲームへ"
             >
               <ChevronLeft size={23} />
@@ -112,6 +137,7 @@ export function GamesPage() {
             <button
               type="button"
               onClick={() => slide(1)}
+              disabled={!scrollable.right}
               aria-label="次のゲームへ"
             >
               <ChevronRight size={23} />
