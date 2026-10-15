@@ -17,6 +17,16 @@ export type GameDefinition = {
 /** Add a definition here when introducing another game to the team arcade. */
 export const GAME_CATALOG: readonly GameDefinition[] = [
   {
+    id: "yg-clash-royale-defense",
+    title: "YGクラロワ",
+    description: "様々なキャラを使って自分のタワーを守ろう。相性で押し寄せる敵を迎撃し、強敵ほど高い撃破ポイントを獲得！",
+    href: "/game/yg-clash-royale",
+    image: "/nanairo/chiaki.png",
+    version: 2,
+    scoreLabel: "撃破ポイント",
+    scoreUnit: "pt",
+  },
+  {
     id: "kawataka-chinchiro",
     title: "川高の振れ！チンチロ！",
     description: "100万円から5回勝負。川高を相手に、サイコロ3個で最高記録を狙おう。",

@@ -5,6 +5,7 @@ import { prepareBench, resolveBenchSwing } from "./horie-bench";
 import { resolveRamen, type RamenReady } from "./ramen";
 import { advanceDodge, createDodge, type DodgeState } from "./shibata-dodge";
 import { createNanairo, playNanairo, NANAIRO } from "./nanairo";
+import { advanceRoyale, createRoyale, ROYALE } from "./yg-royale";
 
 /** Server-only play adapters. The catalog controls presentation; each adapter
  * owns its game's rules, score and completion condition.
@@ -19,9 +20,11 @@ type GameEngine = {
   | { kind: "bench"; initialBalance: number; maxTurns: number; prepare: typeof prepareBench; play: typeof resolveBenchSwing }
   | { kind: "ramen"; initialBalance: number; maxTurns: number; prepare: (now: number) => RamenReady; play: typeof resolveRamen }
   | { kind: "dodge"; initialBalance: number; maxTurns: number; prepare: (random: () => number, now: number) => DodgeState; play: typeof advanceDodge }
-  | { kind: "nanairo"; initialBalance: number; maxTurns: number; prepare: typeof createNanairo; play: typeof playNanairo };
+  | { kind: "nanairo"; initialBalance: number; maxTurns: number; prepare: typeof createNanairo; play: typeof playNanairo }
+  | { kind: "royale"; initialBalance: number; maxTurns: number; prepare: typeof createRoyale; play: typeof advanceRoyale };
 
 const engines: Record<string, GameEngine> = {
+  [ROYALE.gameId]: { kind: "royale", initialBalance: 0, maxTurns: Number.MAX_SAFE_INTEGER, prepare: createRoyale, play: advanceRoyale },
   [NANAIRO.gameId]: { kind: "nanairo", initialBalance: 0, maxTurns: NANAIRO.batters, prepare: createNanairo, play: playNanairo },
   "shibata-dodge": { kind: "dodge", initialBalance: 0, maxTurns: Number.MAX_SAFE_INTEGER,
     prepare: (random, now) => createDodge(Math.floor(random() * 0x100000000), now), play: advanceDodge },
