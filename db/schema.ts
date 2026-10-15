@@ -199,6 +199,22 @@ export const miniGameScores = sqliteTable("mini_game_scores", {
     check("mini_game_scores_score_check", sql`${table.score} >= 0`),
 ]);
 
+// One shared runner. Distance and thirst are derived from these timestamps;
+// rows are written only when someone successfully gives water.
+export const marathonState = sqliteTable("marathon_state", {
+    id: integer("id").primaryKey(),
+    startedAt: integer("started_at").notNull(),
+    lastWateredAt: integer("last_watered_at").notNull(),
+    revision: integer("revision").notNull().default(0),
+    totalWaterMl: integer("total_water_ml").notNull().default(0),
+    lastGiverName: text("last_giver_name"),
+    writeToken: text("write_token").notNull().default(""),
+}, (table) => [
+    check("marathon_state_singleton_check", sql`${table.id} = 1`),
+    check("marathon_state_revision_check", sql`${table.revision} >= 0`),
+    check("marathon_state_total_check", sql`${table.totalWaterMl} >= 0`),
+]);
+
 export const accountingEntries = sqliteTable("accounting_entries", {
     id: text("id").primaryKey(),
     date: text("date").notNull(),
