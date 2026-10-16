@@ -6,7 +6,7 @@ import { ChevronDown, Crosshair, RotateCcw, Sparkles, Trophy, Zap } from "lucide
 import { createEntityId } from "@/lib/entity-id";
 import {
   NANAIRO, NANAIRO_PITCHES,
-  nanairoBatter, nanairoPitch, nanairoTrajectory, nanairoCourse, isNanairoLuckyBatter, nanairoLuckyBonus, nanairoOutcomeLabel,
+  nanairoBatter, nanairoPitch, nanairoTrajectory, nanairoCourse, isNanairoLuckyBatter, nanairoOutcomeLabel,
   type NanairoState, type NanairoPoint, type NanairoPitchResult,
 } from "@/lib/games/nanairo";
 import { GameAccessState, GameShell } from "./GameShell";
@@ -49,7 +49,7 @@ export function NanairoPage() {
   const [target, setTarget] = useState<NanairoPoint>(DEFAULT_COURSE);
   const [windup, setWindup] = useState<Windup | null>(null);
   const [animation, setAnimation] = useState<NanairoPitchResult | null>(null);
-  const [rareDismissedFor, setRareDismissedFor] = useState("");
+  const [outOfParkDismissedFor, setOutOfParkDismissedFor] = useState("");
   const activePitch = useRef<(Windup & { startedAt: number }) | null>(null);
   const finishRef = useRef<(elapsedMs?: number) => void>(() => {});
   const gauge = useRef<HTMLDivElement>(null);
@@ -57,7 +57,7 @@ export function NanairoPage() {
   const trail = useRef<SVGPathElement>(null);
   const releaseButton = useRef<HTMLButtonElement>(null);
   const nextButton = useRef<HTMLButtonElement>(null);
-  const rareDialog = useRef<HTMLDialogElement>(null);
+  const outOfParkDialog = useRef<HTMLDialogElement>(null);
   const courseButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const gradientId = `nanairo-${useId().replace(/:/g, "")}`;
   const run = api.snapshot?.run;
@@ -72,15 +72,15 @@ export function NanairoPage() {
   const displayReady = displayResult ?? ready;
   const batter = displayReady ? nanairoBatter(displayReady.batterId) : null;
   const pitch = displayReady ? nanairoPitch(displayReady.pitchId) : null;
-  const rareEntrance = batter !== null && isNanairoLuckyBatter(batter.id) && ready?.batterId === batter.id && !showResult && !active && rareDismissedFor !== roundKey;
-  const locked = active || api.busy || api.retryPending || showResult || !ready || rareEntrance;
+  const showOutOfParkEffect = showResult && latest?.outcome === "homer" && latest.outOfPark === true && outOfParkDismissedFor !== roundKey;
+  const locked = active || api.busy || api.retryPending || showResult || !ready || showOutOfParkEffect;
 
   useEffect(() => {
-    if (!rareEntrance) return;
-    const dialog = rareDialog.current;
+    if (!showOutOfParkEffect) return;
+    const dialog = outOfParkDialog.current;
     if (dialog && !dialog.open) dialog.showModal();
     return () => { if (dialog?.open) dialog.close(); };
-  }, [rareEntrance]);
+  }, [showOutOfParkEffect, roundKey]);
 
   async function request(action?: GameAction) {
     const previousTurn = run?.turn ?? 0;
@@ -202,13 +202,13 @@ export function NanairoPage() {
     : result ? nanairoOutcomeLabel(result) : ready ? "コースを決めろ！" : "七色の一球で、勝負しよう。";
 
   return <GameShell isGame memberName={api.snapshot.member.name}>
-    {rareEntrance && <dialog ref={rareDialog} className={styles.rareDialog} aria-labelledby={`${gradientId}-rare-title`} onCancel={() => setRareDismissedFor(roundKey)}>
+    {showOutOfParkEffect && <dialog key={roundKey} ref={outOfParkDialog} className={styles.rareDialog} aria-labelledby={`${gradientId}-out-of-park-title`} onCancel={() => setOutOfParkDismissedFor(roundKey)}>
       <div className={styles.rareStars} aria-hidden="true"><Sparkles size={32} /><span>★</span><Sparkles size={24} /></div>
-      <span className={styles.rareBadge}>SUPER RARE · BATTER {(state?.history.length ?? 0) + 1}</span>
-      <h2 id={`${gradientId}-rare-title`}>超レア！<br /><strong>{batter?.name}、参上！</strong></h2>
-      <img src={`/nanairo/${batter?.id}.png`} alt={`ラッキー打者・${batter?.name}`} />
-      <p>2％の幸運が、この打席に。<br />三振・凡退で抑えれば追加 <strong>＋{number(batter ? nanairoLuckyBonus(batter.id) : 0)} pt</strong>！</p>
-      <button type="button" className={styles.primary} onClick={() => setRareDismissedFor(roundKey)}><Sparkles size={19} aria-hidden="true" />ラッキー打者と勝負！</button>
+      <span className={styles.rareBadge}>OUT OF THE PARK · BATTER {state?.history.length}</span>
+      <h2 id={`${gradientId}-out-of-park-title`}>まさかの一撃！<br /><strong>場外ホームラン！</strong></h2>
+      <img src={`/nanairo/${batter?.id}.png`} alt={`場外ホームランを放った${batter?.name}`} />
+      <p>打球はスタンドを越え、場外へ。<br /><strong>{batter?.name}</strong>に運ばれた…！</p>
+      <button type="button" className={styles.primary} onClick={() => setOutOfParkDismissedFor(roundKey)}><Sparkles size={19} aria-hidden="true" />結果を確認する</button>
     </dialog>}
     <div className={`${shared.gameHeading} ${styles.heading}`}><p>GOTO’S SEVEN-COLOR SINKER</p><h1>後藤の投げろ！<span>七色のシンカー！</span></h1><small>狙いを定めろ。運を信じろ。フルカウント、5人勝負。</small></div>
     <section className={styles.machine} aria-label="七色のシンカー投球ゲーム">
@@ -283,7 +283,7 @@ export function NanairoPage() {
           onPointerDown={event => { if (event.button === 0 && event.isPrimary) { event.preventDefault(); finish(); } }}
           onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (!event.repeat) finish(); } }}
           onClick={event => { if (event.detail === 0) finish(); }}><Zap size={21} aria-hidden="true" />今だ、投げろ！</button>
-          : <button ref={nextButton} type="button" className={styles.primary} disabled={active || api.busy || api.retryPending || rareEntrance}
+          : <button ref={nextButton} type="button" className={styles.primary} disabled={active || api.busy || api.retryPending || showOutOfParkEffect}
             onKeyDown={event => { if (event.repeat && (event.key === " " || event.key === "Enter")) event.preventDefault(); }}
             onClick={!state || finished ? start : showResult ? nextBatter : beginWindup}>
             {!state || finished ? <RotateCcw size={19} aria-hidden="true" /> : <Zap size={20} aria-hidden="true" />}
