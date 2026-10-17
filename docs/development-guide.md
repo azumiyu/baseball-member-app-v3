@@ -68,7 +68,9 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 | 玉の入賞、保留消化、停止順、PUSH、復活・大当たり進行 | `components/pachi/pachinko-controller.ts` |
 | Reactの状態との接続・破棄 | `components/pachi/usePachinkoGame.ts` |
 | 画面枠、操作ボタン、音を鳴らすタイミング | `components/pachi/PachinkoPage.tsx` |
-| 盤面、玉の軌道、釘、液晶の配置 | `components/pachi/PachinkoBoard.tsx` |
+| 盤面、液晶・入賞口の配置 | `components/pachi/PachinkoBoard.tsx` |
+| 共有の釘・レール座標、強度別の玉軌道 | `components/pachi/pachinko-physics.ts` |
+| 玉・残像・接触光のCanvas描画 | `components/pachi/PachinkoBallField.tsx` |
 | 図柄変動の表示 | `components/pachi/SymbolDisplay.tsx` と同名CSS Module |
 | 投球・スイング、777のポーズ、BONUS演出 | `components/pachi/BaseballShow.tsx` と同名CSS Module |
 | 音色、音量、777の読み上げ | `components/pachi/usePachinkoAudio.ts` |
@@ -76,9 +78,11 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 
 図柄は `public/pachi/1.png`〜`9.png` を使用します。`SYMBOL_IDS` と画像パスは `pachinko-game.ts` に集約しています。図柄番号は1から連続する前提です。増減時は実際の画像も揃え、隣の図柄への移動や「7」の特別演出も確認してください。
 
-`JACKPOT_RATE` は通常保留の確率で、`HEAT_SETTINGS` の倍率を掛けます。`REACH_RATE` は外れ抽選のリーチ確率です。`SUPER_REACH_RATE` はリーチからの発展確率で期待度の加算があります。`REVIVAL_RATE` は当たりを一度外れに見せる演出の割合で、追加の当たり抽選ではありません。PUSHを押す時刻で結果は変わらず、8秒後には同じ結果を自動表示します。
+通常時は1/99.9、RUSH中は1/39.9、ST50回のオリジナル仕様です。保留ごとに乱数ticketを一度だけ取得し、消化時のモードで判定します。保留色は結果に応じた演出であり、確率の倍率ではありません。`REACH_RATE` は外れ抽選のリーチ割合、`SUPER_REACH_RATE` は発展の割合です。`REVIVAL_RATE` は当たりを一度外れに見せる演出で、再抽選しません。PUSHで結果は変わらず、6.5秒後には同じ結果を自動表示します。
 
-コントローラーがタイマーを所有し、非表示時の残り時間の保存・再開と、離脱時の破棄を担当します。単純な `await delay()` への置き換えで、この停止・破棄処理を失わないようにしてください。音は初期OFF、ブラウザーの音声APIで生成し、外部音声ファイルは使いません。ゲーム状態はメモリー内のみです。
+連続発射は600ms間隔、初期持ち玉2,500。通常当り5R・RUSH中当り10Rで、各ラウンドはアタッカー10入賞×15玉の実入賞方式です。止め打ち中はラウンドも進みません。最大4保留、満保留でも始動口の3玉は払い出します。ゲーム仕様・操作・検証手順の詳細は [pachinko.md](pachinko.md) を参照してください。
+
+コントローラーがタイマーを所有し、休憩・非表示時の残り時間の保存・再開と、離脱時の破棄を担当します。Canvasも同じ停止状態に従います。単純な `await delay()` への置き換えで、この停止・破棄処理を失わないようにしてください。音は初期OFFで、操作によるON時に音声APIを開始します。離脱・ミュート・非表示で音源を停止します。ゲーム状態はメモリー内のみ、API・D1への通信はありません。
 
 ## 後藤ページ・動きを減らす設定
 

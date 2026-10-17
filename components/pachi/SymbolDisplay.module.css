@@ -1,95 +1,41 @@
 .display {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
-  gap: clamp(0px, 0.7vw, 10px);
-  background: transparent;
-  opacity: 1;
-  transition: opacity 280ms ease;
-  pointer-events: none;
-  isolation: isolate;
+  position: relative; width: 100%; height: 100%; display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3%;
+  align-items: stretch; opacity: 1; transition: opacity .32s ease;
+  pointer-events: none; isolation: isolate;
 }
-
-.symbol,
-.symbolMotion {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
+.symbol {
+  position: relative; min-width: 0; height: 100%; overflow: hidden;
+  border-inline: 1px solid #c2e2ff25; border-radius: 11px;
+  background: linear-gradient(90deg, #00152e75, #254e6430 48%, #00102475);
+  box-shadow: inset 3px 0 12px #0006, inset -3px 0 12px #0006;
+  mask-image: linear-gradient(transparent, #000 10% 90%, transparent);
 }
-
-.image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  object-fit: contain;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.symbol[data-moving="true"] .symbolMotion {
-  animation: symbolPass 150ms ease-out both;
-}
-
-.symbol[data-moving="false"] .symbolMotion {
-  animation: symbolSettle 240ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
-}
-
-.symbol[data-highlight="true"] .image {
-  filter: drop-shadow(0 0 9px rgb(255 199 66 / 80%)) drop-shadow(0 0 20px rgb(255 137 39 / 45%));
-}
-
-.display[data-jackpot="true"] .symbolMotion {
-  animation: winningSymbol 650ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
-}
-
-.display[data-jackpot="true"] .image {
-  filter: drop-shadow(0 0 12px rgb(255 224 102 / 95%)) drop-shadow(0 0 26px rgb(255 173 46 / 65%));
-}
-
-.display[data-dimmed="true"] {
-  opacity: 0.2;
-}
-
-@keyframes symbolPass {
-  from {
-    opacity: 0.5;
-    transform: translateX(12px) scale(0.96);
-    filter: blur(0.35px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-    filter: blur(0);
-  }
-}
-
-@keyframes symbolSettle {
-  from { transform: scale(1.055); }
-  to { transform: scale(1); }
-}
-
-@keyframes winningSymbol {
-  0% { transform: scale(0.97); }
-  45% { transform: scale(1.1); }
-  100% { transform: scale(1.055); }
-}
-
+.movingStrip, .stoppedStrip { position: absolute; inset: 0 0 auto; display: flex; flex-direction: column; }
+.movingStrip { height: 1000%; animation: scrollReel .86s linear infinite; will-change: transform; filter: blur(.7px); }
+.symbol:nth-child(2) .movingStrip { animation-duration: .74s; animation-delay: -.28s; }
+.symbol:nth-child(3) .movingStrip { animation-duration: .92s; animation-delay: -.54s; }
+.symbol[data-slow="true"] .movingStrip { animation-duration: 4.2s; filter: blur(0); }
+.stoppedStrip { height: 300%; transform: translateY(-33.333333%); animation: reelBrake .4s cubic-bezier(.22,.8,.34,1) both; }
+.tile { display: grid; place-items: center; width: 100%; min-height: 0; }
+.movingStrip .tile { flex: 0 0 10%; height: 10%; }
+.stoppedStrip .tile { flex: 0 0 33.333333%; height: 33.333333%; }
+.image { display: block; width: 100%; height: 90%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.reelGlass { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: linear-gradient(180deg, #0009, #030e1730 16%, transparent 35% 65%, #03101f4d 84%, #000b), linear-gradient(105deg, #fff1, transparent 35% 65%, #7ac7ff0d); }
+.reelCaption { position: absolute; z-index: 4; top: 10%; left: 50%; transform: translateX(-50%); font: 700 6px/1 Arial,sans-serif; letter-spacing: .2em; color: #b9d6e169; }
+.lockMark { position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%); z-index: 4; padding: 3px 6px; border: 1px solid #ffd97686; border-radius: 3px; color: #ffe3a1; background: #442d00a8; font: 800 6px/1 Arial,sans-serif; letter-spacing: .17em; }
+.symbol[data-highlight="true"] { border-color: #ffdf8d80; box-shadow: inset 0 0 16px #ff8a0022, 0 0 15px #ffcb5633; }
+.symbol[data-highlight="true"] .image { filter: drop-shadow(0 0 7px #ffd364a8); }
+.display[data-jackpot="true"] .stoppedStrip { animation: winningReel .65s cubic-bezier(.2,.8,.25,1) both; }
+.display[data-jackpot="true"] .symbol { border-color: #ffe9b1; background: radial-gradient(#ffd86f38, #43250220); box-shadow: inset 0 0 16px #ffc9403d, 0 0 13px #ffc85533; }
+.display[data-jackpot="true"] .image { filter: drop-shadow(0 0 9px #ffe89be0); }
+.display[data-jackpot="true"] .reelGlass { opacity: .35; }
+.display[data-dimmed="true"] { opacity: .13; }
+@keyframes scrollReel { from { transform: translateY(0); } to { transform: translateY(-90%); } }
+@keyframes reelBrake { 0% { transform: translateY(-34.9%); } 45% { transform: translateY(-32.8%); } 75% { transform: translateY(-33.5%); } 100% { transform: translateY(-33.333333%); } }
+@keyframes winningReel { 0% { transform: translateY(-33.333333%) scale(.95); } 55% { transform: translateY(-33.333333%) scale(1.06); } 100% { transform: translateY(-33.333333%) scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .display,
-  .symbol,
-  .symbolMotion,
-  .image {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
-    filter: none !important;
-  }
+  .display, .symbol, .movingStrip, .stoppedStrip, .image { animation: none !important; transition: none !important; filter: none !important; }
+  .movingStrip { transform: translateY(-40%); will-change: auto; }
+  .stoppedStrip { transform: translateY(-33.333333%); }
 }

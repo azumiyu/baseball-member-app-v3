@@ -8,6 +8,7 @@ import { MAX_SWING_MS } from "./horie-bench";
 import { RAMEN, validateRamenInputs } from "./ramen";
 import { DODGE, validateDodgeMoves } from "./shibata-dodge";
 import { validateNanairoInput, normalizeNanairo } from "./nanairo";
+import { ROYALE, validateRoyaleDeck, validateRoyaleInputs } from "./yg-royale";
 
 type Score = Omit<LeaderboardEntry, "rank">;
 type GameContext = { member: AuthMember; sessionHash: string; run: GameRun<GameResult> | null; scores: Score[] };
@@ -27,7 +28,7 @@ export async function readGameContext(req: Request, gameId: string): Promise<Gam
   const row = await db().prepare(`
     SELECT p.id,p.name,p.number,p.is_admin,p.can_edit_lineup,
       (SELECT json_object('id',r.run_id,'gameId',r.game_id,'turn',r.turn,'balance',r.balance,
-        'status',r.status,'lastRequestId',r.last_request_id,'lastResult',json(r.result_json))
+        'status',r.status,'lastRequestId',r.last_request_id,'lastResult',r.result_json)
        FROM mini_game_runs r WHERE r.game_id=? AND r.player_id=p.id) AS run_json,
       (SELECT json_group_array(json_object('playerId',scores.player_id,'name',scores.name,
         'number',scores.number,'score',scores.score,'achievedAt',scores.achieved_at))
@@ -40,6 +41,10 @@ export async function readGameContext(req: Request, gameId: string): Promise<Gam
   `).bind(gameId, gameId, sessionHash, Date.now()).first<ContextRow>();
   if (!row) return null;
   const run = row.run_json ? JSON.parse(row.run_json) as GameRun<GameResult> : null;
+  // Keep the saved JSON as text through SQLite: json(result_json) can round
+  // floating-point positions and elixir, breaking an otherwise exact replay.
+  // Parsing here also preserves null and all existing games' result shapes.
+  if (run && typeof run.lastResult === "string") run.lastResult = JSON.parse(run.lastResult) as GameResult | null;
   if (run?.lastResult && "kind" in run.lastResult && run.lastResult.kind === "nanairo") {
     run.lastResult = normalizeNanairo(run.lastResult);
   }
@@ -67,8 +72,25 @@ export function parseGameRequest(value: unknown): GameRequest {
     || (body.runId !== null && !isId(body.runId)) || !Number.isSafeInteger(body.turn) || (body.turn as number) < 0) {
     throw new GameInputError("ゲームの操作を確認してください。");
   }
-  if (body.action === "start") return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null, turn: body.turn as number };
   const engine = gameEngine(body.gameId)!;
+  if (body.action === "start") {
+    try {
+      const deck = engine.kind === "royale" && body.deck !== undefined ? validateRoyaleDeck(body.deck) : undefined;
+      return { action: "start", gameId: body.gameId, requestId: body.requestId, runId: body.runId as string | null,
+        turn: body.turn as number, ...(deck ? { deck } : {}) };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "デッキを確認してください。");
+    }
+  }
+  if (body.action === "royale-step" && engine.kind === "royale" && isId(body.runId)
+    && Number.isSafeInteger(body.toTick) && (body.toTick as number) > 0) {
+    try {
+      return { action: "royale-step", gameId: body.gameId, requestId: body.requestId, runId: body.runId,
+        turn: body.turn as number, toTick: body.toTick as number, inputs: validateRoyaleInputs(body.inputs) };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "出撃の操作を確認してください。");
+    }
+  }
   if (body.action === "nanairo-pitch" && engine.kind === "nanairo" && isId(body.runId)) {
     try {
       const input = validateNanairoInput(body.target, body.elapsedMs);
@@ -154,7 +176,8 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
         : engine.kind === "bench" ? engine.prepare(random)
         : engine.kind === "ramen" ? engine.prepare(now)
         : engine.kind === "nanairo" ? engine.prepare(random)
-        : engine.kind === "dodge" ? engine.prepare(random, now) : null };
+        : engine.kind === "dodge" ? engine.prepare(random, now)
+        : engine.kind === "royale" ? engine.prepare(Math.floor(random() * 0x100000000), now, request.deck) : null };
     const saved = await database.prepare(`
       INSERT INTO mini_game_runs(game_id,player_id,run_id,turn,balance,status,last_request_id,result_json,started_at,updated_at)
       SELECT ?,?,?,0,?,'playing',?,?,?,? WHERE ${authGuard}
@@ -205,6 +228,21 @@ export async function playGame(context: GameContext, request: GameRequest): Prom
       run = { ...current, turn: current.turn + 1, balance: result.score, status: result.status, lastResult: result, lastRequestId: request.requestId };
     } catch (error) {
       throw new GameInputError(error instanceof Error ? error.message : "移動の操作履歴を確認してください。");
+    }
+  } else if (engine.kind === "royale" && request.action === "royale-step") {
+    const state = current.lastResult;
+    if (!state || !("kind" in state) || state.kind !== "yg-royale" || state.version !== 2) return null;
+    // Replay only bounded, elapsed simulation time. Neither a browser-supplied
+    // kill-point total nor unit/tower state is accepted by this protocol.
+    if (!Number.isSafeInteger(state.preparedAt) || now - state.preparedAt < request.toTick * ROYALE.stepMs) {
+      throw new GameInputError("ゲームの経過時間を確認してください。");
+    }
+    try {
+      const result = engine.play(state, request.inputs, request.toTick);
+      run = { ...current, turn: current.turn + 1, balance: result.score,
+        status: result.status, lastResult: result, lastRequestId: request.requestId };
+    } catch (error) {
+      throw new GameInputError(error instanceof Error ? error.message : "出撃の操作を確認してください。");
     }
   } else if (engine.kind === "nanairo" && request.action === "nanairo-pitch") {
     const state = current.lastResult;

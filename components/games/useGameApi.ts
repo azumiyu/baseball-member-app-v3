@@ -20,7 +20,8 @@ export function useGameApi<TResult = TurnResult>(gameId: string) {
 
   const read = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch(`/api/games?game=${encodeURIComponent(gameId)}`, { cache: "no-store", signal });
+      const endpoint = gameId === "kobayashi-marathon" ? "/api/games/marathon" : `/api/games?game=${encodeURIComponent(gameId)}`;
+      const response = await fetch(endpoint, { cache: "no-store", signal });
       const value = await response.json() as GameSnapshot<TResult> & { error?: string };
       if (response.status === 401) {
         if (alive.current) setUnauthorized(true);

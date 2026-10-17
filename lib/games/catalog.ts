@@ -11,10 +11,21 @@ export type GameDefinition = {
   scoreUnit: string;
   scoreScale?: number;
   precision?: number;
+  scoreMode?: "cumulative";
 };
 
 /** Add a definition here when introducing another game to the team arcade. */
 export const GAME_CATALOG: readonly GameDefinition[] = [
+  {
+    id: "yg-clash-royale-defense",
+    title: "YGクラロワ",
+    description: "様々なキャラを使って自分のタワーを守ろう。相性で押し寄せる敵を迎撃し、強敵ほど高い撃破ポイントを獲得！",
+    href: "/game/yg-clash-royale",
+    image: "/nanairo/chiaki.png",
+    version: 2,
+    scoreLabel: "撃破ポイント",
+    scoreUnit: "pt",
+  },
   {
     id: "kawataka-chinchiro",
     title: "川高の振れ！チンチロ！",
@@ -24,6 +35,19 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     version: 1,
     scoreLabel: "最終持ち金",
     scoreUnit: "円",
+  },
+  {
+    id: "kobayashi-marathon",
+    title: "小林の走れ！マラソン！",
+    description: "小林はずっと走り続ける。のどが渇いたタイミングで給水して、累計の水の量で競おう！",
+    href: "/game/kobayashi-marathon",
+    image: "/homepage/introduce/4.JPEG",
+    version: 1,
+    scoreLabel: "累計給水量",
+    scoreUnit: "L",
+    scoreScale: 1000,
+    precision: 3,
+    scoreMode: "cumulative",
   },
   {
     id: "oshino-fastball",
@@ -81,7 +105,7 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
   {
     id: "goto-nanairo",
     title: "後藤の投げろ！七色のシンカー！",
-    description: "フルカウントから5打者勝負！七色の軌道とリリースで三振を奪え。魔球も失投も、運しだい。",
+    description: "フルカウントから5打者勝負！七色の軌道とリリースで三振を奪え。魔球も失投も運しだい。",
     href: "/game/goto-nanairo",
     image: "/nanairo/top.png",
     version: 1,

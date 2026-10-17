@@ -1,6 +1,7 @@
 export const NANAIRO = {
   gameId: "goto-nanairo", batters: 5, maxReleaseMs: 4_000,
   rareChance: 0.02, rareBonus: 1_000, abeBonus: 1_500, limitBreakChance: 0.15, limitBreakValue: 10,
+  outOfParkPenalty: 10_000,
   perfectMs: 10, goodMs: 40, goodPenalty: 5, missPenalty: 35,
   perfectBoost: 0.03, perfectStrikeoutBonus: 500, courseBonus: 400,
   kitazawaWeight: 0.8, kitazawaBonus: 400, strongPerfectWhiff: 0.40, strongPerfectHit: 0.20, ikeharaPerfectWhiff: 0.20, ikeharaPerfectHit: 0.10,
@@ -168,11 +169,12 @@ export function nanairoWhiffRate(pitchId: NanairoPitchId, batterId: NanairoBatte
     - (isStrongAgainstUltimate(pitchId, batterId) ? NANAIRO.ultimateResistanceWhiff : 0);
   return clamp(rate, 0.03, 0.98);
 }
-export function nanairoPoints(outcome: NanairoOutcome, pitchId: NanairoPitchId, batterId: NanairoBatterId, previousStreak: number, landing?: NanairoPoint, judgement?: NanairoJudgement) {
+export function nanairoPoints(outcome: NanairoOutcome, pitchId: NanairoPitchId, batterId: NanairoBatterId, previousStreak: number, landing?: NanairoPoint, judgement?: NanairoJudgement, outOfPark = false) {
   const strikeout = outcome === "swing-k" || outcome === "looking-k";
+  const outOfParkHomer = outcome === "homer" && outOfPark;
   const streak = strikeout ? previousStreak + 1 : 0;
   const basePoints = outcome === "swing-k" ? 1_000 : outcome === "looking-k" ? 800
-    : outcome === "homer" ? -2_000 : outcome === "triple" ? -1_500 : outcome === "double" ? -1_000
+    : outcome === "homer" ? (outOfParkHomer ? -NANAIRO.outOfParkPenalty : -2_000) : outcome === "triple" ? -1_500 : outcome === "double" ? -1_000
       : outcome === "walk" ? -500 : outcome === "out" ? 500 : -500;
   const comboBonus = streak === 2 ? 500 : streak >= 3 ? 1_000 : 0;
   // Retain the field for saved-result compatibility. New scores have no magic bonus.
@@ -240,7 +242,7 @@ export function playNanairo(state: NanairoState, target: NanairoPoint, elapsedMs
   let outcome: NanairoOutcome;
   let outOfPark = false;
   if (luckyControl) {
-    if (draw(random) >= 0.99) {
+    if (draw(random) >= 0.95) {
       outcome = "homer";
       outOfPark = true;
       swung = true;
@@ -265,7 +267,7 @@ export function playNanairo(state: NanairoState, target: NanairoPoint, elapsedMs
         : roll < homerRate + (1 - homerRate) * (tripleRate + doubleRate) ? "double" : "single";
     }
   }
-  const score = nanairoPoints(outcome, ready.pitchId, ready.batterId, state.streak, landing, release.judgement);
+  const score = nanairoPoints(outcome, ready.pitchId, ready.batterId, state.streak, landing, release.judgement, outOfPark);
   const total = state.total + score.points;
   const result: NanairoPitchResult = { ...ready, ...release, ...score, target: input.target, landing, errorMs,
     misthrow, wild, swung, whiffRate, power, meet, limitBreak, outcome, total, outOfPark };

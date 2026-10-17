@@ -71,7 +71,12 @@ test("Kitazawa's ordinary selection weight is 0.8 and all five opponents remain 
 test("course matchups remain effective and Yamaki/Kawanabe are strong only against ultimate sinkers", () => {
   const center={x:50,y:50};
   assert.equal(nanairoWhiffRate("normal","yamaki",{x:85,y:50}), nanairoWhiffRate("normal","chiaki",center));
-  assert(Math.abs(nanairoWhiffRate("ultimate","ikehara",center)-nanairoWhiffRate("normal","ikehara",center)-.4)<1e-9);
+  // ミート6の池原は通常シンカーの計算値2%が下限3%に補正される。
+  const ikeharaNormal=nanairoWhiffRate("normal","ikehara",center);
+  const ikeharaUltimate=nanairoWhiffRate("ultimate","ikehara",center);
+  assert.equal(ikeharaNormal,.03);
+  assert(Math.abs(ikeharaUltimate-.42)<1e-9);
+  assert(Math.abs(ikeharaUltimate-ikeharaNormal-.39)<1e-9);
   assert(nanairoWhiffRate("normal","misawa",{x:50,y:85})<nanairoWhiffRate("normal","kan",{x:85,y:50}));
   assert(nanairoWhiffRate("normal","kan",{x:16,y:85})>nanairoWhiffRate("normal","kan",center));
   assert(nanairoWhiffRate("normal","kan",center,10)<nanairoWhiffRate("normal","kan",center,3));
@@ -343,7 +348,7 @@ test("PERFECT improves the matchup and adds 500 points only for swing or looking
   }
 });
 
-test("lucky batters have exactly 99% outs and 1% out-of-park homers on clean PERFECT or GOOD",()=>{
+test("lucky batters have exactly 95% outs and 5% out-of-park homers on clean PERFECT or GOOD",()=>{
   for(const id of ["ishihata","abe"]) {
     assert.equal(nanairoBatter(id).power,1); assert.equal(nanairoBatter(id).meet,1);
     for(const elapsed of [1900,1930]) {
@@ -351,13 +356,35 @@ test("lucky batters have exactly 99% outs and 1% out-of-park homers on clean PER
       for(let i=0;i<1000;i++) {
         const r=playNanairo(stateFor(id),{x:50,y:50},elapsed,sequence(.99,(i+.5)/1000,.99)).history[0];
         if(r.outcome==="homer") {
-          homers++; assert.equal(r.outOfPark,true); assert.equal(r.points,-2000);
+          homers++; assert.equal(r.outOfPark,true); assert.equal(r.points,-10000);
           assert.equal(nanairoOutcomeLabel(r),"場外ホームラン…！");
         } else {
           outs++; assert.equal(r.outcome,"out"); assert.equal(r.luckyBonus,id === "abe" ? 1500 : 1000); assert.equal(r.points,id === "abe" ? 2000 : 1500);
         }
       }
-      assert.equal(outs,990); assert.equal(homers,10);
+      assert.equal(outs,950); assert.equal(homers,50);
+    }
+  }
+});
+
+test("out-of-park homers apply each pitch multiplier to the 10000 base penalty for either lucky batter",()=>{
+  for(const batterId of ["ishihata","abe"]) {
+    for(const pitch of NANAIRO_PITCHES) {
+      for(const elapsed of [1900,1930]) {
+        const initial={...stateFor(batterId,pitch.id),total:777,streak:3};
+        const after=playNanairo(initial,{x:50,y:50},elapsed,sequence(.99,.999));
+        const r=after.history[0];
+        assert.equal(r.outOfPark,true,`${batterId}: ${pitch.id}`);
+        assert.equal(r.outcome,"homer");
+        assert.equal(r.basePoints,-10000);
+        assert.equal(r.points,-10000*pitch.multiplier);
+        assert.equal(r.multiplier,pitch.multiplier);
+        assert.equal(r.luckyBonus,0);
+        assert.equal(r.comboBonus,0);
+        assert.equal(r.perfectBonus,0);
+        assert.equal(r.streak,0);
+        assert.equal(after.total,777-10000*pitch.multiplier);
+      }
     }
   }
 });
@@ -376,7 +403,7 @@ test("lucky guarantee excludes MISS and misthrows; all three out kinds still ear
 });
 
 test("updated base abilities apply to actual pitches", () => {
-  for (const [id, power, meet] of [["kitazawa",8,8],["chiaki",8,3],["ikehara",5,5],["yamaki",4,3],["kawanabe",3,4],["misawa",5,3],["kan",2,2],["kobayashi",2,2],["ishihata",1,1],["abe",1,1]]) {
+  for (const [id, power, meet] of [["kitazawa",8,8],["chiaki",9,3],["ikehara",6,6],["yamaki",4,3],["kawanabe",3,4],["misawa",5,3],["kan",2,2],["kobayashi",2,2],["ishihata",1,1],["abe",1,1]]) {
     const pitch = result(stateFor(id), sequence(.99));
     assert.equal(pitch.power, power, id);
     assert.equal(pitch.meet, meet, id);
