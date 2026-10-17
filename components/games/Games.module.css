@@ -36,7 +36,10 @@
 .cardCopy p { margin: 0 0 22px; font-size: 12px; line-height: 1.9; color: #5a6459; }
 .playLink { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; border-bottom: 2px solid #a87631; padding-bottom: 4px; }
 .gameCard .leaderboard { margin: 0; border: 0; border-radius: 0; background: transparent; }
-.gameCard .accessState { min-height: 180px; }
+.gameCard .accessState { min-height: 180px; }.cardArt[data-crop="oshino"] img {
+  object-position: 95% 30%;
+  transform: translateX(-10px);
+}
 .gameHeading { margin-bottom: 25px; text-align: center; }
 .gameHeading > p { justify-content: center; font-size: 10px; }
 .gameHeading h1 { margin: 0 0 10px; font-size: clamp(27px, 6vw, 42px); font-weight: 900; line-height: 1.5; letter-spacing: -.055em; text-shadow: 3px 3px 0 #080e0d; }
