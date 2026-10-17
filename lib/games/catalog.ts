@@ -55,6 +55,7 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     description: "振りかぶって、リリースの一瞬を狙え。200.00 km/hへのシビアな一球勝負。",
     href: "/game/oshino-fastball",
     image: "/game/oshino.PNG",
+    imageCrop: "oshino",
     version: 1,
     scoreLabel: "最速球速",
     scoreUnit: "km/h",
