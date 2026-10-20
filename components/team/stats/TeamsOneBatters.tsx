@@ -109,7 +109,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
         <p className="teamsone-batters-scroll-hint"><ArrowLeftRight size={14} aria-hidden="true" />横スクロールで全項目を表示</p>
       </div>
       <div className="teamsone-batters-scroll" role="region" aria-label="打者成績一覧（横スクロール）" tabIndex={0}>
-        <table className="teamsone-batters-table">
+        <table className="teamsone-batters-table teamsone-batters-list-table">
           <caption className="sr-only">YGファイヤーズ {data.season} {gameTypeLabel} 打者成績一覧</caption>
           <thead><tr>
             <th scope="col" aria-sort={sortDirection(-1)}><button type="button" onClick={() => changeSort(-1)}><span>背番号・選手</span>{sortMarks}</button></th>
