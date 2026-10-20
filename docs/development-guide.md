@@ -19,6 +19,7 @@
 | `components/team/lib/api.ts` | JSON通信、HTTPエラーの変換 |
 | `components/team/lib/lineup-actions.ts` / `lib/model.ts` | オーダー・選手のデータ操作と検証 |
 | `components/team/stats/StatsView.tsx` | 試合・選手の選択、入力下書き、成績登録・予定との連携 |
+| `components/team/stats/TeamsOneBatters.tsx` / `lib/teamsone-batters*.ts` | Teams.oneの打者成績一覧、HTML解析、15分キャッシュ |
 | `components/team/stats/StatsEntryFields.tsx` / `StatsConfirmation.tsx` | 打席・数値の入力欄 / 登録済み成績の一覧 |
 | `components/team/stats/stats-actions.ts` | 成績入力の更新、選手の並べ替え、成績削除と紐付けの整理 |
 | `components/team/stats/StatsValues.tsx` / `stats-summary.ts` | 確認画面の表示 / 成績集計・安打判定 |

@@ -30,6 +30,8 @@ import { LoadingState } from "../common/LoadingState";
 import { StatsEntryFields } from "./StatsEntryFields";
 import { PitchingEntryFields } from "./PitchingEntryFields";
 import { StatsConfirmation } from "./StatsConfirmation";
+import { PersonalStats } from "./PersonalStats";
+import { TeamsOneBatters } from "./TeamsOneBatters";
 import { comparePlayersByNumber, removeStatsRegistration } from "./stats-actions";
 import { compareScheduleChoices, defaultScheduleChoice, shortScheduleLabel } from "../lib/schedule-options";
 
@@ -59,7 +61,9 @@ export function StatsView({
   const [selection, setSelection] = useState<string | null>(null);
   const [showPastSchedules, setShowPastSchedules] = useState(false);
   const [linkScheduleId, setLinkScheduleId] = useState("");
-  const [statsTab, setStatsTab] = useState<"entry" | "confirmation">("entry");
+  const [statsTab, setStatsTab] = useState<"entry" | "confirmation" | "teamsone" | "personal">("entry");
+  const [hasOpenedPersonal, setHasOpenedPersonal] = useState(false);
+  const [hasOpenedTeamsOne, setHasOpenedTeamsOne] = useState(false);
   const [entryStatsTab, setEntryStatsTab] = useState<"batting" | "pitching">("batting");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
   const [registrationToDelete, setRegistrationToDelete] = useState<{
@@ -281,9 +285,13 @@ export function StatsView({
       <header className="page-heading">
         <div>
           <p className="eyebrow">GAME STATS</p>
-          <h1>{statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
+          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "teamsone" ? "打者成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
           <p>
-            {statsTab === "confirmation"
+            {statsTab === "personal"
+              ? "自分の今年・年別・通算の打者成績を確認できます。"
+              : statsTab === "teamsone"
+              ? "Teams.oneに登録された打者成績を確認できます。"
+              : statsTab === "confirmation"
               ? "試合ごとの成績を確認できます。"
               : member.isAdmin
                 ? "登録済みの試合・選手を選択して成績を入力してください。"
@@ -329,7 +337,33 @@ export function StatsView({
         >
           成績登録確認
         </button>
+        <button
+          className={statsTab === "teamsone" ? "active" : ""}
+          type="button"
+          aria-pressed={statsTab === "teamsone"}
+          onClick={() => {
+            setHasOpenedTeamsOne(true);
+            setStatsTab("teamsone");
+            setOpenPlate(null);
+            clearRegistrationMessage();
+          }}
+        >
+          打席成績一覧
+        </button>
+        <button
+          className={statsTab === "personal" ? "active" : ""}
+          type="button"
+          aria-pressed={statsTab === "personal"}
+          onClick={() => {
+            setHasOpenedPersonal(true);
+            setStatsTab("personal");
+            setOpenPlate(null);
+            clearRegistrationMessage();
+          }}
+        >個人成績</button>
       </nav>
+      {hasOpenedTeamsOne && <div className="stats-teamsone-pane" hidden={statsTab !== "teamsone"}><TeamsOneBatters active={statsTab === "teamsone"} /></div>}
+      {hasOpenedPersonal && <div className="stats-teamsone-pane" hidden={statsTab !== "personal"}><PersonalStats key={member.id} active={statsTab === "personal"} member={member} /></div>}
       {statsTab === "confirmation" ? (
         <StatsConfirmation
           games={visibleRegisteredGames}
@@ -350,7 +384,7 @@ export function StatsView({
           })}
           onAdd={() => setStatsTab("entry")}
         />
-      ) : (
+      ) : statsTab === "entry" ? (
         <div className="stats-entry-card panel">
           <div className="stats-game-fields">
             <div>
@@ -468,7 +502,7 @@ export function StatsView({
             </button>
           </div>
         </div>
-      )}
+      ) : null}
       {registrationMessage && (
         <div
           className={`stats-register-toast${registrationMessage === "リセットしました" ? " reset" : ""}`}
