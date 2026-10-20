@@ -366,3 +366,13 @@ test("zero leaders remain unhighlighted in all columns including .000 rates", ()
   const positive = { id: "positive", number: "99", name: "選手", values: headings.slice(1).map(() => "1") };
   assert(teamsOneColumnLeaders([...players, positive]).every(column => column.size === 1 && column.has("positive")));
 });
+
+test("personal crowns compare only qualified players and never award unqualified members", () => {
+  const players = [".800", ".500", ".400", ".300"].map((value, id) => ({ id: String(id), number: String(id), name: `選手${id}`, values: ["10", value] }));
+  const qualified = players.slice(1);
+  assert.equal(personalMetricRank(qualified, players[0], "打率"), undefined);
+  assert.deepEqual(qualified.map(player => personalMetricRank(qualified, player, "打率")), [1, 2, 3]);
+  assert.equal(personalMetricRank([], players[1], "打率"), undefined, "missing qualification data never falls back to all players");
+  const displayedZero = { ...players[1], values: ["10", ".000"] };
+  assert.equal(personalMetricRank(qualified, displayedZero, "打率"), undefined, "a displayed zero is never crowned even when ranking cache is older");
+});

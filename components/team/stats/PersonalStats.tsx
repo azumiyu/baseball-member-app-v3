@@ -33,21 +33,22 @@ export function PersonalStats({ active, member }: { active: boolean; member: Aut
     if (busy.current) return;
     busy.current = true;
     setLoading(true);
-    async function read(season: string) {
-      if (!refresh && Date.now() < (nextCheckAt.current.get(season) ?? 0)) return;
+    async function read(season: string, qualifiedOnly = false) {
+      const key = qualifiedOnly ? `qualified:${season}` : season;
+      if (!refresh && Date.now() < (nextCheckAt.current.get(key) ?? 0)) return;
       try {
-        const data = await api<TeamsOneBattingResponse>(`/api/teamsone/batters?year=${season}&unreached=true`);
-        saved.current = { ...saved.current, [season]: { data } };
-        nextCheckAt.current.set(season, Math.max(Date.now() + 60_000, Date.parse(data.fetchedAt) + TEAMS_ONE_BATTERS_FRESH_MS));
+        const data = await api<TeamsOneBattingResponse>(`/api/teamsone/batters?year=${season}&unreached=${!qualifiedOnly}`);
+        saved.current = { ...saved.current, [key]: { data } };
+        nextCheckAt.current.set(key, Math.max(Date.now() + 60_000, Date.parse(data.fetchedAt) + TEAMS_ONE_BATTERS_FRESH_MS));
       } catch (cause) {
-        saved.current = { ...saved.current, [season]: { ...saved.current[season], error: cause instanceof Error ? cause.message : "成績を取得できませんでした。" } };
-        nextCheckAt.current.set(season, Date.now() + 60_000);
+        saved.current = { ...saved.current, [key]: { ...saved.current[key], error: cause instanceof Error ? cause.message : "成績を取得できませんでした。" } };
+        nextCheckAt.current.set(key, Date.now() + 60_000);
       }
       if (alive.current) setEntries(saved.current);
     }
     try {
-      // Show this year's results first, then fetch history with at most two requests at a time.
-      await read(String(year));
+      // Fetch this year's values and qualified ranking pool first; at most two requests at a time.
+      await Promise.all([read(String(year)), read(String(year), true)]);
       if (!alive.current) return;
       const queue = [...teamsOneYears().filter(value => value !== year).reverse().map(String), "all"];
       await Promise.all([0, 1].map(async () => {
@@ -76,6 +77,7 @@ export function PersonalStats({ active, member }: { active: boolean; member: Aut
     return "";
   };
   const current = entries[String(year)];
+  const qualified = entries[`qualified:${year}`];
   const career = entries.all;
   const careerPlayer = selection(career).player;
   const statusLabel = (entry: Entry | undefined) => {
@@ -96,12 +98,12 @@ export function PersonalStats({ active, member }: { active: boolean; member: Aut
     const player = selection(entry).player;
     return <dl className="personal-stats-metrics">
       {PERSONAL_BATTING_METRICS.map(([column, label]) => {
-        const rank = personalMetricRank(entry?.data?.rows ?? [], player, column);
+        const rank = personalMetricRank(qualified?.data?.rows ?? [], player, column);
         return <div key={column}>
           <dt>{label}{rank !== undefined && rank <= 3 && <span
             className={`personal-stats-rank personal-stats-rank-${rank}`}
-            role="img" aria-label={`チーム内${rank}位`}
-            title={`チーム内${rank}位（同率を含む・数値が多い順）`}
+            role="img" aria-label={`チーム内${rank}位（規定到達者）`}
+            title={`規定到達者の中で${rank}位（同率を含む・数値が多い順）`}
           ><Crown size={13} aria-hidden="true" /><span aria-hidden="true">{rank}位</span></span>}</dt>
           <dd>{personalMetricValue(player, column)}</dd>
         </div>;
@@ -125,7 +127,8 @@ export function PersonalStats({ active, member }: { active: boolean; member: Aut
       </div>
       {notice(current)}
       {metrics(current)}
-      {selection(current).player && <p className="personal-stats-rank-note">王冠は今年の掲載全選手の上位3位です。全項目で数値が多い順・同率は同順位です。</p>}
+      {selection(current).player && <p className="personal-stats-rank-note">王冠は今年の規定到達者の上位3位です。全項目で数値が多い順・同率は同順位、0は対象外です。</p>}
+      {(qualified?.error || qualified?.data?.stale) && <p className="personal-stats-rank-note" role="status">{qualified.data ? "順位の更新を確認できなかったため、王冠は前回取得した規定到達者の成績を基に表示しています。" : "規定到達者の成績を取得できなかったため、王冠を表示していません。"}</p>}
     </section>
 
     <section className="panel teamsone-batters personal-stats-history" aria-labelledby="personal-history-title">

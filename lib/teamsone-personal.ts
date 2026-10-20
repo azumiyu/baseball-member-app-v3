@@ -28,7 +28,7 @@ export function personalMetricValue(player: TeamsOneBatter | undefined, column: 
 }
 
 /** Descending competition ranks: equal values share a rank (1, 1, 3).
- * All published teammates participate, including players below qualification.
+ * Callers supply only qualified teammates as the ranking pool.
  * A zero result is ineligible for a crown, including rates such as .000.
  */
 export function personalMetricRank(rows: TeamsOneBatter[], player: TeamsOneBatter | undefined, column: typeof TEAMS_ONE_BATTERS_COLUMNS[number]): number | undefined {
@@ -40,6 +40,8 @@ export function personalMetricRank(rows: TeamsOneBatter[], player: TeamsOneBatte
   };
   const published = rows.find(row => row.id === player.id);
   if (!published) return undefined;
+  const displayedValue = numeric(player);
+  if (!Number.isFinite(displayedValue) || displayedValue === 0) return undefined;
   const value = numeric(published);
   if (!Number.isFinite(value) || value === 0) return undefined;
   return 1 + rows.filter(row => {
