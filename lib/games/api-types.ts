@@ -5,10 +5,12 @@ import type { BetType, HorseRaceState } from "./horse-racing";
 import type { BenchRunResult } from "./horie-bench";
 import type { RamenInput, RamenRunResult } from "./ramen";
 import type { DodgeMove, DodgeState } from "./shibata-dodge";
+import type { NanairoPoint, NanairoState } from "./nanairo";
+import type { RoyaleInput, RoyaleState } from "./yg-royale";
 
 export type FastballReady = { kind: "fastball-ready"; releaseMs: number };
 export type FastballRunResult = FastballReady | FastballResult;
-export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult | DodgeState;
+export type GameResult = TurnResult | FastballRunResult | HorseRaceState | BenchRunResult | RamenRunResult | DodgeState | NanairoState | RoyaleState;
 
 export type GameRun<TResult = TurnResult> = {
   id: string;
@@ -43,6 +45,8 @@ export type StartGameRequest = {
   requestId: string;
   runId: string | null;
   turn: number;
+  /** Only used by YGクラロワ. Other games retain their existing start request. */
+  deck?: string[];
 };
 
 export type PlayTurnRequest = {
@@ -111,4 +115,24 @@ export type DodgeStepRequest = {
   moves: DodgeMove[];
 };
 
-export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest | DodgeStepRequest;
+export type NanairoPitchRequest = {
+  action: "nanairo-pitch";
+  gameId: string;
+  requestId: string;
+  runId: string;
+  turn: number;
+  target: NanairoPoint;
+  elapsedMs: number;
+};
+
+export type RoyaleStepRequest = {
+  action: "royale-step";
+  gameId: string;
+  requestId: string;
+  runId: string;
+  turn: number;
+  toTick: number;
+  inputs: RoyaleInput[];
+};
+
+export type GameRequest = StartGameRequest | PlayTurnRequest | PitchRequest | HorseBuyRequest | HorseRaceRequest | BenchSwingRequest | RamenFinishRequest | DodgeStepRequest | NanairoPitchRequest | RoyaleStepRequest;

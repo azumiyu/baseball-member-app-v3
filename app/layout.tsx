@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Script from "next/script";
 export const metadata: Metadata = {
     title: "YGファイヤーズ公式ページ",
     description: "YGファイヤーズの公式ページとなります。",
@@ -14,6 +15,13 @@ export default function RootLayout({
     return (
         <html lang="ja">
             <body>{children}</body>
+
+            <Script
+                type="module"
+                src="https://static.cloudflareinsights.com/beacon.min.js"
+                strategy="afterInteractive"
+                data-cf-beacon='{"token": "7cb7a310e5cc4d7a9e34506718100aab"}'
+            ></Script>
         </html>
     );
 }

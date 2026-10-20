@@ -145,6 +145,15 @@ export const playerGameStats = sqliteTable("player_game_stats", {
     caughtStealingAttempts: integer("caught_stealing_attempts").notNull().default(0),
     errors: integer("errors").notNull().default(0),
     caughtStealing: integer("caught_stealing").notNull().default(0),
+    pitchingRecorded: integer("pitching_recorded").notNull().default(0),
+    inningsPitchedOuts: integer("innings_pitched_outs").notNull().default(0),
+    runsAllowed: integer("runs_allowed").notNull().default(0),
+    earnedRuns: integer("earned_runs").notNull().default(0),
+    hitsAllowed: integer("hits_allowed").notNull().default(0),
+    homeRunsAllowed: integer("home_runs_allowed").notNull().default(0),
+    strikeouts: integer("strikeouts").notNull().default(0),
+    walksAllowed: integer("walks_allowed").notNull().default(0),
+    hitByPitch: integer("hit_by_pitch").notNull().default(0),
 }, (table) => [
     primaryKey({ columns: [table.gameDate, table.gameNumber, table.playerId] }),
     foreignKey({
@@ -197,6 +206,22 @@ export const miniGameScores = sqliteTable("mini_game_scores", {
     primaryKey({ columns: [table.gameId, table.playerId] }),
     index("mini_game_scores_ranking_idx").on(table.gameId, sql`${table.score} DESC`, sql`${table.achievedAt} ASC`, sql`${table.playerId} ASC`),
     check("mini_game_scores_score_check", sql`${table.score} >= 0`),
+]);
+
+// One shared runner. Distance and thirst are derived from these timestamps;
+// rows are written only when someone successfully gives water.
+export const marathonState = sqliteTable("marathon_state", {
+    id: integer("id").primaryKey(),
+    startedAt: integer("started_at").notNull(),
+    lastWateredAt: integer("last_watered_at").notNull(),
+    revision: integer("revision").notNull().default(0),
+    totalWaterMl: integer("total_water_ml").notNull().default(0),
+    lastGiverName: text("last_giver_name"),
+    writeToken: text("write_token").notNull().default(""),
+}, (table) => [
+    check("marathon_state_singleton_check", sql`${table.id} = 1`),
+    check("marathon_state_revision_check", sql`${table.revision} >= 0`),
+    check("marathon_state_total_check", sql`${table.totalWaterMl} >= 0`),
 ]);
 
 export const accountingEntries = sqliteTable("accounting_entries", {

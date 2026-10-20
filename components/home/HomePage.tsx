@@ -307,11 +307,11 @@ export function HomePage({
               <ArrowUpRight size={19} />
             </a>
 
-            <Link href="/" onClick={() => setMenuOpen(false)}>
+            <a href="/menber" onClick={() => setMenuOpen(false)}>
               <span>04</span>
               <strong>メンバー専用ページ</strong>
               <ArrowUpRight size={19} />
-            </Link>
+            </a>
 
             {/* 編集権限を持つ人だけ表示 */}
             {canEdit && (

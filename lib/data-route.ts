@@ -5,7 +5,7 @@ import { AccountingPermissionError } from "./normalized-store";
 import { gameKey, parseGameKey, validateStatsData, type StatsData } from "./stats";
 import { SCHEDULE_LIMITS, validateScheduleData, type ScheduleData } from "./schedule";
 import { getSession, json, readBody, renewSessionHeaders, sameOrigin } from "./server";
-import { decodeData, encodeData, readSnapshot, writeChanges, synchronizeTeamSnapshot, teamScheduleMetadata, statsScheduleMetadata, mergeScheduleChanges, SCHEDULE_PAGE_SIZE, StatsPermissionError, StatsScheduleError, LineupPermissionError, SchedulePermissionError, TeamSettingsPermissionError, type DataScope, type ScopeData, type ScheduleQuery } from "./normalized-store";
+import { decodeData, encodeData, readSnapshot, writeChanges, synchronizeTeamSnapshot, teamScheduleMetadata, statsScheduleMetadata, statsLineupMetadata, mergeScheduleChanges, SCHEDULE_PAGE_SIZE, StatsPermissionError, StatsScheduleError, LineupPermissionError, SchedulePermissionError, TeamSettingsPermissionError, type DataScope, type ScopeData, type ScheduleQuery } from "./normalized-store";
 
 const validators = { team: validateData, equipment: validateEquipmentData, stats: validateStatsData, schedule: validateScheduleData, accounting: validateAccountingData };
 const labels = { team: "チーム", equipment: "道具", stats: "成績", schedule: "スケジュール", accounting: "会計" };
@@ -78,7 +78,7 @@ export function dataRoute(scope: DataScope) {
             nextCursor: hasMore && last ? { date: last.date, id: last.id } : null }, 200, headers);
         }
         return json({ data: decodeData(scope, snapshot.tables), revision: snapshot.revision, member: snapshot.member,
-          ...(scope === "team" ? teamScheduleMetadata(snapshot) : scope === "stats" ? statsScheduleMetadata(snapshot) : {}) }, 200, headers);
+          ...(scope === "team" ? teamScheduleMetadata(snapshot) : scope === "stats" ? { ...statsScheduleMetadata(snapshot), ...statsLineupMetadata(snapshot) } : {}) }, 200, headers);
       } catch {
         return json({ error: `${labels[scope]}データを読み込めませんでした。再試行してください。` }, 503);
       }
@@ -143,7 +143,7 @@ export function dataRoute(scope: DataScope) {
           const saved = await readSnapshot(req, "stats", { revision: result.revision, mode: "matching" });
           if (!saved) return json({ error: "再ログインしてください。" }, 401);
           if (!saved.tables || saved.revision !== result.revision) return conflict();
-          return json({ revision: saved.revision, data: decodeData("stats", saved.tables) }, 200, renewSessionHeaders(req));
+          return json({ revision: saved.revision, data: decodeData("stats", saved.tables), ...statsLineupMetadata(saved) }, 200, renewSessionHeaders(req));
         }
         if (scope === "team" && result.data) {
           snapshot.tables = encodeData("team", result.data);

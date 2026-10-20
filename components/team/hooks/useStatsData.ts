@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { initialStatsData, type StatsData, type StatsSchedulePage } from "@/lib/stats";
+import { initialStatsData, type StatsData, type StatsLineupData, type StatsLineups, type StatsSchedulePage } from "@/lib/stats";
 import { api } from "../lib/api";
 import { useAutosavedData, type AutosavedDataSource, type DataSnapshot } from "./useAutosavedData";
 
@@ -17,10 +17,11 @@ function saveStats(data: StatsData, revision: number, savedJson: string) {
   );
   const removedGames = Object.keys(previous.games).filter((key) => !Object.hasOwn(data.games, key));
   const scheduleIds = Object.fromEntries(Object.keys(games).filter((key) => data.scheduleIds[key]).map((key) => [key, data.scheduleIds[key]]));
-  return api<{ revision: number; data: StatsData }>("/api/stats", "PUT", { data: { games, scheduleIds }, removedGames, partial: true, revision }, API_ERROR);
+  return api<DataSnapshot<StatsData> & StatsLineupData>("/api/stats", "PUT", { data: { games, scheduleIds }, removedGames, partial: true, revision }, API_ERROR);
 }
 
 export function useStatsData() {
+  const [lineups, setLineups] = useState<StatsLineups>({});
   const [page, setPage] = useState<StatsSchedulePage>({ schedules: [], hasMoreSchedules: false, nextScheduleCursor: null });
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
@@ -31,21 +32,28 @@ export function useStatsData() {
     mounted.current = true;
     return () => { mounted.current = false; epoch.current += 1; };
   }, []);
+  const save = useCallback(async (data: StatsData, revision: number, savedJson: string) => {
+    const request = epoch.current;
+    const result = await saveStats(data, revision, savedJson);
+    if (mounted.current && epoch.current === request) setLineups(result.lineups);
+    return result;
+  }, []);
   const source = useMemo<AutosavedDataSource<StatsData>>(() => ({
     initialData: initialStatsData,
     load: async () => {
       const request = ++epoch.current;
-      const result = await api<DataSnapshot<StatsData> & StatsSchedulePage>("/api/stats", "GET", undefined, API_ERROR);
+      const result = await api<DataSnapshot<StatsData> & StatsSchedulePage & StatsLineupData>("/api/stats", "GET", undefined, API_ERROR);
       if (mounted.current && epoch.current === request) {
         setPage({ schedules: result.schedules, hasMoreSchedules: result.hasMoreSchedules, nextScheduleCursor: result.nextScheduleCursor });
+        setLineups(result.lineups);
         setScheduleError("");
       }
       return result;
     },
-    save: saveStats,
+    save,
     acceptSavedData: true,
     loadError: "成績データを読み込めませんでした。",
-  }), []);
+  }), [save]);
   const stats = useAutosavedData(source);
   const loadOlderSchedules = useCallback(async () => {
     if (!page.hasMoreSchedules || !page.nextScheduleCursor || pageBusy.current || stats.loading) return;
@@ -65,5 +73,5 @@ export function useStatsData() {
       if (mounted.current) setSchedulesLoading(false);
     }
   }, [page.hasMoreSchedules, page.nextScheduleCursor, stats.loading]);
-  return { ...stats, schedules: page.schedules, hasMoreSchedules: page.hasMoreSchedules, schedulesLoading, scheduleError, loadOlderSchedules };
+  return { ...stats, lineups, schedules: page.schedules, hasMoreSchedules: page.hasMoreSchedules, schedulesLoading, scheduleError, loadOlderSchedules };
 }
