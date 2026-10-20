@@ -12,7 +12,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
   const [data, setData] = useState<TeamsOneBattingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sort, setSort] = useState<{ column: number; descending: boolean } | null>(null);
+  const [sort, setSort] = useState({ column: -1, descending: false });
   const requestId = useRef(0);
   const saved = useRef(new Map<string, { data: TeamsOneBattingResponse; nextCheckAt: number }>());
   const alive = useRef(false);
@@ -62,9 +62,9 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
   };
   const gameTypeLabel = TEAMS_ONE_GAME_TYPES.find(option => option.value === gameType)?.label ?? "試合属性";
 
-  const rows = useMemo(() => data ? sort ? sortTeamsOneBatters(data.rows, sort.column, sort.descending) : data.rows : [], [data, sort]);
-  const changeSort = (column: number) => setSort(current => ({ column, descending: current?.column === column ? !current.descending : column !== -1 }));
-  const sortDirection = (column: number) => sort?.column === column ? sort.descending ? "descending" as const : "ascending" as const : undefined;
+  const rows = useMemo(() => data ? sortTeamsOneBatters(data.rows, sort.column, sort.descending) : [], [data, sort]);
+  const changeSort = (column: number) => setSort(current => ({ column, descending: current.column === column ? !current.descending : column !== -1 }));
+  const sortDirection = (column: number) => sort.column === column ? sort.descending ? "descending" as const : "ascending" as const : undefined;
   const sortMarks = <span className="teamsone-batters-sort-marks" aria-hidden="true"><span>▲</span><span>▼</span></span>;
 
   return <section className="panel teamsone-batters" aria-labelledby="teamsone-batters-title">
