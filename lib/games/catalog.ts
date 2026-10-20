@@ -4,7 +4,7 @@ export type GameDefinition = {
   description: string;
   href: string;
   image: string;
-  imageCrop?: "left-half";
+  imageCrop?: "left-half" | "oshino";
   /** Display/documentation version. Use a new game ID for incompatible rankings. */
   version: number;
   scoreLabel: string;

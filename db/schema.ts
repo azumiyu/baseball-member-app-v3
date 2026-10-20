@@ -145,6 +145,15 @@ export const playerGameStats = sqliteTable("player_game_stats", {
     caughtStealingAttempts: integer("caught_stealing_attempts").notNull().default(0),
     errors: integer("errors").notNull().default(0),
     caughtStealing: integer("caught_stealing").notNull().default(0),
+    pitchingRecorded: integer("pitching_recorded").notNull().default(0),
+    inningsPitchedOuts: integer("innings_pitched_outs").notNull().default(0),
+    runsAllowed: integer("runs_allowed").notNull().default(0),
+    earnedRuns: integer("earned_runs").notNull().default(0),
+    hitsAllowed: integer("hits_allowed").notNull().default(0),
+    homeRunsAllowed: integer("home_runs_allowed").notNull().default(0),
+    strikeouts: integer("strikeouts").notNull().default(0),
+    walksAllowed: integer("walks_allowed").notNull().default(0),
+    hitByPitch: integer("hit_by_pitch").notNull().default(0),
 }, (table) => [
     primaryKey({ columns: [table.gameDate, table.gameNumber, table.playerId] }),
     foreignKey({

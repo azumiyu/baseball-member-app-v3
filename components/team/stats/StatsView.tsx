@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   emptyPlayerStats,
+  emptyPitchingStats,
   parseGameKey,
   statsGameKeyForSchedule,
   MAX_REGISTERED_STATS_GAMES,
@@ -27,6 +28,7 @@ import { useStatsData } from "../hooks/useStatsData";
 import type { SaveState } from "../types";
 import { LoadingState } from "../common/LoadingState";
 import { StatsEntryFields } from "./StatsEntryFields";
+import { PitchingEntryFields } from "./PitchingEntryFields";
 import { StatsConfirmation } from "./StatsConfirmation";
 import { comparePlayersByNumber, removeStatsRegistration } from "./stats-actions";
 import { compareScheduleChoices, defaultScheduleChoice, shortScheduleLabel } from "../lib/schedule-options";
@@ -58,6 +60,7 @@ export function StatsView({
   const [showPastSchedules, setShowPastSchedules] = useState(false);
   const [linkScheduleId, setLinkScheduleId] = useState("");
   const [statsTab, setStatsTab] = useState<"entry" | "confirmation">("entry");
+  const [entryStatsTab, setEntryStatsTab] = useState<"batting" | "pitching">("batting");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
   const [registrationToDelete, setRegistrationToDelete] = useState<{
     gameKey: string;
@@ -122,7 +125,7 @@ export function StatsView({
   const canRegister = Boolean(
     selectedGameKey &&
     selectedPlayer &&
-    selectedValues.plateAppearances.some((result) => result !== null),
+    (selectedValues.plateAppearances.some((result) => result !== null) || selectedValues.pitching),
   );
   const isSaving = stats.saveState === "dirty" || stats.saveState === "saving";
   const selectablePlayers = players
@@ -175,6 +178,7 @@ export function StatsView({
   const editRegistration = (
     key: string,
     playerId: string,
+    view: "batting" | "pitching" = "batting",
   ) => {
     if (!canEditPlayer(playerId) || !canLeaveDraft()) return;
     clearRegistrationMessage();
@@ -186,6 +190,7 @@ export function StatsView({
     setEntryDraft(null);
     setLinkScheduleId("");
     setStatsTab("entry");
+    setEntryStatsTab(view);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
   const registerEntry = () => {
@@ -220,7 +225,9 @@ export function StatsView({
 
     clearRegistrationMessage();
     setSelection(selectedValue);
-    setEntryDraft({ key: entryKey, values: emptyPlayerStats() });
+    setEntryDraft({ key: entryKey, values: entryStatsTab === "pitching"
+      ? { ...draftValues, pitching: emptyPitchingStats() }
+      : emptyPlayerStats() });
     setOpenPlate(null);
     setRegistrationMessage("リセットしました");
     registrationTimer.current = window.setTimeout(() => {
@@ -301,6 +308,7 @@ export function StatsView({
         <button
           className={statsTab === "entry" ? "active" : ""}
           type="button"
+          aria-pressed={statsTab === "entry"}
           onClick={() => {
             setStatsTab("entry");
             setOpenPlate(null);
@@ -312,6 +320,7 @@ export function StatsView({
         <button
           className={statsTab === "confirmation" ? "active" : ""}
           type="button"
+          aria-pressed={statsTab === "confirmation"}
           onClick={() => {
             setStatsTab("confirmation");
             setOpenPlate(null);
@@ -394,13 +403,43 @@ export function StatsView({
               </select>
             </div>
           )}
+          <nav className="tabs stats-entry-subtabs" aria-label="入力する成績">
+            <button
+              className={entryStatsTab === "batting" ? "active" : ""}
+              type="button"
+              aria-pressed={entryStatsTab === "batting"}
+              onClick={() => {
+                setEntryStatsTab("batting");
+                setOpenPlate(null);
+                clearRegistrationMessage();
+              }}
+            >
+              野手成績
+            </button>
+            <button
+              className={entryStatsTab === "pitching" ? "active" : ""}
+              type="button"
+              aria-pressed={entryStatsTab === "pitching"}
+              onClick={() => {
+                setEntryStatsTab("pitching");
+                setOpenPlate(null);
+                clearRegistrationMessage();
+              }}
+            >
+              投手成績
+            </button>
+          </nav>
           {selectedPlayer && selectedGameKey ? (
-            <StatsEntryFields
-              values={selectedValues}
-              openPlate={openPlate}
-              onOpenPlateChange={setOpenPlate}
-              onChange={editPlayer}
-            />
+            entryStatsTab === "pitching" ? (
+              <PitchingEntryFields values={selectedValues} onChange={editPlayer} />
+            ) : (
+              <StatsEntryFields
+                values={selectedValues}
+                openPlate={openPlate}
+                onOpenPlateChange={setOpenPlate}
+                onChange={editPlayer}
+              />
+            )
           ) : (
             <p className="stats-entry-placeholder">
               {!selectedGameKey
@@ -425,7 +464,7 @@ export function StatsView({
               disabled={!selectedPlayer || !selectedGameKey}
               onClick={resetEntry}
             >
-              入力をリセット
+              {entryStatsTab === "pitching" ? "投手成績をリセット" : "入力をリセット"}
             </button>
           </div>
         </div>

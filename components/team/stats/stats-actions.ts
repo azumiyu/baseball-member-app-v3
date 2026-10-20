@@ -1,7 +1,7 @@
 import type { Player } from "@/lib/model";
-import type { PlateAppearanceResult, PlayerStats, StatsData } from "@/lib/stats";
+import { emptyPitchingStats, type PitchingStats, type PlateAppearanceResult, type PlayerStats, type StatsData } from "@/lib/stats";
 
-type StatsNumberField = Exclude<keyof PlayerStats, "plateAppearances" | "scoringPosition">;
+type StatsNumberField = Exclude<keyof PlayerStats, "plateAppearances" | "scoringPosition" | "pitching">;
 
 export function comparePlayersByNumber(a: Player, b: Player): number {
   const difference = Number(a.number) - Number(b.number);
@@ -57,6 +57,16 @@ export function updateScoringPosition(current: PlayerStats, index: number, check
 
 export function updateStatsNumber(current: PlayerStats, field: StatsNumberField, value: string): PlayerStats {
   return { ...current, [field]: Math.max(0, Number.parseInt(value, 10) || 0) };
+}
+
+export function updatePitchingNumber(current: PlayerStats, field: keyof PitchingStats, value: string): PlayerStats {
+  return {
+    ...current,
+    pitching: {
+      ...(current.pitching ?? emptyPitchingStats()),
+      [field]: Math.max(0, Number.parseInt(value, 10) || 0),
+    },
+  };
 }
 
 /** 最後の選手の成績を削除した場合だけ、試合と予定の紐付けも削除する。 */

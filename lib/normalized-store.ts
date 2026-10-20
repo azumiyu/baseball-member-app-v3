@@ -1,7 +1,7 @@
 import { type TeamData } from "./model";
 import { type EquipmentData } from "./equipment";
 import type { AccountingData } from "./accounting";
-import { emptyPlayerStats, gameKey, parseGameKey, MAX_REGISTERED_STATS_GAMES, type StatsData, type PlateAppearanceResult, type StatsSchedulePage, type StatsLineupData, type StatsLineups } from "./stats";
+import { emptyPitchingStats, emptyPlayerStats, gameKey, parseGameKey, MAX_REGISTERED_STATS_GAMES, type StatsData, type PlateAppearanceResult, type StatsSchedulePage, type StatsLineupData, type StatsLineups } from "./stats";
 import { db, digest, random, token } from "./server";
 import type { AuthMember } from "./auth-types";
 import { japanDate, upcomingSaturday, type ScheduleData, type ScheduleGame } from "./schedule";
@@ -44,7 +44,7 @@ const tables: Record<DataScope, Table[]> = {
   ],
   stats: [
     { name: "stats_games", columns: ["game_date", "game_number", "schedule_id"], keys: ["game_date", "game_number"], order: "game_date, game_number" },
-    { name: "player_game_stats", columns: ["game_date", "game_number", "player_id", "rbis", "runs", "stolen_bases", "caught_stealing_attempts", "errors", "caught_stealing"], keys: ["game_date", "game_number", "player_id"], order: "game_date, game_number, player_id" },
+    { name: "player_game_stats", columns: ["game_date", "game_number", "player_id", "rbis", "runs", "stolen_bases", "caught_stealing_attempts", "errors", "caught_stealing", "pitching_recorded", "innings_pitched_outs", "runs_allowed", "earned_runs", "hits_allowed", "home_runs_allowed", "strikeouts", "walks_allowed", "hit_by_pitch"], keys: ["game_date", "game_number", "player_id"], order: "game_date, game_number, player_id" },
     { name: "plate_appearances", columns: ["game_date", "game_number", "player_id", "appearance_order", "result", "scoring_position"], keys: ["game_date", "game_number", "player_id", "appearance_order"], order: "game_date, game_number, player_id, appearance_order" },
   ],
 };
@@ -357,7 +357,12 @@ export function decodeData(scope: DataScope, rows: Tables): ScopeData[DataScope]
   }
   for (const row of rows.player_game_stats) {
     const stats = emptyPlayerStats();
-    [stats.rbis, stats.runs, stats.stolenBases, stats.caughtStealingAttempts, stats.errors, stats.caughtStealing] = row.slice(3) as number[];
+    [stats.rbis, stats.runs, stats.stolenBases, stats.caughtStealingAttempts, stats.errors, stats.caughtStealing] = row.slice(3, 9) as number[];
+    if (row[9] === 1) {
+      const pitching = emptyPitchingStats();
+      [pitching.inningsPitchedOuts, pitching.runsAllowed, pitching.earnedRuns, pitching.hitsAllowed, pitching.homeRunsAllowed, pitching.strikeouts, pitching.walksAllowed, pitching.hitByPitch] = row.slice(10, 18) as number[];
+      stats.pitching = pitching;
+    }
     data.games[gameKey(row[0] as string, row[1] as number)][row[2] as string] = stats;
   }
   for (const row of rows.plate_appearances) {
@@ -393,7 +398,10 @@ function encodeStats(data: StatsData): Tables {
     const { date, number } = parsed;
     rows.stats_games.push([date, number, data.scheduleIds[key] ?? null]);
     for (const [playerId, stats] of Object.entries(game)) {
-      rows.player_game_stats.push([date, number, playerId, stats.rbis, stats.runs, stats.stolenBases, stats.caughtStealingAttempts, stats.errors, stats.caughtStealing]);
+      const pitching = stats.pitching;
+      rows.player_game_stats.push([date, number, playerId, stats.rbis, stats.runs, stats.stolenBases, stats.caughtStealingAttempts, stats.errors, stats.caughtStealing,
+        pitching ? 1 : 0, pitching?.inningsPitchedOuts ?? 0, pitching?.runsAllowed ?? 0, pitching?.earnedRuns ?? 0,
+        pitching?.hitsAllowed ?? 0, pitching?.homeRunsAllowed ?? 0, pitching?.strikeouts ?? 0, pitching?.walksAllowed ?? 0, pitching?.hitByPitch ?? 0]);
       stats.plateAppearances.forEach((result, index) => {
         rows.plate_appearances.push([date, number, playerId, index, result, stats.scoringPosition[index] ? 1 : 0]);
       });
