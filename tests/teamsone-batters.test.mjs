@@ -22,7 +22,7 @@ async function moduleUrl(filename) {
   modules.set(filename, url);
   return url;
 }
-const { parseTeamsOneBatters, sortTeamsOneBatters, teamsOneColumnLeaders, parseTeamsOneFilters, teamsOneYears, teamsOneSourceUrl, TEAMS_ONE_BATTERS_URL, TEAMS_ONE_BATTERS_FRESH_MS } =
+const { parseTeamsOneBatters, parseTeamsOnePitchers, TEAMS_ONE_PITCHERS_URL, TEAMS_ONE_PITCHERS_COLUMNS, teamsOneStatNumber, sortTeamsOneBatters, teamsOneColumnLeaders, teamsOneFilterKey, parseTeamsOneFilters, teamsOneYears, teamsOneSourceUrl, TEAMS_ONE_BATTERS_URL, TEAMS_ONE_BATTERS_FRESH_MS } =
   await import(await moduleUrl(resolve(project, "lib/teamsone-batters.ts")));
 const { createTeamsOneBattersLoader } = await import(await moduleUrl(resolve(project, "lib/teamsone-batters-cache.ts")));
 
@@ -31,15 +31,20 @@ const { createTeamsOneBattersLoader } = await import(await moduleUrl(resolve(pro
 const headings = ["背番号", "試合数", "打率", "打席", "打数", "安打", "本塁打", "打点", "得点", "盗塁", "出塁率", "長打率", "得点圏打率", "O<br>P<br>S",
   "二塁打", "三塁打", "塁打数", "三振", "四球", "死球", "犠打", "犠飛", "併殺打", "敵失", "失策", "盗塁死", "盗塁阻止"];
 const values = ["10", ".300", "40", "30", "9", "1", "4", "5", "2", ".400", ".500", ".333", ".900", "2", "0", "15", "3", "4", "1", "1", "1", "0", "1", "0", "0", "0"];
-const fixture = ({ year = "2026", gameType = "", unreached = false, rows = [["1 選手&#65;", values], ["10 選手B", values]], columns = headings } = {}) => `
+const pitchingValues = ["33", "25", "0", "0", "1", ".962", "1.86", "157回2/3", "0", "60", "42", "8", "2", "114", "9", "117", "36", "11", "0", "0"];
+const escapeAttribute = value => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+const selector = (id, values, selected) => `<select id="${id}"><option value="">指定なし</option>${[...new Set([...values, ...(selected ? [selected] : [])])].map(value => `<option value="${escapeAttribute(value)}" ${value === selected ? 'selected="selected"' : ''}>${escapeAttribute(value.split("|").at(-1))}</option>`).join("")}</select>`;
+const fixture = ({ year = "2026", gameType = "", unreached = false, opponent = "", tournament = "", kind = "batting", rows, columns } = {}) => `
   <select id="search_result_game_date"><option value="">年度</option><option selected="selected" value="${year}">${year}</option></select>
   <select id="search_result_game_type"><option value="">試合属性</option>
     <option ${gameType === "official" ? 'selected="selected"' : ""} value="official">公式戦</option>
     <option ${gameType === "practice" ? 'selected="selected"' : ""} value="practice">練習試合</option></select>
+  ${selector("search_result_opponent_team_name", ["978|ガゼル", "27533|Sandlots（サンドロッツ）"], opponent)}
+  ${selector("search_result_tournament_name", ["大会A", "GBNリーグ2026春(土曜2部)"], tournament)}
   <input type="checkbox" id="unreached" value="true" ${unreached ? 'checked="checked"' : ""} />
   <table><thead><tr><th>広告</th></tr></thead><tbody><tr><td>ignore</td></tr></tbody></table>
-  <table class="table table-responsive sortable"><thead><tr>${columns.map(label => `<th><p>${label}</p></th>`).join("")}</tr></thead>
-  <tbody>${rows.map(([name, stats]) => `<tr><td class="playerName">${name}</td>${stats.map(value => `<td>${value}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  <table class="table table-responsive sortable"><thead><tr>${(columns ?? (kind === "pitching" ? ["背番号", ...TEAMS_ONE_PITCHERS_COLUMNS] : headings)).map(label => `<th><p>${label}</p></th>`).join("")}</tr></thead>
+  <tbody>${(rows ?? [["1 選手&#65;", kind === "pitching" ? pitchingValues : values], ["10 選手B", kind === "pitching" ? pitchingValues : values]]).map(([name, stats]) => `<tr><td class="playerName">${name}</td>${stats.map(value => `<td>${value}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 const response = html => new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 const requestUrl = "https://example.test/api/teamsone/batters";
 
@@ -58,13 +63,13 @@ function setup() {
     fetchPage: async (url, init) => {
       calls++;
       const source = new URL(url);
-      assert.equal(source.origin + source.pathname, TEAMS_ONE_BATTERS_URL);
+      assert([TEAMS_ONE_BATTERS_URL, TEAMS_ONE_PITCHERS_URL].includes(source.origin + source.pathname));
       assert(source.searchParams.has("search_result[game_date]"));
       assert(source.searchParams.has("search_result[game_type]"));
       assert(init.signal instanceof AbortSignal);
       await gate;
       if (failure) throw new Error("Fixture upstream outage");
-      return response(html ?? fixture({ year: source.searchParams.get("search_result[game_date]"), gameType: source.searchParams.get("search_result[game_type]"), unreached: source.searchParams.get("search_result[unreached]") === "true" }));
+      return response(html ?? fixture({ kind: source.pathname.endsWith("pitchers_table") ? "pitching" : "batting", year: source.searchParams.get("search_result[game_date]"), gameType: source.searchParams.get("search_result[game_type]"), unreached: source.searchParams.get("search_result[unreached]") === "true", opponent: source.searchParams.get("search_result[opponent_team_name]") ?? "", tournament: source.searchParams.get("search_result[tournament_name]") ?? "" }));
     },
   };
   return {
@@ -125,7 +130,7 @@ test("25 simultaneous requests share one fetch, then memory and shared cache reu
   await load(requestUrl + "?force=anything");
   await fixture.loader()(requestUrl);
   assert.equal(fixture.calls, 1, "a new Worker reuses the edge cache");
-  assert.deepEqual([...fixture.entries.keys()], [requestUrl + "?cache=v3&year=2026&gameType=&unreached=0"]);
+  assert.deepEqual([...fixture.entries.keys()], [requestUrl + "?cache=v5&kind=batting&year=2026&gameType=&unreached=0&opponent=&tournament="]);
   fixture.advance(TEAMS_ONE_BATTERS_FRESH_MS - 1);
   await load(requestUrl);
   assert.equal(fixture.calls, 1);
@@ -246,7 +251,7 @@ test("upstream ignoring the requested year or game type never returns an unrelat
   assert.equal(state.calls, 3);
 });
 
-const { findPersonalBatter, personalMetricValue, personalMetricRank, PERSONAL_BATTING_METRICS } =
+const { findPersonalBatter, personalMetricValue, personalMetricRank, PERSONAL_BATTING_METRICS, PERSONAL_PITCHING_METRICS } =
   await import(await moduleUrl(resolve(project, "lib/teamsone-personal.ts")));
 
 test("career and unqualified filters have separate caches and use the published career table", async () => {
@@ -375,4 +380,144 @@ test("personal crowns compare only qualified players and never award unqualified
   assert.equal(personalMetricRank([], players[1], "打率"), undefined, "missing qualification data never falls back to all players");
   const displayedZero = { ...players[1], values: ["10", ".000"] };
   assert.equal(personalMetricRank(qualified, displayedZero, "打率"), undefined, "a displayed zero is never crowned even when ranking cache is older");
+});
+
+test("opponent and tournament options decode entities while preserving exact source values and spaces", () => {
+  const opponent = "27533|Alice's  A&B";
+  const tournament = '大会 "春" & 秋';
+  const table = parseTeamsOneBatters(fixture({ opponent, tournament }));
+  assert.equal(table.opponent, opponent);
+  assert.equal(table.tournament, tournament);
+  assert(table.opponents.some(option => option.value === opponent && option.label === "Alice's A&B"));
+  assert(table.tournaments.some(option => option.value === tournament && option.label === tournament));
+  assert(table.opponents.every(option => option.value !== ""));
+});
+
+test("opponent and tournament filters round-trip safely and reject oversized or control-character input", () => {
+  const url = new URL(requestUrl);
+  url.search = new URLSearchParams({ year: "all", gameType: "official", unreached: "true", opponent: "978|ガゼル & A", tournament: "大会 春(土曜2部)" });
+  const filters = parseTeamsOneFilters(url.toString());
+  const source = new URL(teamsOneSourceUrl(filters));
+  assert.equal(source.origin + source.pathname, TEAMS_ONE_BATTERS_URL);
+  assert.equal(source.searchParams.get("search_result[opponent_team_name]"), filters.opponent);
+  assert.equal(source.searchParams.get("search_result[tournament_name]"), filters.tournament);
+  assert.equal(source.searchParams.get("search_result[game_date]"), "");
+  assert.notEqual(teamsOneFilterKey({ year: 2026, gameType: "", opponent: "A:B", tournament: "C" }), teamsOneFilterKey({ year: 2026, gameType: "", opponent: "A", tournament: "B:C" }));
+  for (const key of ["opponent", "tournament"]) {
+    for (const value of ["x".repeat(201), "bad\nvalue", "bad\u0000value"]) {
+      assert.throws(() => parseTeamsOneFilters(requestUrl + "?" + new URLSearchParams({ [key]: value })), /filters/);
+    }
+  }
+});
+
+test("opponent and tournament filter combinations isolate concurrent, shared and failed caches", async () => {
+  const state = setup();
+  const load = state.loader();
+  const urls = [
+    requestUrl + "?" + new URLSearchParams({ year: "2026", opponent: "978|ガゼル" }),
+    requestUrl + "?" + new URLSearchParams({ year: "2026", opponent: "978|ガゼル", tournament: "大会A" }),
+    requestUrl + "?" + new URLSearchParams({ year: "all", tournament: "大会A", unreached: "true" }),
+  ];
+  const tables = await Promise.all(urls.flatMap(url => [load(url), load(url)]));
+  assert.equal(state.calls, 3);
+  assert.deepEqual(tables.map(table => [table.season, table.opponent, table.tournament]), [
+    ["2026", "978|ガゼル", ""], ["2026", "978|ガゼル", ""],
+    ["2026", "978|ガゼル", "大会A"], ["2026", "978|ガゼル", "大会A"],
+    ["通算", "", "大会A"], ["通算", "", "大会A"],
+  ]);
+  const anotherWorker = state.loader();
+  for (const url of urls) await anotherWorker(url);
+  assert.equal(state.calls, 3);
+  state.advance(TEAMS_ONE_BATTERS_FRESH_MS + 1);
+  state.fail();
+  const stale = await load(urls[1]);
+  assert.equal(stale.tournament, "大会A");
+  assert.equal(stale.stale, true);
+  await assert.rejects(load(requestUrl + "?opponent=unknown"));
+});
+
+test("upstream ignoring an opponent or tournament selection cannot return unfiltered stats", async () => {
+  const state = setup();
+  state.html(fixture());
+  await assert.rejects(state.loader()(requestUrl + "?opponent=978%7C%E3%82%AC%E3%82%BC%E3%83%AB"));
+  await assert.rejects(state.loader()(requestUrl + "?tournament=anything"));
+});
+
+test("explicit no-results pages return an empty table while retaining selectors", () => {
+  const html = fixture({ opponent: "978|ガゼル", tournament: "大会A" }).replace(/<table class="table table-responsive sortable">[\s\S]*?<\/table>/, '<section class="sortNodataContainer"><div>該当メンバーは存在しません。条件を変更し、再度お試しください。</div></section>');
+  const table = parseTeamsOneBatters(html);
+  assert.deepEqual(table.rows, []);
+  assert.equal(table.opponent, "978|ガゼル");
+  assert.equal(table.tournament, "大会A");
+  assert(table.opponents.length > 0);
+  assert.throws(() => parseTeamsOneBatters(html.replace("該当メンバーは存在しません。", "メンテナンス中")), /missing/);
+});
+
+test("pitching parser preserves every published column and fractional innings", () => {
+  const table = parseTeamsOnePitchers(fixture({ kind: "pitching" }));
+  assert.equal(table.kind, "pitching");
+  assert.deepEqual(table.columns, [...TEAMS_ONE_PITCHERS_COLUMNS]);
+  assert.equal(table.rows[0].values[7], "157回2/3");
+  assert.equal(table.rows[0].values[6], "1.86");
+  assert.deepEqual(table.rows[0].values, pitchingValues);
+  const zeroInnings = parseTeamsOnePitchers(fixture({ kind: "pitching", rows: [["28 選手", pitchingValues.map((value, index) => index === 6 ? "ー" : index === 7 ? "0回0/3" : value)]] }));
+  assert.equal(zeroInnings.rows[0].values[6], "ー");
+  assert.equal(zeroInnings.rows[0].values[7], "0回0/3");
+  assert.throws(() => parseTeamsOneBatters(fixture({ kind: "pitching" })), /columns/);
+  assert.throws(() => parseTeamsOnePitchers(fixture()), /columns/);
+  assert.throws(() => parseTeamsOnePitchers(fixture({ kind: "pitching", rows: [["1 選手A", pitchingValues.map((value, index) => index === 7 ? "10回3/3" : value)]] })), /value/);
+});
+
+test("pitching innings sort by outs instead of text or decimal notation", () => {
+  const rows = ["9回2/3", "10回1/3", "10回", "-", "0回2/3"].map((value, index) => ({ id: String(index), number: String(index), name: "選手", values: [value] }));
+  assert.deepEqual(sortTeamsOneBatters(rows, 0, true).map(row => row.id), ["1", "2", "0", "4", "3"]);
+  assert.equal(teamsOneStatNumber("10回1/3"), 10 + 1 / 3);
+  assert.equal(teamsOneStatNumber("10回"), 10);
+  assert.equal(teamsOneStatNumber("10回0/3"), 10);
+  assert(Number.isNaN(teamsOneStatNumber("-")));
+  assert(Number.isNaN(teamsOneStatNumber("")));
+});
+
+test("batting and pitching isolate concurrent requests, shared caches and outage fallbacks", async () => {
+  const state = setup();
+  const load = state.loader();
+  const battingUrl = requestUrl + "?year=all&unreached=true";
+  const pitchingUrl = requestUrl + "?year=all&unreached=true&kind=pitching";
+  const tables = await Promise.all([load(battingUrl), load(pitchingUrl), load(pitchingUrl)]);
+  assert.equal(state.calls, 2);
+  assert.deepEqual(tables.map(table => [table.kind, table.columns.length]), [["batting", 26], ["pitching", 20], ["pitching", 20]]);
+  assert.equal(new URL(tables[1].source).pathname, "/teams/ygfires/stats/pitchers_table");
+  await state.loader()(pitchingUrl);
+  assert.equal(state.calls, 2);
+  state.advance(TEAMS_ONE_BATTERS_FRESH_MS + 1);
+  state.fail();
+  assert.equal((await load(pitchingUrl)).kind, "pitching");
+  assert.equal((await load(battingUrl)).kind, "batting");
+  assert.throws(() => parseTeamsOneFilters(requestUrl + "?kind=invalid"));
+});
+
+test("nine personal pitching metrics map to published pitcher values without changing inning notation", () => {
+  const player = { id: "p", name: "投手", number: "19", values: pitchingValues };
+  assert.deepEqual(PERSONAL_PITCHING_METRICS.map(([, label]) => label), ["勝ち数", "勝率", "防御率", "ホールド", "セーブ", "奪三振", "投球回", "完封", "試合数"]);
+  assert.equal(personalMetricValue(player, "勝", "pitching"), "25");
+  assert.equal(personalMetricValue(player, "防御率", "pitching"), "1.86");
+  assert.equal(personalMetricValue(player, "投球回", "pitching"), "157回2/3");
+  assert.equal(personalMetricValue(undefined, "勝", "pitching"), "—");
+});
+
+test("personal pitching ERA ranks smaller first, other metrics larger first, with qualified ties", () => {
+  const eras = ["1.86", ".42", ".42", "ー"];
+  const innings = ["157回2/3", "49回2/3", "49回1/3", "0回0/3"];
+  const rows = eras.map((era, id) => ({ id: String(id), name: `投手${id}`, number: String(id), values: pitchingValues.map((value, index) => index === 6 ? era : index === 7 ? innings[id] : index === 1 ? String(10 - id) : value) }));
+  assert.deepEqual(rows.map(player => personalMetricRank(rows, player, "防御率", "pitching")), [3, 1, 1, undefined]);
+  assert.deepEqual(rows.map(player => personalMetricRank(rows, player, "勝", "pitching")), [1, 2, 3, 4]);
+  assert.deepEqual(rows.map(player => personalMetricRank(rows, player, "投球回", "pitching")), [1, 2, 3, undefined]);
+  assert.equal(personalMetricRank(rows.slice(1), rows[0], "勝", "pitching"), undefined);
+});
+
+test("all personal pitching metrics suppress zero values even when zero is the ERA leader", () => {
+  const zero = { id: "zero", name: "投手0", number: "1", values: TEAMS_ONE_PITCHERS_COLUMNS.map(column => column === "投球回" ? "0回0/3" : column === "勝率" ? ".000" : column === "防御率" ? "0.00" : "0") };
+  const positive = { id: "positive", name: "投手1", number: "2", values: TEAMS_ONE_PITCHERS_COLUMNS.map(column => column === "投球回" ? "1回1/3" : "1") };
+  for (const [column] of PERSONAL_PITCHING_METRICS) assert.equal(personalMetricRank([zero, positive], zero, column, "pitching"), undefined, column);
+  assert.equal(personalMetricRank([zero, positive], positive, "防御率", "pitching"), 2);
 });

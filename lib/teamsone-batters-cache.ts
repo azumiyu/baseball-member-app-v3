@@ -1,7 +1,7 @@
 import {
-  parseTeamsOneFilters, teamsOneSourceUrl, type TeamsOneFilters,
-  parseTeamsOneBatters, TEAMS_ONE_BATTERS_FRESH_MS,
-  TEAMS_ONE_BATTERS_COLUMNS, type TeamsOneBattingSnapshot, type TeamsOneBattingResponse,
+  parseTeamsOneFilters, teamsOneFilterKey, teamsOneSourceUrl, type TeamsOneFilters,
+  parseTeamsOneStats, teamsOneColumns, TEAMS_ONE_BATTERS_FRESH_MS,
+  type TeamsOneBattingSnapshot, type TeamsOneBattingResponse,
 } from "./teamsone-batters";
 
 const RETAIN_MS = 24 * 60 * 60 * 1000;
@@ -40,10 +40,16 @@ function validState(value: unknown): value is CacheState {
   if (!Number.isFinite(state.retryAt)) return false;
   if (state.snapshot === null) return true;
   const snapshot = state.snapshot;
+  if (!snapshot || snapshot.kind !== "batting" && snapshot.kind !== "pitching") return false;
+  const columns = teamsOneColumns(snapshot.kind);
   return !!snapshot && typeof snapshot.source === "string" && Number.isFinite(Date.parse(snapshot.fetchedAt))
+    && typeof snapshot.opponent === "string" && typeof snapshot.tournament === "string"
+    && [snapshot.opponents, snapshot.tournaments].every(options => Array.isArray(options) && options.length <= 1000
+      && options.every(option => !!option && typeof option.value === "string" && typeof option.label === "string"
+        && option.value.length <= 200 && option.label.length <= 200))
     && typeof snapshot.season === "string" && Array.isArray(snapshot.columns)
-    && snapshot.columns.length === TEAMS_ONE_BATTERS_COLUMNS.length
-    && snapshot.columns.every((label, index) => label === TEAMS_ONE_BATTERS_COLUMNS[index])
+    && snapshot.columns.length === columns.length
+    && snapshot.columns.every((label, index) => label === columns[index])
     && Array.isArray(snapshot.rows) && snapshot.rows.length <= 250
     && snapshot.rows.every(row => typeof row.id === "string" && typeof row.name === "string" && typeof row.number === "string"
       && Array.isArray(row.values) && row.values.length === snapshot.columns.length && row.values.every(value => typeof value === "string"));
@@ -62,6 +68,7 @@ function createFilteredLoader(filters: TeamsOneFilters, {
   sharedCache?: () => SharedCache | undefined;
 } = {}) {
   const source = teamsOneSourceUrl(filters);
+  const kind = filters.kind ?? "batting";
   const season = filters.year === "all" ? "通算" : String(filters.year);
   let memory: CacheState | undefined;
   let pending: Promise<TeamsOneBattingResponse> | undefined;
@@ -82,14 +89,18 @@ function createFilteredLoader(filters: TeamsOneFilters, {
   }
 
   async function readAndRefresh(requestUrl: string): Promise<TeamsOneBattingResponse> {
-    const key = new URL(`/api/teamsone/batters?cache=v3&year=${filters.year}&gameType=${filters.gameType}&unreached=${filters.unreached ? 1 : 0}`, requestUrl).toString();
+    const cacheUrl = new URL("/api/teamsone/batters", requestUrl);
+    cacheUrl.search = new URLSearchParams({ cache: "v5", kind, year: String(filters.year), gameType: filters.gameType,
+      unreached: filters.unreached ? "1" : "0", opponent: filters.opponent ?? "", tournament: filters.tournament ?? "" }).toString();
+    const key = cacheUrl.toString();
     let cache: SharedCache | undefined;
     try {
       cache = sharedCache();
       const cached = await cache?.match(key);
       const state: unknown = cached ? await cached.json() : undefined;
-      if (validState(state) && (!state.snapshot || state.snapshot.source === source
-        && state.snapshot.season === season && state.snapshot.gameType === filters.gameType)) {
+      if (validState(state) && (!state.snapshot || state.snapshot.kind === kind && state.snapshot.source === source
+        && state.snapshot.season === season && state.snapshot.gameType === filters.gameType
+        && state.snapshot.opponent === (filters.opponent ?? "") && state.snapshot.tournament === (filters.tournament ?? ""))) {
         const cachedTime = usable(state.snapshot) ? Date.parse(state.snapshot.fetchedAt) : 0;
         const memoryTime = usable(memory?.snapshot) ? Date.parse(memory.snapshot.fetchedAt) : 0;
         if (!memory || cachedTime > memoryTime || cachedTime === memoryTime && state.retryAt > memory.retryAt) memory = state;
@@ -109,8 +120,9 @@ function createFilteredLoader(filters: TeamsOneFilters, {
       if (filters.unreached && !/<input\b(?=[^>]*\bid=["']unreached["'])(?=[^>]*\bchecked(?:\s*=|\s|>|\/))[^>]*>/i.test(html)) {
         throw new Error("Teams.one did not include unqualified players");
       }
-      const table = parseTeamsOneBatters(html);
-      if (table.season !== season || table.gameType !== filters.gameType) throw new Error("Teams.one filters do not match");
+      const table = parseTeamsOneStats(html, kind);
+      if (table.season !== season || table.gameType !== filters.gameType || table.opponent !== (filters.opponent ?? "")
+        || table.tournament !== (filters.tournament ?? "")) throw new Error("Teams.one filters do not match");
       const snapshot = { ...table, source, fetchedAt: new Date(now()).toISOString() };
       await store(cache, key, { snapshot, retryAt: 0 });
       return result(snapshot);
@@ -118,7 +130,7 @@ function createFilteredLoader(filters: TeamsOneFilters, {
       const snapshot = usable(memory?.snapshot) ? memory.snapshot : null;
       await store(cache, key, { snapshot, retryAt: now() + RETRY_MS });
       if (snapshot) return result(snapshot);
-      throw new Error("Teams.one batting stats are unavailable");
+      throw new Error("Teams.one stats are unavailable");
     }
   }
 
@@ -135,10 +147,15 @@ export function createTeamsOneBattersLoader(options: Parameters<typeof createFil
   const loaders = new Map<string, ReturnType<typeof createFilteredLoader>>();
   return function load(requestUrl: string): Promise<TeamsOneBattingResponse> {
     const filters = parseTeamsOneFilters(requestUrl, new Date(options.now?.() ?? Date.now()));
-    const key = `${filters.year}:${filters.gameType}:${filters.unreached ? 1 : 0}`;
+    const key = teamsOneFilterKey(filters);
     let loader = loaders.get(key);
     if (!loader) {
       loader = createFilteredLoader(filters, options);
+      // Filter combinations grow with opponents and tournaments; bound isolate memory.
+      if (loaders.size >= 128) loaders.delete(loaders.keys().next().value!);
+      loaders.set(key, loader);
+    } else {
+      loaders.delete(key);
       loaders.set(key, loader);
     }
     return loader(requestUrl);
