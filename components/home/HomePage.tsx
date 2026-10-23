@@ -553,57 +553,68 @@ export function HomePage({
           <div className="home-empty">表示できる試合情報がありません。</div>
         ) : (
           <div className="home-game-list">
-            {games.map((game) => (
-              <a
-                className="home-game-card"
-                key={game.id}
-                href={game.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <div className="home-game-date">
-                  <CalendarDays size={18} aria-hidden="true" />
-                  <time dateTime={game.date.replaceAll("/", "-")}>
-                    {game.date}
-                  </time>
-                </div>
+            {games.map((game) => {
+              const outcome = /勝/.test(game.result)
+                ? "win"
+                : /負|敗/.test(game.result)
+                  ? "loss"
+                  : /引|分/.test(game.result)
+                    ? "draw"
+                    : "unknown";
+              const outcomeLabel = {
+                win: "W",
+                loss: "L",
+                draw: "D",
+                unknown: "—",
+              }[outcome];
 
-                <div className="home-game-main">
-                  <span
-                    className={`home-game-type${game.type.includes("公式戦") ? " home-game-type-official" : game.type.includes("練習試合") ? " home-game-type-practice" : ""}`}
-                  >
-                    {game.type || "試合"}
-                  </span>
-                  <strong>{game.opponent}</strong>
-                </div>
+              return (
+                <a
+                  className={`home-game-card home-game-card-${outcome}`}
+                  key={game.id}
+                  href={game.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <div className="home-game-result">
+                    <strong aria-hidden="true">{outcomeLabel}</strong>
+                    <span>{outcome === "draw" ? "引分け" : game.result || "未登録"}</span>
+                  </div>
 
-                <div className="home-game-score">
-                  <span>RESULT</span>
-                  <strong>{game.score || "—"}</strong>
-                  {game.result && (
-                    <small
-                      className={
-                        /勝/.test(game.result)
-                          ? "home-result-win"
-                          : /負|敗/.test(game.result)
-                            ? "home-result-loss"
-                            : /引|分/.test(game.result)
-                              ? "home-result-draw"
-                              : undefined
-                      }
-                    >
-                      {game.result}
-                    </small>
-                  )}
-                </div>
+                  <div className="home-game-main">
+                    <div className="home-game-meta">
+                      <time
+                        dateTime={game.date
+                          .split("/")
+                          .map((part) => part.padStart(2, "0"))
+                          .join("-")}
+                      >
+                        {game.date}
+                      </time>
+                      <span
+                        className={`home-game-type${game.type.includes("公式戦") ? " home-game-type-official" : game.type.includes("練習試合") ? " home-game-type-practice" : ""}`}
+                      >
+                        {game.type || "試合"}
+                      </span>
+                    </div>
+                    <div className="home-game-opponent">
+                      <span>vs</span>
+                      <strong>{game.opponent}</strong>
+                    </div>
+                  </div>
 
-                <ArrowUpRight
-                  className="home-game-arrow"
-                  size={19}
-                  aria-hidden="true"
-                />
-              </a>
-            ))}
+                  <div className="home-game-score">
+                    <span>SCORE</span>
+                    <strong>{game.score || "—"}</strong>
+                  </div>
+
+                  <div className="home-game-detail">
+                    <span>試合詳細</span>
+                    <ArrowUpRight size={17} aria-hidden="true" />
+                  </div>
+                </a>
+              );
+            })}
           </div>
         )}
       </section>
