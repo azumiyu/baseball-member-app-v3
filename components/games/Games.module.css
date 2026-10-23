@@ -331,18 +331,11 @@
     scroll-behavior: auto;
   }
 }
-  .cardArt[data-crop="negishi"] img {
+  .cardArt[data-crop="left-half"] img {
   width: 200%;
   max-width: none;
   height: 100%;
   object-fit: cover;
   object-position: left center;
-  transform: translate(35px, 10px);
-}.cardArt[data-crop="negishi"] img {
-  width: 200%;
-  max-width: none;
-  height: 100%;
-  object-fit: cover;
-  object-position: left center;
-  transform: translate(-55px, 10px);
-}
+  transform: translate(-70px, 10px);
+ }
