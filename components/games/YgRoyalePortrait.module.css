@@ -1,0 +1,12 @@
+.portrait{--portrait-color:#cdab66;position:relative;display:block;width:100%;aspect-ratio:5/6;isolation:isolate;overflow:hidden;border-radius:15px;background:radial-gradient(ellipse at 50% 22%,color-mix(in srgb,var(--portrait-color),#fff 20%),transparent 73%),linear-gradient(135deg,#17292d,#061519);box-shadow:inset 0 0 16px #0009;color:#e7c17c}
+.rays{position:absolute;inset:-40%;z-index:-1;opacity:.22;background:repeating-conic-gradient(from 12deg at 50% 50%,transparent 0deg 19deg,#fff 20deg 21deg,transparent 22deg 43deg)}
+.photo{position:absolute;inset:9% 9% 8%;overflow:hidden;clip-path:polygon(8% 0,92% 0,100% 8%,100% 88%,85% 100%,15% 100%,0 88%,0 8%)}
+.photo img{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(1.1) contrast(1.03)}
+.photo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#091d2a00 58%,#06121da6);pointer-events:none}
+.frame{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 2px 2px #000b);pointer-events:none}
+.wings{position:absolute;inset:0;width:100%;height:100%;z-index:2;opacity:.83;pointer-events:none}
+.insignia{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);height:21%;aspect-ratio:1;display:grid;place-items:center;background:radial-gradient(circle,#fff6cd,#bc822f);border:1px solid #fff7c9;border-radius:50%;box-shadow:0 2px 6px #000a;font-size:clamp(10px,2vw,21px);color:#4c351c;text-shadow:0 1px #fff8;line-height:1;z-index:3}
+.glint{position:absolute;inset:0;background:linear-gradient(118deg,transparent 6%,#ffffff15 32%,transparent 32.5%);pointer-events:none}
+.portrait[data-small]{border-radius:9px}
+.portrait[data-air] .photo{inset:9% 12% 8%}
+@media(prefers-reduced-motion:reduce){.portrait *{animation:none!important}}

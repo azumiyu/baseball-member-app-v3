@@ -1,0 +1,37 @@
+.arena{position:relative;isolation:isolate;width:100%;height:100%;min-height:0;aspect-ratio:auto;overflow:hidden;border-radius:22px;background:#102a2d;border:1px solid #a88e56;box-shadow:0 0 0 4px #102a32,0 0 0 5px #9e87545e,0 20px 60px #0006,inset 0 0 35px #0008;contain:layout paint;user-select:none;-webkit-tap-highlight-color:transparent}
+.battlefield{display:block;width:100%;height:100%;touch-action:pan-y;outline:none;cursor:default}
+.battlefield:focus-visible{outline:4px solid #a0e5ff;outline-offset:-7px;border-radius:20px}
+.arena[data-selecting] .battlefield{cursor:crosshair}
+.water{animation:river-flow 7s linear infinite}
+.portal{animation:river-flow 3s ease-in-out infinite}
+.unit{transition:transform 48ms linear;pointer-events:none}
+.unit[data-hit]>g{filter:brightness(1.65)}
+.unit[data-slow]>g{filter:drop-shadow(0 0 3px #8aefff)}
+.unit[data-slow][data-hit]>g{filter:brightness(1.65) drop-shadow(0 0 3px #8aefff)}
+.unitWings{animation:wings .45s ease-in-out infinite alternate;transform-origin:0 -20px}
+.weaponAttack{animation:attack .19s ease-out;transform-origin:17px 0}
+.unitSpawn{animation:spawn .27s cubic-bezier(.15,.9,.3,1.2)}
+.towerHit{animation:tower-hit .24s ease-out}
+.idleCrest{position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);display:grid;justify-items:center;width:80%;pointer-events:none;color:#f5e5b3;text-shadow:0 2px 4px #0009}
+.idleCrest::before{content:"";position:absolute;inset:-35px -10px;z-index:-1;border-radius:50%;background:radial-gradient(ellipse,#12332fe8,#14393265 55%,transparent 72%)}
+.idleCrest svg{width:24%;filter:drop-shadow(0 6px 5px #0007)}
+.idleCrest span{font-size:clamp(7px,1.8vw,12px);font-weight:800;letter-spacing:.26em;margin-top:5px;color:#ccbc84}
+.idleCrest strong{font-family:Georgia,serif;font-size:clamp(26px,7.7vw,50px);font-weight:950;letter-spacing:-.025em;line-height:1.3}
+.idleCrest p{font-size:clamp(10px,2.3vw,15px);margin:2px 0 0;font-weight:700;letter-spacing:.1em}
+.wave{position:absolute;left:0;top:43%;width:100%;display:grid;justify-items:center;padding:11px 0;color:#ffecbf;pointer-events:none;text-shadow:0 2px 3px #401f12;background:linear-gradient(90deg,transparent,#543731d9 20%,#543731e8 80%,transparent);border-block:1px solid #edcb8560;animation:wave-title .95s ease both}
+.wave>span{font-size:clamp(7px,1.8vw,11px);font-weight:800;letter-spacing:.22em;color:#e4bb89}
+.wave>strong{font-size:clamp(20px,5.6vw,34px);font-weight:950;line-height:1.5;letter-spacing:.16em}
+.wave>i{font-size:clamp(8px,2vw,12px);font-weight:650;font-style:normal;letter-spacing:.12em}
+.pauseVeil{position:absolute;inset:0;background:#0b2029a8;backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f5e6bd;pointer-events:none;gap:12px;z-index:5}
+.pauseVeil>span{height:62px;width:62px;border:1px solid #c4ad78;border-radius:50%;display:grid;place-items:center;font:700 32px/1 serif;background:#173c41c9}
+.pauseVeil>strong{font-size:clamp(21px,5vw,30px);letter-spacing:.15em}
+.pauseVeil>small{font-size:clamp(9px,2.5vw,13px);color:#cee0db}
+.arena[data-paused] *{animation-play-state:paused!important}
+.arena[data-reduced] *{animation:none!important;transition:none!important}
+@keyframes river-flow{from{opacity:.7}50%{opacity:1}to{opacity:.7}}
+@keyframes wings{from{transform:scaleX(.78) scaleY(1)}to{transform:scaleX(1.06) scaleY(.8)}}
+@keyframes attack{0%{transform:rotate(-24deg)}55%{transform:rotate(21deg)}100%{transform:rotate(0)}}
+@keyframes spawn{from{opacity:.2;transform:translateY(-15px) scale(1.25)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes tower-hit{0%,100%{filter:brightness(1)}25%{filter:brightness(1.7)}50%{filter:brightness(1.15)}75%{filter:brightness(1.4)}}
+@keyframes wave-title{0%{opacity:0;transform:translateY(8px)}12%,75%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-5px)}}
+@media(prefers-reduced-motion:reduce){.arena *{animation:none!important;transition:none!important}.pauseVeil{backdrop-filter:none}}

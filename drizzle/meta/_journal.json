@@ -127,6 +127,20 @@
       "when": 1790726400007,
       "tag": "0017_home_content_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1792018800000,
+      "tag": "0018_kobayashi_marathon",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1792484863566,
+      "tag": "0019_pitching_stats",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import type { AuthMember, AuthResponse, LoginMember } from "@/lib/auth-types";
 import { api, type ApiError, type TeamLoadResponse, type TeamPollResponse } from "../lib/api";
 import type { AuthState, SaveState } from "../types";
 import { AUTOSAVE_DELAY_MS, TEAM_POLL_INTERVAL_MS } from "../lib/sync-config";
+import { mergeSavedTeamData } from "../lib/team-save";
 
 /**
  * チームデータのロード・自動保存・ログイン状態をまとめて扱うフック。
@@ -152,16 +153,8 @@ export function useTeamData() {
           acceptData(result);
           setSaveState("saved");
         } else {
-          // Keep canonical restored starters when a roster/settings edit arrives
-          // while switching games. Only replay fields edited after this request.
           const latest = JSON.parse(currentDraft.current) as TeamData;
-          // A weekly rollover can also select a game on the server. Edits to the
-          // previous game's placement must never overwrite that game's starters.
-          const rolledOver = result.data.scheduleId !== data.scheduleId;
-          const sharedFields = new Set(["players", "teamName", "manager", "tournaments", "opponents", "locations"]);
-          const following = Object.fromEntries(Object.entries(latest).filter(([key, value]) =>
-            (!rolledOver || sharedFields.has(key)) && JSON.stringify(value) !== JSON.stringify(data[key as keyof TeamData])));
-          const merged = { ...result.data, ...following } as TeamData;
+          const merged = mergeSavedTeamData(data, result.data, latest);
           acceptData(result);
           currentDraft.current = JSON.stringify(merged);
           setData(merged);

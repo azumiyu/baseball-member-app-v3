@@ -1,4 +1,4 @@
-import type { Heat, Phase } from './pachinko-game';
+import type { Heat, Phase, Symbols } from './pachinko-game';
 import styles from './BaseballShow.module.css';
 
 type BaseballShowProps = {
@@ -7,6 +7,12 @@ type BaseballShowProps = {
   isSeven: boolean;
   revived: boolean;
   bonusRound: number;
+  bonusRoundsTotal?: number;
+  bonusHits?: number;
+  roundPayout?: number;
+  attackerOpen?: boolean;
+  rushEntry?: boolean;
+  symbols?: Symbols;
 };
 
 function Pitcher() {
@@ -108,7 +114,7 @@ function HomeRunFlight() {
   );
 }
 
-export function BaseballShow({ phase, heat, isSeven, revived, bonusRound }: BaseballShowProps) {
+export function BaseballShow({ phase, heat, isSeven, revived, bonusRound, bonusRoundsTotal = 5, bonusHits = 0, roundPayout = 0, attackerOpen = true, rushEntry = false, symbols = [7, 7, 7] }: BaseballShowProps) {
   const isSuper = phase === 'super-intro' || phase === 'pitch' || phase === 'swing' || phase === 'push';
   const isResult = phase === 'jackpot' || phase === 'revival';
   const isComeback = revived || phase === 'revival';
@@ -116,9 +122,11 @@ export function BaseballShow({ phase, heat, isSeven, revived, bonusRound }: Base
   if (!isSuper && !isResult && phase !== 'bonus') return null;
 
   return (
-    <div className={styles.show} data-phase={phase} data-heat={heat} aria-hidden="true">
+    <div className={styles.show} data-phase={phase} data-heat={heat} data-seven={isSeven} aria-hidden="true">
+      <div className={styles.screenTexture} />
       {isSuper && (
         <div className={styles.superScene}>
+          <div className={styles.cinemaTop}><span>LAST INNING</span><b>9回裏・二死満塁</b><span>FULL COUNT</span></div>
           <div className={styles.speedLines} />
           <div className={styles.reachLabel}><span /> SUPER REACH <span /></div>
           <div className={styles.showdown}>勝負<span>！</span></div>
@@ -130,19 +138,22 @@ export function BaseballShow({ phase, heat, isSeven, revived, bonusRound }: Base
           {(phase === 'swing' || phase === 'push') && <div className={styles.contactBurst} />}
           <div className={styles.superCaption}>
             <span className={styles.captionLine} />
-            {phase === 'push' ? 'この一打で、決めろ。' : phase === 'swing' ? '振り抜け、その先へ。' : phase === 'pitch' ? '一球に、すべてを。' : 'たたきか？エンドランか？はたまた。。？'}
+            {phase === 'push' ? 'この一打で、決めろ。' : phase === 'swing' ? '振り抜け、その先へ。' : phase === 'pitch' ? '一球に、すべてを。' : '最終打席。奇跡を、その手で。'}
             <span className={styles.captionLine} />
           </div>
+          <div className={styles.cinemaBottom}><span>逆転ホームランリーチ</span><i /><b>{phase === 'push' ? 'PUSH TO SWING' : 'ONE SWING CAN CHANGE EVERYTHING'}</b></div>
         </div>
       )}
 
       {isResult && (
         <div className={styles.resultScene}>
+          <div className={styles.victoryRays} />
           <HomeRunFlight />
           <div className={styles.victoryAura} />
           {isSeven ? (
             <>
               <div className={styles.resultEyebrow}>{isComeback ? '逆転ホームラン！' : '777 SPECIAL CELEBRATION'}</div>
+              <div className={styles.sevenCrown}>777</div>
               <div className={styles.sevenShout}>カイリキー<span>！！</span></div>
               <VictoryPlayer />
               <span className={`${styles.victorySpark} ${styles.sparkLeft}`}>✦</span>
@@ -151,21 +162,23 @@ export function BaseballShow({ phase, heat, isSeven, revived, bonusRound }: Base
           ) : (
             <>
               <div className={styles.resultEyebrow}>{isComeback ? 'NEVER GIVE UP' : 'INTO THE STANDS'}</div>
+              <div className={styles.winningNumbers}>{symbols.map((symbol, index) => <strong key={index} data-odd={symbol % 2 === 1}>{symbol}</strong>)}</div>
               <div className={styles.homeRunTitle}>{isComeback ? '逆転ホームラン！' : 'ホームラン！'}</div>
               <Batter celebrating />
               <div className={styles.homeRunStamp}>HOME<br /><strong>RUN</strong><span>歓喜の一打</span></div>
             </>
           )}
+          <div className={styles.resultAward}>{rushEntry ? '逆転 RUSH 突入' : 'BASEBALL BONUS 獲得'}<span>右打ちでアタッカーを狙え</span></div>
         </div>
       )}
 
       {phase === 'bonus' && (
-        <div className={styles.bonusScene}>
-          <div className={styles.bonusKicker}>THE GAME GOES ON</div>
+        <div className={styles.bonusScene} data-open={attackerOpen}>
+          <div className={styles.bonusKicker}>{bonusRoundsTotal === 10 ? 'RUSH SPECIAL · 1,500 BALLS' : 'HOME RUN · 750 BALLS'}</div>
           <div className={styles.bonusTitle}>BASEBALL <strong>BONUS</strong></div>
-          <div className={styles.inning}><span>ROUND</span><strong>{bonusRound}<small>回表</small></strong><i /></div>
+          <div className={styles.inning}><span>ROUND</span><strong>{bonusRound}<small>/ {bonusRoundsTotal}</small></strong><i /><span className={styles.roundPrize}>GET <b>{roundPayout}</b> 玉</span></div>
           <div key={bonusRound} className={styles.attacker}>
-            <div className={styles.attackerTop}><span /> ATTACKER OPEN <span /></div>
+            <div className={styles.attackerTop}><span /> {attackerOpen ? 'ATTACKER OPEN' : 'ROUND COMPLETE'} <span /></div>
             <div className={styles.attackerOpening}>
               <div className={styles.gateGlow} />
               <div className={styles.slats}><i /><i /><i /><i /><i /></div>
@@ -173,7 +186,8 @@ export function BaseballShow({ phase, heat, isSeven, revived, bonusRound }: Base
             </div>
             <div className={styles.attackerLip} />
           </div>
-          <div className={styles.bonusCaption}>いざ、き～ぴん</div>
+          <div className={styles.hitMeter}>{Array.from({ length: 10 }, (_, index) => <i key={index} data-hit={index < bonusHits} />)}<span>{bonusHits} / 10 入賞</span></div>
+          <div className={styles.bonusCaption}>{attackerOpen ? '右打ち継続 ▶▶▶' : 'ラウンド完了！次の開放を待て'}</div>
         </div>
       )}
     </div>

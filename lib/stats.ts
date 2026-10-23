@@ -7,6 +7,17 @@ export const PLATE_APPEARANCE_RESULTS = [
 ] as const;
 
 export type PlateAppearanceResult = (typeof PLATE_APPEARANCE_RESULTS)[number];
+export type PitchingStats = {
+  /** Number of outs recorded; keeps thirds of an inning exact. */
+  inningsPitchedOuts: number;
+  runsAllowed: number;
+  earnedRuns: number;
+  hitsAllowed: number;
+  homeRunsAllowed: number;
+  strikeouts: number;
+  walksAllowed: number;
+  hitByPitch: number;
+};
 export type PlayerStats = {
   plateAppearances: Array<PlateAppearanceResult | null>;
   scoringPosition: Array<boolean | null>;
@@ -16,9 +27,13 @@ export type PlayerStats = {
   caughtStealingAttempts: number;
   errors: number;
   caughtStealing: number;
+  /** Absent on older/non-pitcher entries; present when pitching was entered. */
+  pitching?: PitchingStats;
 };
 export type GameStats = Record<string, PlayerStats>;
 export type StatsData = { games: Record<string, GameStats>; scheduleIds: Record<string, string> };
+export type StatsLineups = Record<string, Array<string | null>>;
+export type StatsLineupData = { lineups: StatsLineups };
 export type StatsScheduleOption = Pick<ScheduleGame, "id" | "date" | "startTime" | "title" | "opponent" | "location">;
 export type StatsSchedulePage = {
   schedules: StatsScheduleOption[];
@@ -48,6 +63,16 @@ export function parseGameKey(key: string): { date: string; number: number } | nu
 
 export function emptyPlayerStats(): PlayerStats {
   return { plateAppearances: Array(5).fill(null), scoringPosition: Array(5).fill(false), rbis: 0, runs: 0, stolenBases: 0, caughtStealingAttempts: 0, errors: 0, caughtStealing: 0 };
+}
+
+export function emptyPitchingStats(): PitchingStats {
+  return { inningsPitchedOuts: 0, runsAllowed: 0, earnedRuns: 0, hitsAllowed: 0, homeRunsAllowed: 0, strikeouts: 0, walksAllowed: 0, hitByPitch: 0 };
+}
+
+export function formatInningsPitched(outs: number): string {
+  const innings = Math.floor(outs / 3);
+  const remainingOuts = outs % 3;
+  return remainingOuts === 0 ? `${innings}回` : `${innings}回${remainingOuts}/3`;
 }
 
 export function todayLocalDate(): string {
@@ -80,6 +105,14 @@ function normalizePlayers(value: unknown): GameStats {
     for (const field of ["rbis", "runs", "stolenBases", "caughtStealingAttempts", "errors", "caughtStealing"] as const) {
       const candidate = source[field];
       stats[field] = typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0 ? candidate : 0;
+    }
+    if (source.pitching && typeof source.pitching === "object" && !Array.isArray(source.pitching)) {
+      const pitching = emptyPitchingStats();
+      for (const field of Object.keys(pitching) as Array<keyof PitchingStats>) {
+        const candidate = (source.pitching as Partial<PitchingStats>)[field];
+        pitching[field] = typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0 ? candidate : 0;
+      }
+      stats.pitching = pitching;
     }
     players[String(playerId)] = stats;
   }
@@ -138,6 +171,17 @@ export function validateStatsData(value: unknown): StatsData {
         const statValue = sourcePlayer[field];
         if (typeof statValue !== "number" || !Number.isSafeInteger(statValue) || statValue < 0) throw new Error("Invalid stat value");
         stats[field] = statValue;
+      }
+      if (sourcePlayer.pitching !== undefined) {
+        const sourcePitching = sourcePlayer.pitching;
+        if (!sourcePitching || typeof sourcePitching !== "object" || Array.isArray(sourcePitching)) throw new Error("Invalid pitching stats");
+        const pitching = emptyPitchingStats();
+        for (const field of Object.keys(pitching) as Array<keyof PitchingStats>) {
+          const statValue = (sourcePitching as Partial<PitchingStats>)[field];
+          if (typeof statValue !== "number" || !Number.isSafeInteger(statValue) || statValue < 0) throw new Error("Invalid pitching stat value");
+          pitching[field] = statValue;
+        }
+        stats.pitching = pitching;
       }
       game[playerId] = stats;
     }

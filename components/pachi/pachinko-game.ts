@@ -1,102 +1,90 @@
+import type { BallFlight } from "./pachinko-physics";
+
 export const SYMBOL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 export type SymbolId = (typeof SYMBOL_IDS)[number];
 export const SYMBOL_COUNT = SYMBOL_IDS.length;
-
-export function symbolImagePath(symbol: number): string {
-  return `/pachi/${symbol}.png`;
-}
+export const symbolImagePath = (symbol: number) => `/pachi/${symbol}.png`;
 export type Heat = "normal" | "chance" | "hot";
-export type Phase =
-  | "idle"
-  | "chance"
-  | "varying"
-  | "left-stop"
-  | "right-stop"
-  | "reach"
-  | "super-intro"
-  | "pitch"
-  | "swing"
-  | "push"
-  | "freeze"
-  | "miss"
-  | "revival"
-  | "jackpot"
-  | "bonus";
+export type GameMode = "normal" | "rush";
+export type Phase = "idle" | "chance" | "varying" | "left-stop" | "right-stop" | "reach" | "super-intro" | "pitch" | "swing" | "push" | "freeze" | "miss" | "revival" | "jackpot" | "bonus";
+export type Symbols = [SymbolId, SymbolId, SymbolId];
 
 export interface Ball {
   id: number;
   path: 0 | 1 | 2;
   enters: boolean;
   heat: Heat;
+  power: number;
+  target: BallFlight["target"];
+  flight: BallFlight;
 }
 
-export interface Hold {
-  id: number;
-  heat: Heat;
-}
+/** One independent draw per accepted start. A change of mode reuses this draw. */
+export interface GameTicket { draw: number; presentationSeed: number }
+export interface Hold { id: number; heat: Heat; ticket: GameTicket }
 
-export type Symbols = [SymbolId, SymbolId, SymbolId];
-
-// All odds are local play-demo settings. There are no stakes or rewards.
-// JACKPOT_RATE is the chance per NORMAL start. Chance/hot multiply that
-// probability by 1.7/2.7. Heat is selected before the start enters the queue.
-export const JACKPOT_RATE = 0.18;
-// Conditional chance of reach among LOSING starts. All wins must reach.
-export const REACH_RATE = 0.48;
-// Conditional chance of super reach among non-revival reaches; heat adds
-// 0.15/0.30. A revival always uses the super-reach presentation.
-export const SUPER_REACH_RATE = 0.55;
-// Fraction of preselected wins presented as a miss followed by revival.
-// This is a presentation rate, not an extra draw that changes win odds.
-export const REVIVAL_RATE = 0.1;
-// Chance of a colored hold; 30% of these colored holds are hot.
-export const CHANCE_UP_RATE = 0.28;
-// Chance of entry per launched ball, except the first ball always enters.
-export const START_ENTRY_RATE = 0.8;
-
+// Local, free virtual balls only. Heat and PUSH never increase the draw odds.
+export const JACKPOT_RATE = 1 / 99.9;
+export const RUSH_JACKPOT_RATE = 1 / 39.9;
+export const RUSH_ENTRY_RATE = 0.5;
+export const RUSH_SPINS = 50;
+export const INITIAL_BALLS = 2500;
 export const HOLD_CAPACITY = 4;
-export const MAX_BALLS_IN_FLIGHT = 4;
-export const BONUS_ROUNDS = 3;
-export const HOT_HOLD_RATE = 0.3;
+export const MAX_BALLS_IN_FLIGHT = 12;
+export const BONUS_ROUNDS = 5;
+export const RUSH_BONUS_ROUNDS = 10;
+export const BONUS_HITS_PER_ROUND = 10;
+export const ATTACKER_PAYOUT = 15;
+export const START_PAYOUT = 3;
+export const PRIZE_PAYOUT = 5;
+export const START_ENTRY_RATE = 0.2;
+export const REACH_RATE = 0.08;
+export const SUPER_REACH_RATE = 0.2;
+export const REVIVAL_RATE = 0.12;
+export const CHANCE_UP_RATE = 0.04;
+export const HOT_HOLD_RATE = 0.002;
 export const HEAT_SETTINGS = {
   normal: { jackpotMultiplier: 1, superReachBonus: 0 },
-  chance: { jackpotMultiplier: 1.7, superReachBonus: 0.15 },
-  hot: { jackpotMultiplier: 2.7, superReachBonus: 0.3 },
-} as const satisfies Record<Heat, { jackpotMultiplier: number; superReachBonus: number }>;
+  chance: { jackpotMultiplier: 1, superReachBonus: 0.2 },
+  hot: { jackpotMultiplier: 1, superReachBonus: 0.55 },
+} as const;
 
 export const TIMINGS = {
-  launchCooldown: 450,
-  entryBall: 2200,
-  missedBall: 2400,
+  launchCooldown: 600,
+  entryBall: 3000,
+  missedBall: 3500,
   reducedBall: 450,
   chance: 650,
-  symbolTick: 150,
-  slowSymbolTick: 450,
-  leftStop: 1400,
-  rightStop: 2300,
-  reachAnnouncement: 320,
-  noReachFinish: 480,
-  normalReach: 2700,
-  superReachLead: 1200,
-  superIntro: 900,
-  pitch: 900,
-  swing: 700,
-  pushTimeout: 8000,
-  freeze: 400,
-  miss: 1400,
+  symbolTick: 95,
+  slowSymbolTick: 350,
+  leftStop: 1300,
+  rightStop: 2100,
+  reachAnnouncement: 380,
+  noReachFinish: 380,
+  normalReach: 2600,
+  superReachLead: 1300,
+  superIntro: 1200,
+  pitch: 1000,
+  swing: 800,
+  pushTimeout: 6500,
+  freeze: 600,
+  miss: 900,
   revivalMiss: 1500,
-  revival: 1200,
-  jackpot: 3200,
-  sevenJackpot: 4500,
-  bonusRound: 1100,
+  revival: 1400,
+  jackpot: 3000,
+  sevenJackpot: 4200,
+  bonusRound: 800,
+  previewHit: 180,
 } as const;
 
 export interface GamePlan {
+  mode: GameMode;
   heat: Heat;
   win: boolean;
   reach: boolean;
   superReach: boolean;
   revival: boolean;
+  rushEntry: boolean;
   finalSymbols: Symbols;
   missSymbols: Symbols;
 }
@@ -104,46 +92,47 @@ export interface GamePlan {
 export function randomSymbol(random: () => number = Math.random): SymbolId {
   return (Math.floor(random() * SYMBOL_COUNT) + 1) as SymbolId;
 }
-
 export function neighborSymbol(symbol: SymbolId, direction: -1 | 1): SymbolId {
   return (((symbol - 1 + direction + SYMBOL_COUNT) % SYMBOL_COUNT) + 1) as SymbolId;
 }
-
-export function chooseHeat(random: () => number = Math.random): Heat {
-  if (random() >= CHANCE_UP_RATE) return "normal";
-  return random() < HOT_HOLD_RATE ? "hot" : "chance";
+export function chooseHeat(random: () => number = Math.random, win = false): Heat {
+  const value = random();
+  return win ? (value < 0.6 ? "hot" : value < 0.9 ? "chance" : "normal")
+    : value < HOT_HOLD_RATE ? "hot" : value < CHANCE_UP_RATE ? "chance" : "normal";
+}
+export function jackpotRate(modeOrHeat: GameMode | Heat = "normal"): number {
+  return modeOrHeat === "rush" ? RUSH_JACKPOT_RATE : JACKPOT_RATE;
 }
 
-export function jackpotRate(heat: Heat): number {
-  const multiplier = HEAT_SETTINGS[heat].jackpotMultiplier;
-  return Math.min(1, JACKPOT_RATE * multiplier);
-}
-
-/** Select the whole result once. Animation ticks and PUSH cannot change it. */
-export function createGamePlan(
-  heat: Heat,
-  random: () => number = Math.random,
-): GamePlan {
-  const win = random() < jackpotRate(heat);
+/** Select the result first, then correlated presentation. PUSH is just a reveal. */
+export function createGamePlan(modeOrHeat: GameMode | Heat = "normal", random: () => number = Math.random): GamePlan {
+  const mode: GameMode = modeOrHeat === "rush" ? "rush" : "normal";
+  const win = random() < jackpotRate(mode);
+  const heat = chooseHeat(random, win);
+  const rushEntry = win && (mode === "rush" || random() < RUSH_ENTRY_RATE);
   const reach = win || random() < REACH_RATE;
-  const heatBonus = HEAT_SETTINGS[heat].superReachBonus;
   const revival = win && random() < REVIVAL_RATE;
-  const superReach = reach && (revival || random() < SUPER_REACH_RATE + heatBonus);
-  const left = randomSymbol(random);
-  // Non-reach sides always differ, including across the 9 -> 1 boundary.
-  const right = reach
-    ? left
-    : ((((left + Math.floor(random() * (SYMBOL_COUNT - 1))) % SYMBOL_COUNT) + 1) as SymbolId);
-  const missedCenter = reach
-    ? neighborSymbol(left, random() < 0.5 ? -1 : 1)
-    : randomSymbol(random);
-  return {
-    heat,
-    win,
-    reach,
-    superReach,
-    revival,
-    finalSymbols: [left, win ? left : missedCenter, right],
-    missSymbols: [left, missedCenter, right],
-  };
+  const superReach = reach && (revival || random() < (win ? 0.8 : SUPER_REACH_RATE + HEAT_SETTINGS[heat].superReachBonus));
+  let left = randomSymbol(random);
+  // 777 always announces RUSH; ordinary symbols can also enter RUSH.
+  if (win && !rushEntry && left === 7) left = 6;
+  const right = reach ? left : ((((left + Math.floor(random() * (SYMBOL_COUNT - 1))) % SYMBOL_COUNT) + 1) as SymbolId);
+  const missedCenter = reach ? neighborSymbol(left, random() < 0.5 ? -1 : 1) : randomSymbol(random);
+  return { mode, heat, win, reach, superReach, revival, rushEntry,
+    finalSymbols: [left, win ? left : missedCenter, right], missSymbols: [left, missedCenter, right] };
+}
+
+export function createGameTicket(random: () => number = Math.random): GameTicket {
+  return { draw: random(), presentationSeed: Math.floor(random() * 0x100000000) >>> 0 };
+}
+
+/** A queued ticket is evaluated at consumption mode, never redrawn. */
+export function planForTicket(ticket: GameTicket, mode: GameMode): GamePlan {
+  let seed = ticket.presentationSeed;
+  let first = true;
+  return createGamePlan(mode, () => {
+    if (first) { first = false; return ticket.draw; }
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  });
 }

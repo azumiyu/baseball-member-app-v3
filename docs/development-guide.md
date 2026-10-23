@@ -7,13 +7,20 @@
 | `app/page.tsx` / `components/team/TeamApp.tsx` | チーム画面の入口、各画面・モーダルの接続 |
 | `components/team/hooks/useTeamUiState.ts` | タブ、選手選択、モーダルの開閉 |
 | `components/team/hooks/useTeamData.ts` | ログイン、チームの取得・保存、定期取得、再認証 |
+| `components/team/lib/team-save.ts` | 保存中に追加した編集の再適用、試合切替後のスタメンの保持 |
+| `components/team/hooks/useImageExport.ts` / `components/team/lib/lineup-image.ts` | オーダー画像の生成・共有・プレビューURL管理 / PNG変換・余白描画 |
 | `components/team/hooks/useAutosavedData.ts` | 道具・成績で共通の読み込み、自動保存、競合状態 |
 | `components/team/hooks/useEquipmentData.ts` | 道具APIへの接続 |
 | `components/team/hooks/useStatsData.ts` | 成績APIへの接続、変更した試合・削除した試合だけの送信 |
 | `components/team/hooks/useScheduleData.ts` / `components/team/schedule/` | 予定・出欠の部分取得・差分保存・履歴ページング / 予定管理画面・変更案内 |
+| `components/team/schedule/ScheduleGameCard.tsx` / `ScheduleGameEditor.tsx` | 試合カード / 予定編集・保存と案内文のコピー |
+| `components/team/schedule/ScheduleResponseControls.tsx` / `ScheduleResponsesModal.tsx` | 出欠入力・集計 / メンバー別の出欠・コメント確認と編集 |
+| `components/team/schedule/schedule-presentation.ts` / `hooks/use-unsaved-warning.ts` | 予定画面の共通型・表示項目・日付書式 / 未保存入力の離脱確認 |
 | `components/team/lib/api.ts` | JSON通信、HTTPエラーの変換 |
 | `components/team/lib/lineup-actions.ts` / `lib/model.ts` | オーダー・選手のデータ操作と検証 |
-| `components/team/stats/StatsView.tsx` | 成績の入力・確認画面と操作 |
+| `components/team/stats/StatsView.tsx` | 試合・選手の選択、入力下書き、成績登録・予定との連携 |
+| `components/team/stats/StatsEntryFields.tsx` / `StatsConfirmation.tsx` | 打席・数値の入力欄 / 登録済み成績の一覧 |
+| `components/team/stats/stats-actions.ts` | 成績入力の更新、選手の並べ替え、成績削除と紐付けの整理 |
 | `components/team/stats/StatsValues.tsx` / `stats-summary.ts` | 確認画面の表示 / 成績集計・安打判定 |
 | `components/team/common/Modal.tsx` | 共通モーダル、キーボード表示時の高さ・フォーカス調整 |
 | `app/api/*/route.ts` | API入口 |
@@ -35,6 +42,8 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 - 待ち時間は `components/team/lib/sync-config.ts`。自動保存650ms、チームの条件付き取得60秒を維持しています。
 - 道具・成績のデータソースは各フックのモジュール直下に定義します。レンダー中に作り直すと、共通フックの読み込みが再実行されます。
 - 共通フックは編集時に複製したデータを渡します。保存中の追加入力は次の保存対象に残し、409の競合は明示的な読み直しまで保持します。
+- チーム保存中の追加入力は `mergeSavedTeamData` でサーバーの保存結果に重ねます。週次更新で別の試合が選ばれた場合は、名簿・チーム設定・名前候補だけを再適用し、前の試合の配置は引き継ぎません。
+- オーダー画像のPNG変換と余白描画は `lineup-image.ts` にまとめています。プレビューの差し替え・閉じる操作・画面破棄でURLを解放し、ログアウト後に生成結果が届いても表示しません。
 - 成績は試合単位の差分送信です。全件PUTへ置き換えないでください。登録済み予定のIDは `stats_games.schedule_id` に保存し、成績の既存キー `game_date` / `game_number` は変更しません。予定情報は同じ成績GETに含め、試合切り替えの追加取得を避けます。公開前の `0011_stats_schedules.sql` 適用、既存成績の連携条件と確認項目は [成績と予定の連携](stats-schedules.md) を参照してください。
 - 認証・データ保存は既存のCookieとD1を使います。チーム・後藤ページ・パチンコで新たなlocalStorage/sessionStorage保存は行っていません。
 - `TabNav.tsx` のモジュール変数は、画面切り替えによる再マウント後にもタブの横スクロール位置を戻すために残しています。
@@ -45,7 +54,7 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 - 予定の `details_revision` は開始時刻・終了時刻・場所が変わったときだけ増やします。変更者の回答は同時に確認済みにし、他の回答済みメンバーには直前の変更前後と再確認を案内します。「変更なし」は出欠・コメントを保ち、`confirmed_revision` だけを更新します。大会名・日付・相手・確定状況の変更では再確認を求めません。
 - 終了時刻には `0012_schedule_end_time.sql` が必要です。`lib/schedule-format.ts` で2時間後の提案・LINE向け文章を生成します。コピーは操作直後に開始し、`useScheduleData.saveNow` で差分だけを即時保存します。コピー結果と保存結果を混同しないでください。
 - 審判手配状況は `0013_schedule_umpire.sql` の `schedule_games.umpire_arranged` に保存します。予定の差分に含め、編集権限は `can_edit_lineup` で確認します。審判フラグの変更では `details_revision` を増やしません。審判依頼文は `lib/schedule-format.ts` の `umpireRequestText` で生成し、コピーボタンは保存・送信を行いません。
-- 試合別のスタメンは `schedule_lineups` / `schedule_lineup_slots` に保存します。対象はオーダー形式・打順・守備位置・選手・DH投手で、名簿やベンチ一覧は複製しません。選択試合の切り替え時に復元し、過去分は週次更新や関連する保存処理で削除します。
+- 試合別のスタメンは `schedule_lineups` / `schedule_lineup_slots` に保存します。対象はオーダー形式・打順・守備位置・選手・DH投手で、名簿やベンチ一覧は複製しません。選択試合の切り替え時に復元し、過去分は直近5試合・登録成績の確認対象5件・現在の選択試合だけを保持します。それ以外は週次更新や関連する保存処理で削除します。
 - 大会名・相手・場所の候補は `name_options` に保存し、場所は `kind = 'location'` です。候補検索は取得済みデータで行い、Google / Appleマップの検索はユーザーがリンクを開いた場合だけ実行します。
 - オーダーの試合情報はスケジュールの選択から反映します。チーム名・監督名は管理者のチーム設定で変更し、APIも `is_admin` を検証します。公開前に `0009_schedule_lineups.sql` まで適用し、アプリと週次スケジュールWorkerを更新してください。
 
@@ -59,7 +68,9 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 | 玉の入賞、保留消化、停止順、PUSH、復活・大当たり進行 | `components/pachi/pachinko-controller.ts` |
 | Reactの状態との接続・破棄 | `components/pachi/usePachinkoGame.ts` |
 | 画面枠、操作ボタン、音を鳴らすタイミング | `components/pachi/PachinkoPage.tsx` |
-| 盤面、玉の軌道、釘、液晶の配置 | `components/pachi/PachinkoBoard.tsx` |
+| 盤面、液晶・入賞口の配置 | `components/pachi/PachinkoBoard.tsx` |
+| 共有の釘・レール座標、強度別の玉軌道 | `components/pachi/pachinko-physics.ts` |
+| 玉・残像・接触光のCanvas描画 | `components/pachi/PachinkoBallField.tsx` |
 | 図柄変動の表示 | `components/pachi/SymbolDisplay.tsx` と同名CSS Module |
 | 投球・スイング、777のポーズ、BONUS演出 | `components/pachi/BaseballShow.tsx` と同名CSS Module |
 | 音色、音量、777の読み上げ | `components/pachi/usePachinkoAudio.ts` |
@@ -67,9 +78,11 @@ YGミニゲームのルール、ランキング保存、ゲームを追加する
 
 図柄は `public/pachi/1.png`〜`9.png` を使用します。`SYMBOL_IDS` と画像パスは `pachinko-game.ts` に集約しています。図柄番号は1から連続する前提です。増減時は実際の画像も揃え、隣の図柄への移動や「7」の特別演出も確認してください。
 
-`JACKPOT_RATE` は通常保留の確率で、`HEAT_SETTINGS` の倍率を掛けます。`REACH_RATE` は外れ抽選のリーチ確率です。`SUPER_REACH_RATE` はリーチからの発展確率で期待度の加算があります。`REVIVAL_RATE` は当たりを一度外れに見せる演出の割合で、追加の当たり抽選ではありません。PUSHを押す時刻で結果は変わらず、8秒後には同じ結果を自動表示します。
+通常時は1/99.9、RUSH中は1/39.9、ST50回のオリジナル仕様です。保留ごとに乱数ticketを一度だけ取得し、消化時のモードで判定します。保留色は結果に応じた演出であり、確率の倍率ではありません。`REACH_RATE` は外れ抽選のリーチ割合、`SUPER_REACH_RATE` は発展の割合です。`REVIVAL_RATE` は当たりを一度外れに見せる演出で、再抽選しません。PUSHで結果は変わらず、6.5秒後には同じ結果を自動表示します。
 
-コントローラーがタイマーを所有し、非表示時の残り時間の保存・再開と、離脱時の破棄を担当します。単純な `await delay()` への置き換えで、この停止・破棄処理を失わないようにしてください。音は初期OFF、ブラウザーの音声APIで生成し、外部音声ファイルは使いません。ゲーム状態はメモリー内のみです。
+連続発射は600ms間隔、初期持ち玉2,500。通常当り5R・RUSH中当り10Rで、各ラウンドはアタッカー10入賞×15玉の実入賞方式です。止め打ち中はラウンドも進みません。最大4保留、満保留でも始動口の3玉は払い出します。ゲーム仕様・操作・検証手順の詳細は [pachinko.md](pachinko.md) を参照してください。
+
+コントローラーがタイマーを所有し、休憩・非表示時の残り時間の保存・再開と、離脱時の破棄を担当します。Canvasも同じ停止状態に従います。単純な `await delay()` への置き換えで、この停止・破棄処理を失わないようにしてください。音は初期OFFで、操作によるON時に音声APIを開始します。離脱・ミュート・非表示で音源を停止します。ゲーム状態はメモリー内のみ、API・D1への通信はありません。
 
 ## 後藤ページ・動きを減らす設定
 
@@ -112,3 +125,18 @@ OSの「視差効果を減らす」設定は `hooks/use-reduced-motion.ts` で�
 - ブラウザーでの描画・操作、ビルド、DB接続、LINE実送信は実施していません。
 
 `.wrangler/` や `dist/` は生成物としてLint対象から除外しています。既にGitで追跡されている生成物は、監視プロセスによってソース変更時に差分が生じるため、ソースの差分と区別して確認してください。
+
+## 自動チェック
+
+Node.js 22.13以降で次を実行します。
+
+```bash
+npm run lint
+npx tsc --noEmit --incremental false
+node scripts/verify-team-schedule-switch.cjs
+npm run build
+```
+
+`verify-team-schedule-switch.cjs` はMiniflareの隔離したD1で、試合切り替えの保存・オーダー復元・成績の打順・権限・競合・週次更新を確認します。既存のローカルDBや本番DBには接続しません。D1固有のSQL上限を含む変更では、通常のSQLiteだけでなくこの検証も実行してください。
+
+画像の共有・保存は実機ブラウザーで確認してください。

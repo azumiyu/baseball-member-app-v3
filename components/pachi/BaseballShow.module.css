@@ -12,6 +12,7 @@
   color: var(--show-white);
   font-family: "Arial Black", "Noto Sans JP", "Yu Gothic", sans-serif;
   isolation: isolate;
+  container-type: inline-size;
 }
 
 .superScene,
@@ -314,6 +315,43 @@
 .attackerLip { position: absolute; left: 5%; right: 5%; bottom: 1%; height: 9%; border-radius: 0 0 5px 5px; background: linear-gradient(180deg, #2b4655, #cbd4d6 30%, #8499a4 50%, #2b414f); }
 .bonusCaption { position: absolute; left: 0; right: 0; bottom: 15%; color: #f4d58d; font-size: clamp(10px, 1.8vw, 14px); font-weight: 800; letter-spacing: .15em; text-align: center; text-shadow: 0 2px 6px #000; }
 
+.screenTexture { position: absolute; z-index: 8; inset: 0; pointer-events: none; opacity: .13; background: repeating-linear-gradient(0deg, #0006 0 1px, transparent 1px 3px); box-shadow: inset 0 0 34px #0007; }
+.cinemaTop, .cinemaBottom { position: absolute; z-index: 3; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 4%; height: 8%; background: #01060ee8; color: #c5cdd7; font-size: clamp(5px, 1vw, 8px); letter-spacing: .18em; }
+.cinemaTop { top: 0; border-bottom: 1px solid #e9c16a45; }
+.cinemaTop b { color: #ffe69b; letter-spacing: .07em; font-size: 1.15em; }
+.cinemaBottom { bottom: 0; height: 9%; border-top: 1px solid #e9c16a45; }
+.cinemaBottom b { font-size: .85em; font-weight: 500; letter-spacing: .12em; }
+.cinemaBottom i { width: 3px; height: 3px; border-radius: 50%; background: #e9c16a; box-shadow: 0 0 7px #e9c16a; }
+.superScene .reachLabel { top: 10%; }
+.superScene .showdown { top: 16%; font-size: clamp(35px, 6vw, 65px); }
+.superScene .superCaption { bottom: 12%; font-size: clamp(10px, 1.9vw, 18px); }
+.victoryRays { position: absolute; inset: -65%; opacity: .5; background: repeating-conic-gradient(from 20deg at 50% 50%, #ffc64700 0deg 13deg, #ffc64745 15deg 17deg, #ffc64700 19deg 30deg); animation: raysTurn 26s linear infinite; }
+.resultScene { background: radial-gradient(ellipse at 50% 45%, #7a3519c2, #120c18e8 76%); }
+.resultAward { position: absolute; z-index: 3; left: 12%; right: 12%; bottom: 3%; padding: 1.4% 0; border-block: 1px solid #ffdf8e8c; background: linear-gradient(90deg, transparent, #bc6b135e, transparent); color: #ffe5a3; text-align: center; font-size: clamp(11px, 2.3vw, 21px); font-weight: 900; letter-spacing: .09em; text-shadow: 0 2px 6px #000; }
+.resultAward span { display: block; margin-top: 1%; font-size: .48em; font-weight: 600; letter-spacing: .18em; color: #fff7e1; }
+.sevenCrown { position: absolute; z-index: 1; top: 4%; left: 0; right: 0; color: #ffe9a0; font-family: Impact, "Arial Black", sans-serif; text-align: center; font-size: clamp(42px, 10vw, 96px); font-style: italic; line-height: 1; letter-spacing: .05em; -webkit-text-stroke: 1px #9e531e; text-shadow: 1px 2px #fff8c1, 3px 4px #9e531e, 5px 6px #4e201a, 0 0 25px #ffd36a7d; animation: crownArrives 650ms cubic-bezier(.17,.87,.21,1.14) both; }
+.show[data-seven="true"] .resultEyebrow { top: 28%; }
+.show[data-seven="true"] .sevenShout { top: 36%; }
+.show[data-seven="true"] .victoryPlayer { bottom: 17%; height: 35%; }
+.bonusScene { background: radial-gradient(ellipse at 50% 62%, #0b5666aa, #030d1be8); }
+.bonusScene .bonusKicker { top: 7%; }
+.bonusScene .bonusTitle { top: 14%; }
+.bonusScene .inning { top: 29%; }
+.bonusScene .attacker { top: 44%; height: 29%; }
+.bonusScene .bonusCaption { bottom: 4%; font-size: clamp(11px, 2vw, 19px); letter-spacing: .16em; }
+.roundPrize { margin-left: 2%; color: #ffdf86 !important; letter-spacing: .02em !important; font-variant-numeric: tabular-nums; }
+.roundPrize b { font-size: clamp(13px, 2.6vw, 23px); }
+.hitMeter { position: absolute; left: 17%; right: 17%; top: 78%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 3%; }
+.hitMeter i { height: clamp(3px, .8vw, 7px); border: 1px solid #5a7388; background: #071521; border-radius: 2px; }
+.hitMeter i[data-hit="true"] { border-color: #fff4b3; background: #ffd36a; box-shadow: 0 0 7px #ffc22f; }
+.hitMeter span { grid-column: 1 / -1; margin-top: 3%; color: #c7e9e5; text-align: center; font-size: clamp(6px, 1vw, 9px); letter-spacing: .15em; font-variant-numeric: tabular-nums; }
+.bonusScene[data-open="false"] .slats { animation: none; transform: translateY(0); }
+.bonusScene[data-open="false"] .openArrows { opacity: 0; animation: none; }
+.bonusScene[data-open="false"] .attackerTop > span { background: #ffc96e; box-shadow: 0 0 8px #ffb73e; }
+
+@keyframes raysTurn { to { transform: rotate(360deg); } }
+@keyframes crownArrives { from { opacity: 0; transform: scale(2.2); filter: blur(7px); } to { opacity: 1; transform: scale(1); filter: blur(0); } }
+
 @keyframes sceneArrives { from { opacity: 0; } to { opacity: 1; } }
 @keyframes chargeLines { from { transform: scale(1); opacity: .18; } to { transform: scale(1.12); opacity: .3; } }
 @keyframes showdownArrives { from { opacity: 0; transform: scale(1.4) rotate(-7deg); } to { opacity: 1; transform: scale(1) rotate(-4deg); } }
@@ -367,6 +405,47 @@
   .openArrows { font-size: 23px; }
   .bonusCaption { bottom: 16%; font-size: 10px; letter-spacing: .07em; }
 }
+
+/* The screen is only about 200px wide on a phone. Size text to the LCD,
+   independently of the viewport or the surrounding cabinet. */
+.show .reachLabel { top: 10%; gap: 2cqw; font-size: max(5px, 2cqw); letter-spacing: .2em; }
+.show .reachLabel > span { width: 8cqw; }
+.show .showdown { top: 18%; font-size: 14cqw; }
+.show .superCaption { bottom: 13%; gap: 2cqw; font-size: max(7px, 4cqw); letter-spacing: .06em; }
+.show .captionLine { width: 4cqw; }
+.show .cinemaTop, .show .cinemaBottom { font-size: max(4px, 1.8cqw); }
+.show .cinemaBottom b { font-size: 1.4cqw; }
+.show .resultEyebrow { top: 12%; font-size: max(5px, 2.2cqw); letter-spacing: .15em; }
+.show .resultEyebrow { top: 4%; }
+.winningNumbers { position: absolute; top: 10%; left: 0; right: 0; display: flex; justify-content: center; gap: 3cqw; font: italic 900 19cqw/1 Impact, "Arial Black", sans-serif; }
+.winningNumbers strong { color: #c1f7ff; -webkit-text-stroke: 1px #23668d; text-shadow: 1px 2px #efffff, 3px 4px #15354f, 0 0 18px #61d0ff9c; }
+.winningNumbers strong[data-odd="true"] { color: #ffbaba; -webkit-text-stroke-color: #a52337; text-shadow: 1px 2px #fff5dd, 3px 4px #600e22, 0 0 18px #ff315795; }
+.show .homeRunTitle { top: 39%; font-size: 8.5cqw; }
+.show .celebratingBatter { bottom: 22%; height: 31%; }
+.show .homeRunStamp { bottom: 27%; font-size: 3cqw; }
+.show .homeRunStamp > strong { font-size: 9cqw; }
+.show .homeRunStamp > span { margin-top: 1.2cqw; font-size: 2cqw; }
+.show .sevenCrown { top: 10%; font-size: 19cqw; }
+.show[data-seven="true"] .resultEyebrow { top: 4%; }
+.show[data-seven="true"] .sevenShout { top: 39%; font-size: 8.5cqw; }
+.show[data-seven="true"] .victoryPlayer { bottom: 20%; height: 32%; }
+.show .victorySpark { font-size: 5cqw; }
+.show .sparkRight { font-size: 3.5cqw; }
+.show .resultAward { bottom: 3%; font-size: 5cqw; }
+.show .resultAward span { font-size: max(4px, 2cqw); }
+.show .bonusKicker { top: 6%; font-size: max(5px, 2cqw); letter-spacing: .17em; }
+.show .bonusTitle { top: 14%; font-size: 6.3cqw; }
+.show .inning { top: 29%; gap: 3cqw; }
+.show .inning > span { font-size: max(5px, 2cqw); }
+.show .inning > strong { font-size: 10cqw; }
+.show .inning small { margin-left: 1.5cqw; font-size: 4cqw; }
+.show .roundPrize b { font-size: 6cqw; }
+.show .attackerTop { gap: 2cqw; font-size: max(5px, 2cqw); letter-spacing: .12em; }
+.show .openArrows { font-size: 8cqw; }
+.show .hitMeter { top: 77%; }
+.show .hitMeter i { height: 1.5cqw; }
+.show .hitMeter span { font-size: max(5px, 2cqw); }
+.show .bonusCaption { bottom: 3%; font-size: max(6px, 3.5cqw); letter-spacing: .08em; }
 
 @media (prefers-reduced-motion: reduce) {
   .show *,

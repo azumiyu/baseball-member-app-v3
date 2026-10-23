@@ -1,0 +1,149 @@
+.heading > p { color: #9ce5c8; letter-spacing: .1em; }
+.heading > p > span { width: 6px; height: 6px; border-radius: 50%; background: #8ee1b5; box-shadow: 0 0 0 4px #8ee1b518; }
+.heading h1 { font-size: clamp(29px, 6.4vw, 44px); }
+.heading h1 > span { color: #a8e7c3; }
+.heading > small { font-size: 11px; }
+.machine { overflow: hidden; border: 2px solid #a7c7b6; border-radius: 18px; background: #f9f8e9; color: #193c36; box-shadow: 0 7px 0 #0c201d, 0 15px 40px #04171440; }
+.distancePanel { padding: 22px 28px 20px; background: #fcfbed; }
+.distanceTitle { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; }
+.distanceTitle > svg { color: #318367; }
+.distanceTitle > b { margin-left: auto; border: 1px solid #c6dfcb; border-radius: 4px; background: #e5f0dc; color: #4a765b; font-size: 9px; padding: 5px 7px; letter-spacing: .05em; white-space: nowrap; }
+.distance { display: flex; gap: 10px; align-items: baseline; margin: 9px 0 5px; }
+.distance > strong { max-width: 100%; font-family: Arial, sans-serif; font-size: clamp(40px, 11.7vw, 75px); line-height: 1.07; letter-spacing: -.06em; font-weight: 900; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.distance > span { color: #6b8a74; font-size: clamp(17px, 4vw, 25px); font-weight: 800; }
+.pace { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 10px; color: #6b7f70; }
+.pace > span { height: 5px; width: 5px; border-radius: 50%; background: #6d9e6e; }
+.scene { position: relative; height: 395px; overflow: hidden; background: linear-gradient(#c6f1df, #dff3e1 67%, #b4c480 67%); border-block: 1px solid #b6d3ba; isolation: isolate; }
+.sun { position: absolute; width: 74px; height: 74px; border-radius: 50%; top: 30px; right: 31px; background: #fff5b7; box-shadow: 0 0 0 15px #fffbd42b, 0 0 0 31px #fffbd415; }
+.clouds { position: absolute; top: 55px; left: 0; width: 1400px; height: 100px; animation: clouds 48s linear infinite; }
+.clouds > i { position: absolute; top: 0; left: 0; display: block; width: 110px; height: 24px; border-radius: 100px; background: #fafff3b3; }
+.clouds > i::before, .clouds > i::after { content: ""; position: absolute; border-radius: 50%; background: inherit; }
+.clouds > i::before { width: 48px; height: 48px; bottom: 0; left: 17px; }
+.clouds > i::after { width: 38px; height: 38px; bottom: 0; right: 13px; }
+.clouds > i:nth-child(2) { left: 370px; top: 35px; transform: scale(.65); }
+.clouds > i:nth-child(3) { left: 790px; top: -6px; transform: scale(1.15); }
+.farHills { position: absolute; inset: 138px -20% 110px; background: #a4d4a1; clip-path: polygon(0 80%, 10% 54%, 23% 74%, 41% 10%, 53% 44%, 70% 29%, 84% 71%, 100% 28%, 100% 100%, 0 100%); }
+.nearHills { position: absolute; inset: 180px -20% 92px; background: #7aab78; clip-path: polygon(0 58%, 16% 0, 32% 47%, 44% 26%, 62% 70%, 80% 40%, 100% 78%, 100% 100%, 0 100%); }
+.speech { position: absolute; z-index: 4; top: 20px; left: 50%; transform: translateX(-50%) rotate(-2deg); width: max-content; max-width: 83%; padding: 12px 21px 13px; text-align: center; background: #fffdf1; border: 2px solid #315a45; border-radius: 15px; box-shadow: 3px 4px 0 #315a451a; }
+.speech::after { position: absolute; content: ""; bottom: -9px; left: 41%; width: 13px; height: 13px; border-right: 2px solid #315a45; border-bottom: 2px solid #315a45; background: inherit; transform: skewX(-18deg) rotate(45deg); }
+.speech > span { display: block; margin-bottom: 5px; font-size: 8px; font-weight: 800; letter-spacing: .13em; color: #75947a; }
+.speech > strong { display: block; font-size: clamp(12px, 3.6vw, 20px); line-height: 1.5; font-weight: 900; }
+.speech > small { display: block; margin-top: 5px; color: #997129; font-size: 10px; font-weight: 800; }
+.speech > small > span { margin-left: 8px; color: #6a7b68; font-weight: 400; }
+.scene[data-mood="parched"] .speech { border-color: #a56a2c; background: #fff1bb; }
+.scene[data-mood="runners-high"] .speech { border-color: #72538b; background: #f4e9ff; }
+.scene[data-mood="runners-high"] .speech > small { color: #72538b; }
+.track { position: absolute; z-index: 1; inset: auto 0 34px; height: 90px; background: #cc8661; border-top: 5px solid #f2e0b3; border-bottom: 5px solid #f2e0b3; box-shadow: 0 -7px 0 #b0c17c, inset 0 6px 0 #bc745230; }
+.track > i { position: absolute; inset: 16px 0 auto; height: 2px; background: #edc7a4; }
+.track > i:nth-child(2) { top: 45px; }
+.track > i:nth-child(3) { top: 71px; }
+.track::after { position: absolute; content: ""; inset: 0; background: repeating-linear-gradient(90deg, #fff3cd00, #fff3cd00 170px, #fff3cd70 170px, #fff3cd70 174px, #fff3cd00 174px, #fff3cd00 240px); transform: skewX(-19deg); animation: road .9s linear infinite; }
+.runner { position: absolute; z-index: 3; height: 265px; width: 265px; bottom: 68px; left: 44%; transform: translateX(-50%); }
+.runnerSprite { width: 100%; height: 100%; position: relative; background: url("/game/kobayashi-runner.png") 0 0 / 200% 200% no-repeat; animation: runnerFrames .62s steps(1, end) infinite; filter: drop-shadow(2px 4px 0 #3852400f); }
+.runnerShadow { width: 112px; height: 16px; position: absolute; z-index: -1; left: 79px; bottom: -1px; border-radius: 50%; background: #6b4c3645; filter: blur(2px); animation: shadow .31s ease-in-out infinite alternate; }
+.runnerPhoto { width: 175px; height: 226px; position: absolute; bottom: 10px; left: 45px; border: 5px solid #fff7e0; border-radius: 100px 100px 24px 24px; object-fit: cover; object-position: 50% 20%; transform: rotate(4deg); box-shadow: 4px 7px 0 #254e3026; animation: photoRun .31s ease-in-out infinite alternate; }
+.spritePreload { width: 1px; height: 1px; position: absolute; opacity: 0; pointer-events: none; }
+.runnerTag { display: flex; align-items: center; justify-content: center; gap: 6px; position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%); min-width: 123px; padding: 5px 8px; border: 1px solid #f2d0a4; border-radius: 4px; background: #86593e; color: #ffedc5; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+.station { position: absolute; right: 5%; bottom: 111px; z-index: 2; display: flex; align-items: center; flex-direction: column; transform: rotate(4deg); }
+.station > span { padding: 7px 11px; background: #fff1b8; border: 2px solid #6e8150; border-radius: 5px; color: #4c6b4b; font-size: 14px; font-weight: 900; box-shadow: 3px 3px 0 #315a451a; }
+.station > svg { margin: 8px 0 6px; color: #408c85; }
+.station > i { display: block; width: 5px; height: 63px; background: #6e8150; }
+.station > b { position: absolute; bottom: -19px; color: #ede5af; background: #578661; padding: 4px 8px; border-radius: 3px; font-size: 8px; letter-spacing: .07em; }
+.sceneFooter { position: absolute; bottom: 0; inset-inline: 0; display: flex; align-items: center; justify-content: space-between; height: 34px; padding-inline: 20px; background: #375c46; color: #d8e4c4; font-size: 8px; font-weight: 700; letter-spacing: .1em; }
+.sceneFooter > span { display: flex; align-items: center; gap: 5px; }
+.sceneFooter i { width: 5px; height: 5px; background: #a6db99; border-radius: 50%; }
+.sceneFooter b { font-size: 22px; line-height: 1; font-weight: 400; }
+.controls { padding: 24px 27px 22px; }
+.waterHeading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+.waterHeading > div > span { display: block; font-size: 11px; font-weight: 800; color: #6c846d; }
+.waterHeading strong { display: block; margin-top: 2px; font-family: Arial, sans-serif; color: #277c6b; font-size: clamp(32px, 7vw, 43px); font-weight: 900; letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.waterHeading strong > small { margin-left: 7px; font-size: 18px; }
+.multiplier { display: flex; align-items: center; gap: 5px; white-space: nowrap; border: 1px solid #ccdecb; border-radius: 30px; padding: 8px 10px; background: #edf1df; color: #69836b; font-size: 10px; font-weight: 700; }
+.multiplier[data-special="true"] { background: #fff0b6; border-color: #ddcb8b; color: #8f6f25; }
+.thirstCopy { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 10px; color: #7a8d76; }
+.thirstCopy > span { display: inline-flex; gap: 3px; align-items: center; white-space: nowrap; }
+.thirstCopy > strong { color: #57765a; font-weight: 700; text-align: right; }
+.thirstMeter { height: 9px; overflow: hidden; border-radius: 20px; border: 1px solid #d4ddc5; background: #e7eadb; }
+.thirstMeter > span { display: block; width: var(--thirst); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a3c888, #e3bc5b); transition: width 1s linear; }
+.waterButton { position: relative; width: 100%; min-height: 87px; margin-top: 20px; padding: 15px 18px; display: flex; align-items: center; justify-content: center; gap: 16px; border: 2px solid #1b6259; border-radius: 12px; background: #277f74; color: #f8ffe9; box-shadow: 0 5px 0 #185047, inset 0 1px 0 #70b8a6; cursor: pointer; touch-action: manipulation; }
+.waterButton:not(:disabled):hover { background: #1d7368; }
+.waterButton:not(:disabled):active { transform: translateY(4px); box-shadow: 0 1px 0 #185047; }
+.waterButton:disabled { border-color: #92aa99; background: #b0c3ad; box-shadow: 0 4px 0 #859c86; color: #faffed; }
+.waterButton > span:nth-child(2) { text-align: left; }
+.waterButton strong { display: block; font-size: clamp(15px, 3.5vw, 21px); font-weight: 900; line-height: 1.45; }
+.waterButton small { display: block; margin-top: 5px; font-size: 10px; color: #cce9d6; }
+.waterButton:disabled small { color: #f5ffed; }
+.waterButton > svg { margin-left: auto; flex-shrink: 0; opacity: .8; }
+.bottle { position: relative; flex-shrink: 0; width: 34px; height: 43px; display: grid; place-items: center; border: 2px solid #d5f4e4; border-radius: 8px 8px 10px 10px; background: linear-gradient(0deg, #85c5be99 67%, #fff1 67%); transform: rotate(-8deg); }
+.bottle::after { content: ""; position: absolute; inset: 9px auto auto 3px; height: 22px; width: 3px; border-radius: 10px; background: #e0ffdf80; }
+.bottle > i { position: absolute; top: -8px; height: 7px; width: 18px; border: 2px solid #d5f4e4; border-radius: 3px 3px 1px 1px; background: #cee8c7; }
+.receipt { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 63px; padding: 16px 0 12px; color: #6f856c; font-size: 10px; line-height: 1.8; text-align: center; }
+.receipt > svg { flex-shrink: 0; color: #47887a; }
+.receipt strong { color: #267968; }
+.receipt small { display: block; font-size: 9px; }
+.lastWater { display: flex; align-items: center; gap: 8px; padding: 13px 0; border-block: 1px dashed #d0dac1; font-size: 10px; }
+.lastWater > span { color: #7d8d72; white-space: nowrap; }
+.lastWater > strong { color: #4d7054; font-size: 11px; overflow-wrap: anywhere; }
+.lastWater > small { margin-left: auto; color: #7b8d75; font-size: 9px; white-space: nowrap; }
+.totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.totals > div + div { padding-left: 16px; border-left: 1px solid #d7dfca; }
+.totals span { display: block; color: #798a70; font-size: 10px; margin-bottom: 7px; }
+.totals strong { display: block; color: #2e5c45; font-family: Arial, sans-serif; font-size: clamp(23px, 5.7vw, 30px); font-weight: 800; letter-spacing: -.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.totals strong > small { margin-left: 5px; font-size: 12px; color: #849775; }
+.refreshRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 5px 10px; margin-top: 19px; padding-top: 13px; border-top: 1px solid #e2e6d3; }
+.refreshRow > p { margin: 0; font-size: 9px; color: #8a967c; line-height: 1.7; }
+.refreshRow > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; color: #53775c; font-size: 10px; font-weight: 700; padding: 5px 3px; text-decoration: underline; text-underline-offset: 3px; }
+.refreshRow > button:disabled { opacity: .5; }
+.spinning { animation: spin 1s linear infinite; }
+.scene[data-paused="true"] *, .scene[data-paused="true"] *::after { animation-play-state: paused !important; }
+@keyframes runnerFrames { 0% { background-position: 0 0; } 25% { background-position: 100% 0; } 50% { background-position: 0 100%; } 75% { background-position: 100% 100%; } 100% { background-position: 0 0; } }
+@keyframes road { to { background-position-x: -240px; } }
+@keyframes clouds { from { transform: translateX(0); } to { transform: translateX(-790px); } }
+@keyframes shadow { to { transform: scaleX(.8); opacity: .7; } }
+@keyframes photoRun { to { transform: translateY(-5px) rotate(-3deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) {
+  .distancePanel { padding: 19px 19px 18px; }
+  .distanceTitle { gap: 5px; font-size: 10px; }
+  .distanceTitle > b { font-size: 8px; padding: 4px 5px; }
+  .scene { height: 361px; }
+  .speech { top: 19px; padding: 11px 13px 12px; }
+  .speech > span { font-size: 7px; }
+  .sun { right: 15px; width: 50px; height: 50px; }
+  .runner { height: 236px; width: 236px; left: 43%; bottom: 65px; }
+  .runnerShadow { width: 100px; left: 69px; }
+  .runnerPhoto { width: 155px; height: 200px; left: 43px; }
+  .station { right: 5%; bottom: 105px; }
+  .station > span { font-size: 11px; padding: 7px; }
+  .station > svg { width: 22px; margin-block: 6px 3px; }
+  .station > i { height: 48px; width: 4px; }
+  .sceneFooter { padding-inline: 12px; font-size: 6px; letter-spacing: .06em; }
+  .controls { padding: 21px 18px 16px; }
+  .waterHeading { margin-bottom: 17px; }
+  .multiplier { font-size: 9px; padding: 7px; }
+  .waterButton { padding: 15px 13px; gap: 12px; }
+  .waterButton > svg { width: 20px; }
+  .waterButton small { font-size: 9px; }
+  .thirstCopy { font-size: 9px; }
+  .receipt { font-size: 9px; }
+  .lastWater { gap: 6px; font-size: 9px; }
+  .lastWater > strong { font-size: 10px; }
+  .totals { gap: 10px; }
+  .totals > div + div { padding-left: 10px; }
+  .totals span { font-size: 9px; }
+  .refreshRow > button { margin-left: auto; }
+}
+@media (max-width: 350px) {
+  .distanceTitle > b { letter-spacing: 0; font-size: 7px; }
+  .distanceTitle > svg { width: 12px; }
+  .waterButton { gap: 8px; }
+  .waterButton strong { font-size: 14px; }
+  .bottle { width: 27px; height: 37px; }
+  .waterButton > svg { width: 16px; }
+  .multiplier { padding: 6px; font-size: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene *, .scene *::after, .spinning { animation: none !important; }
+  .thirstMeter > span { transition: none; }
+  .waterButton:not(:disabled):active { transform: none; }
+}

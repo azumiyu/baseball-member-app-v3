@@ -4,12 +4,14 @@ import { SUMMARY_FIRST_ROW, SUMMARY_SECOND_ROW, isHitResult, summarizeStats, typ
 
 export function StatsValues({
   player,
+  battingOrder,
   values,
   canEdit,
   onEdit,
   onDelete,
 }: {
   player: Player;
+  battingOrder?: number;
   values: PlayerStats;
   canEdit: boolean;
   onEdit: () => void;
@@ -28,6 +30,7 @@ export function StatsValues({
       <div className="stats-confirm-player-info">
         <div className="stats-confirm-player-name">
           <strong>{player.name}</strong>
+          {battingOrder !== undefined && <small className="stats-confirm-batting-order">打順：{battingOrder}</small>}
         </div>
         <div className="stats-confirm-player-details">
           <small>#{player.number}</small>
