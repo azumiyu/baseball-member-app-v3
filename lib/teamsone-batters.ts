@@ -15,11 +15,15 @@ export function teamsOneColumns(kind: TeamsOneStatsKind): readonly string[] {
 }
 
 export type TeamsOneGameType = "" | "official" | "practice";
-export type TeamsOneFilters = { year: number | "all"; gameType: TeamsOneGameType; unreached?: boolean; opponent?: string; tournament?: string; kind?: TeamsOneStatsKind };
+export type TeamsOneFilters = { year: number | "all"; gameType: TeamsOneGameType; unreached?: boolean; recent5?: boolean; opponent?: string; tournament?: string; kind?: TeamsOneStatsKind };
 export type TeamsOneSelectOption = { value: string; label: string };
 
 export function teamsOneFilterKey(filters: TeamsOneFilters): string {
-  return JSON.stringify([filters.kind ?? "batting", filters.year, filters.gameType, !!filters.unreached, filters.opponent ?? "", filters.tournament ?? ""]);
+  return JSON.stringify([filters.kind ?? "batting", filters.year, filters.gameType, !!filters.unreached, filters.opponent ?? "", filters.tournament ?? "", !!filters.recent5]);
+}
+
+export function teamsOneCanUseRecentGames(filters: Pick<TeamsOneFilters, "year" | "gameType" | "opponent" | "tournament">, now = new Date()): boolean {
+  return filters.year === teamsOneCurrentYear(now) && filters.gameType === "" && !filters.opponent && !filters.tournament;
 }
 export const TEAMS_ONE_GAME_TYPES = [
   { value: "", label: "試合属性" }, { value: "official", label: "公式戦" }, { value: "practice", label: "練習試合" },
@@ -41,16 +45,24 @@ export function parseTeamsOneFilters(requestUrl: string, now = new Date()): Team
   const opponent = params.get("opponent") ?? "";
   const tournament = params.get("tournament") ?? "";
   const kind = params.get("kind") ?? "batting";
+  const recent5 = params.get("recent5");
   if (year !== "all" && (!/^\d{4}$/.test(year) || Number(year) < 2022 || Number(year) > teamsOneCurrentYear(now))
     || !TEAMS_ONE_GAME_TYPES.some(option => option.value === gameType) || kind !== "batting" && kind !== "pitching"
     || unreached !== null && unreached !== "true" && unreached !== "false"
+    || recent5 !== null && recent5 !== "true" && recent5 !== "false"
+    || recent5 === "true" && !teamsOneCanUseRecentGames({ year: year === "all" ? "all" : Number(year), gameType: gameType as TeamsOneGameType, opponent, tournament }, now)
     || [opponent, tournament].some(value => value.length > 200 || /[\u0000-\u001f\u007f]/.test(value))) throw new Error("Invalid Teams.one filters");
   return { year: year === "all" ? "all" : Number(year), gameType: gameType as TeamsOneGameType,
     ...(unreached === "true" ? { unreached: true } : {}), ...(opponent ? { opponent } : {}), ...(tournament ? { tournament } : {}),
-    ...(kind === "pitching" ? { kind } : {}) };
+    ...(kind === "pitching" ? { kind } : {}), ...(recent5 === "true" ? { recent5: true } : {}) };
 }
 
-export function teamsOneSourceUrl({ year, gameType, unreached, opponent, tournament, kind }: TeamsOneFilters): string {
+export function teamsOneSourceUrl({ year, gameType, unreached, opponent, tournament, kind, recent5 }: TeamsOneFilters): string {
+  if (recent5) {
+    const games = new URL("https://teams.one/teams/ygfires/game");
+    games.searchParams.set("search_result[game_date]", String(year));
+    return games.toString();
+  }
   const url = new URL(kind === "pitching" ? TEAMS_ONE_PITCHERS_URL : TEAMS_ONE_BATTERS_URL);
   url.searchParams.set("search_result[game_date]", year === "all" ? "" : String(year));
   if (unreached) url.searchParams.set("search_result[unreached]", "true");
@@ -64,6 +76,7 @@ export type TeamsOneBatter = { id: string; number: string; name: string; values:
 export type TeamsOneBattingTable = {
   kind: TeamsOneStatsKind; season: string; gameType: TeamsOneGameType; columns: string[]; rows: TeamsOneBatter[];
   opponent: string; tournament: string; opponents: TeamsOneSelectOption[]; tournaments: TeamsOneSelectOption[];
+  recentGames?: { id: string; date: string; opponent: string; url: string }[];
 };
 export type TeamsOneBattingSnapshot = TeamsOneBattingTable & { source: string; fetchedAt: string };
 export type TeamsOneBattingResponse = TeamsOneBattingSnapshot & { stale: boolean };

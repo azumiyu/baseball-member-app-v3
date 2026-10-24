@@ -7,8 +7,9 @@ import {
   teamsOneColumns, TEAMS_ONE_BATTERS_FRESH_MS, sortTeamsOneBatters,
   teamsOneCurrentYear, teamsOneYears, teamsOneSourceUrl, type TeamsOneBattingResponse, type TeamsOneStatsKind,
 } from "@/lib/teamsone-batters";
-import { findPersonalBatter, PERSONAL_BATTING_METRICS, PERSONAL_PITCHING_METRICS, personalMetricRank, personalMetricValue } from "@/lib/teamsone-personal";
+import { findPersonalBatter, PERSONAL_BATTING_METRICS, PERSONAL_PITCHING_METRICS, personalMetricRank, personalMetricRequiresQualification, personalMetricValue } from "@/lib/teamsone-personal";
 import { api } from "../lib/api";
+import { PersonalMetricDialog } from "./PersonalMetricDialog";
 
 type Entry = { data?: TeamsOneBattingResponse; error?: string };
 type Entries = Record<string, Entry>;
@@ -38,6 +39,9 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
   const [entries, setEntries] = useState<Entries>({});
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<Sort>({ column: -1, descending: true });
+  const [selectedMetric, setSelectedMetric] = useState<{ column: string; label: string } | null>(null);
+  const [metricOpen, setMetricOpen] = useState(false);
+  const metricTrigger = useRef<HTMLButtonElement | null>(null);
   const saved = useRef<Entries>({});
   const nextCheckAt = useRef(new Map<string, number>());
   const busy = useRef(false);
@@ -100,6 +104,7 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
   };
   const current = entries[String(year)];
   const qualified = entries[`qualified:${year}`];
+  const rankingEntry = selectedMetric && personalMetricRequiresQualification(selectedMetric.column, kind) ? qualified : current;
   const career = entries.all;
   const careerPlayer = selection(career).player;
   const statusLabel = (entry: Entry | undefined) => {
@@ -120,12 +125,17 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
     const player = selection(entry).player;
     return <dl className="personal-stats-metrics">
       {metricColumns.map(([column, label]) => {
-        const rank = personalMetricRank(qualified?.data?.rows ?? [], player, column, kind);
+        const qualifiedOnly = personalMetricRequiresQualification(column, kind);
+        const rank = personalMetricRank((qualifiedOnly ? qualified : entry)?.data?.rows ?? [], player, column, kind);
         return <div key={column} className={column === "投球回" ? "personal-stats-innings" : undefined}>
-          <dt>{label}{rank !== undefined && rank <= (pitching ? 1 : 3) && <span
+          <dt><button
+            type="button" className="personal-stats-metric-trigger" aria-haspopup="dialog"
+            aria-label={`${label}の上位3人と自分の成績を見る`}
+            onClick={event => { metricTrigger.current = event.currentTarget; setSelectedMetric({ column, label }); setMetricOpen(true); }}
+          >{label}</button>{rank !== undefined && rank <= (pitching ? 1 : 3) && <span
             className={`personal-stats-rank personal-stats-rank-${rank}`}
-            role="img" aria-label={`チーム内${rank}位（規定到達者）`}
-            title={`規定到達者の中で${rank}位（同率を含む・${pitching && column === "防御率" ? "数値が小さい順" : "数値が多い順"}）`}
+            role="img" aria-label={`チーム内${rank}位（${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}）`}
+            title={`${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}の中で${rank}位（同率を含む・${pitching && column === "防御率" ? "数値が小さい順" : "数値が多い順"}）`}
           ><Crown size={13} aria-hidden="true" /><span aria-hidden="true">{rank}位</span></span>}</dt>
           <dd>{personalMetricValue(player, column, kind)}</dd>
         </div>;
@@ -150,9 +160,19 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
       </div>
       {notice(current)}
       {metrics(current)}
-      {selection(current).player && <p className="personal-stats-rank-note">{pitching ? "王冠は今年の規定到達者の1位のみです。防御率は小さい順、他の項目は多い順・同率は同順位、0は対象外です。" : "王冠は今年の規定到達者の上位3位です。全項目で数値が多い順・同率は同順位、0は対象外です。"}</p>}
-      {(qualified?.error || qualified?.data?.stale) && <p className="personal-stats-rank-note" role="status">{qualified.data ? "順位の更新を確認できなかったため、王冠は前回取得した規定到達者の成績を基に表示しています。" : "規定到達者の成績を取得できなかったため、王冠を表示していません。"}</p>}
+      {selection(current).player && <p className="personal-stats-rank-note">{pitching ? "王冠は今年の1位のみです。勝率・防御率は規定到達者、他の項目は規定未達者も対象です。防御率は小さい順、他の項目は多い順・同率は同順位、0は対象外です。" : "王冠は今年の上位3位です。打率・出塁率・長打率・得点圏打率・OPSは規定到達者、他の項目は規定未達者も対象です。全項目で数値が多い順・同率は同順位、0は対象外です。"}</p>}
+      {(qualified?.error || qualified?.data?.stale) && <p className="personal-stats-rank-note" role="status">{qualified.data ? "規定到達者の順位は前回取得した成績を基に表示しています。" : "規定到達者の成績を取得できなかったため、規定到達が必要な項目の王冠は表示していません。"}</p>}
     </section>
+
+    <PersonalMetricDialog
+      open={active && metricOpen} onClose={() => setMetricOpen(false)}
+      metric={selectedMetric} kind={kind} year={year} member={member}
+      player={selection(rankingEntry).player ?? selection(current).player}
+      rankingRows={rankingEntry?.data?.rows} rankingError={rankingEntry?.error}
+      stale={!!rankingEntry?.data && (!!rankingEntry.error || rankingEntry.data.stale)}
+      personalStatus={current?.error && !current.data ? "取得失敗" : !current ? "読込中" : selection(current).ambiguous ? "照合不可" : !selection(current).player ? "未掲載" : undefined}
+      triggerRef={metricTrigger}
+    />
 
     <section className="panel teamsone-batters personal-stats-history" aria-labelledby={`personal-history-title-${kind}`}>
       <div className="teamsone-batters-heading"><div><h2 id={`personal-history-title-${kind}`}>年別の{statsName}</h2><p>年ごとの成績をまとめて確認できます。</p></div></div>
