@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { sortTeamsOneBatters, teamsOneFilterKey, teamsOneCurrentYear, teamsOneYears, teamsOneSourceUrl, TEAMS_ONE_GAME_TYPES, type TeamsOneStatsKind, type TeamsOneSelectOption, type TeamsOneFilters, type TeamsOneGameType, TEAMS_ONE_BATTERS_FRESH_MS, type TeamsOneBattingResponse } from "@/lib/teamsone-batters";
+import { sortTeamsOneBatters, teamsOneCanUseRecentGames, teamsOneFilterKey, teamsOneCurrentYear, teamsOneYears, teamsOneSourceUrl, TEAMS_ONE_GAME_TYPES, type TeamsOneStatsKind, type TeamsOneSelectOption, type TeamsOneFilters, type TeamsOneGameType, TEAMS_ONE_BATTERS_FRESH_MS, type TeamsOneBattingResponse } from "@/lib/teamsone-batters";
 import { ArrowLeftRight, ExternalLink, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
 
@@ -10,6 +10,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
   const [year, setYear] = useState<TeamsOneFilters["year"]>(teamsOneCurrentYear);
   const [gameType, setGameType] = useState<TeamsOneGameType>("");
   const [unreached, setUnreached] = useState(false);
+  const [recent5, setRecent5] = useState(false);
   const [opponent, setOpponent] = useState("");
   const [tournament, setTournament] = useState("");
   const [options, setOptions] = useState<{ opponents: TeamsOneSelectOption[]; tournaments: TeamsOneSelectOption[] }>({ opponents: [], tournaments: [] });
@@ -28,7 +29,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
 
   const load = useCallback(async (refresh = false) => {
     const id = ++requestId.current;
-    const key = teamsOneFilterKey({ year, gameType, unreached, opponent, tournament, kind });
+    const key = teamsOneFilterKey({ year, gameType, unreached, recent5, opponent, tournament, kind });
     const previous = saved.current.get(key);
     setData(previous?.data ?? null);
     if (previous) setOptions({ opponents: previous.data.opponents, tournaments: previous.data.tournaments });
@@ -39,7 +40,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
     }
     setLoading(true);
     try {
-      const query = new URLSearchParams({ year: String(year), gameType, unreached: String(unreached), opponent, tournament });
+      const query = new URLSearchParams({ year: String(year), gameType, unreached: String(unreached), recent5: String(recent5), opponent, tournament });
       const result = await api<TeamsOneBattingResponse>(`/api/teamsone/${kind === "pitching" ? "pitchers" : "batters"}?${query}`);
       saved.current.set(key, { data: result, nextCheckAt: Math.max(Date.now() + 60_000, Date.parse(result.fetchedAt) + TEAMS_ONE_BATTERS_FRESH_MS) });
       if (alive.current && id === requestId.current) {
@@ -52,7 +53,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
     } finally {
       if (alive.current && id === requestId.current) setLoading(false);
     }
-  }, [year, gameType, unreached, opponent, tournament, kind]);
+  }, [year, gameType, unreached, recent5, opponent, tournament, kind]);
 
   useEffect(() => {
     // Cache each selection and load only on tab visits or selection changes; no polling.
@@ -61,15 +62,17 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
   }, [active, load]);
 
   const changeFilter = (patch: Partial<TeamsOneFilters>) => {
-    const next = { year, gameType, unreached, opponent, tournament, kind, ...patch };
+    const next = { year, gameType, unreached, recent5, opponent, tournament, kind, ...patch };
+    if (!teamsOneCanUseRecentGames(next)) next.recent5 = false;
     const key = teamsOneFilterKey(next);
-    if (key === teamsOneFilterKey({ year, gameType, unreached, opponent, tournament, kind })) return;
+    if (key === teamsOneFilterKey({ year, gameType, unreached, recent5, opponent, tournament, kind })) return;
     requestId.current++;
     setKind(next.kind);
     if (next.kind !== kind) setSort({ column: -1, descending: false });
     setYear(next.year);
     setGameType(next.gameType);
     setUnreached(next.unreached);
+    setRecent5(!!next.recent5);
     setOpponent(next.opponent);
     setTournament(next.tournament);
     setData(saved.current.get(key)?.data ?? null);
@@ -77,6 +80,7 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
     setLoading(true);
   };
   const statsLabel = kind === "pitching" ? "投手成績" : "野手成績";
+  const canUseRecent5 = teamsOneCanUseRecentGames({ year, gameType, opponent, tournament });
   const gameTypeLabel = TEAMS_ONE_GAME_TYPES.find(option => option.value === gameType)?.label ?? "試合属性";
 
   const rows = useMemo(() => data ? sortTeamsOneBatters(data.rows, sort.column, sort.descending) : [], [data, sort]);
@@ -87,9 +91,9 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
   return <section className="panel teamsone-batters" aria-labelledby="teamsone-batters-title">
     <div className="teamsone-batters-heading">
       <div>
-        <h2 id="teamsone-batters-title">成績一覧{data && <small className="teamsone-batters-season">{data.season === "通算" ? "通算" : `${data.season}年`}</small>}</h2>
+        <h2 id="teamsone-batters-title">成績一覧{data && <small className="teamsone-batters-season">{/^\d{4}$/.test(data.season) ? `${data.season}年` : data.season}</small>}</h2>
       </div>
-      <a href={teamsOneSourceUrl({ year, gameType, unreached, opponent, tournament, kind })} target="_blank" rel="noopener noreferrer">Teams見る<ExternalLink size={14} aria-hidden="true" /></a>
+      <a href={teamsOneSourceUrl({ year, gameType, unreached, recent5, opponent, tournament, kind })} target="_blank" rel="noopener noreferrer">Teams見る<ExternalLink size={14} aria-hidden="true" /></a>
     </div>
     <nav className="tabs stats-entry-subtabs teamsone-stats-subtabs" aria-label="表示する成績">
       <button type="button" className={kind === "batting" ? "active" : ""} aria-pressed={kind === "batting"} onClick={() => changeFilter({ kind: "batting" })}>野手成績</button>
@@ -113,10 +117,17 @@ export function TeamsOneBatters({ active }: { active: boolean }) {
           {options.tournaments.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select></label>
       </div>
-      <label className="teamsone-batters-unreached">
-        <input type="checkbox" checked={unreached} onChange={event => changeFilter({ unreached: event.target.checked })} />
-        <span>規定未到達者も含む</span>
-      </label>
+      <div className="teamsone-batters-checkboxes">
+        <label className="teamsone-batters-unreached">
+          <input type="checkbox" checked={unreached} onChange={event => changeFilter({ unreached: event.target.checked })} />
+          <span>規定未到達者も含む</span>
+        </label>
+        <label className={`teamsone-batters-unreached${canUseRecent5 ? "" : " is-disabled"}`} title={canUseRecent5 ? undefined : "年・試合属性・対戦チーム・大会名を初期値に戻すと選択できます。"}>
+          <input type="checkbox" checked={recent5} disabled={!canUseRecent5} onChange={event => changeFilter({ recent5: event.target.checked })} />
+          <span>直近5試合</span>
+        </label>
+      </div>
+      {recent5 && data?.recentGames && <p className="teamsone-batters-recent-note">{data.recentGames.length ? `${data.recentGames.at(-1)!.date.replaceAll("-", "/")}〜${data.recentGames[0].date.replaceAll("-", "/")}の${data.recentGames.length}試合（公式戦・練習試合）` : "今年の対象試合はありません"}</p>}
       <div className="teamsone-batters-status">
         <div className="teamsone-batters-updated">
           {data && <span>最終取得：<time dateTime={data.fetchedAt}>{new Intl.DateTimeFormat("ja-JP", {

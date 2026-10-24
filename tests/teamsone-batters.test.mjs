@@ -130,7 +130,7 @@ test("25 simultaneous requests share one fetch, then memory and shared cache reu
   await load(requestUrl + "?force=anything");
   await fixture.loader()(requestUrl);
   assert.equal(fixture.calls, 1, "a new Worker reuses the edge cache");
-  assert.deepEqual([...fixture.entries.keys()], [requestUrl + "?cache=v5&kind=batting&year=2026&gameType=&unreached=0&opponent=&tournament="]);
+  assert.deepEqual([...fixture.entries.keys()], [requestUrl + "?cache=v6&kind=batting&year=2026&gameType=&unreached=0&opponent=&tournament=&recent5=0"]);
   fixture.advance(TEAMS_ONE_BATTERS_FRESH_MS - 1);
   await load(requestUrl);
   assert.equal(fixture.calls, 1);

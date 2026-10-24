@@ -3,6 +3,7 @@ import {
   parseTeamsOneStats, teamsOneColumns, TEAMS_ONE_BATTERS_FRESH_MS,
   type TeamsOneBattingSnapshot, type TeamsOneBattingResponse,
 } from "./teamsone-batters";
+import { loadTeamsOneRecentStats } from "./teamsone-recent";
 
 const RETAIN_MS = 24 * 60 * 60 * 1000;
 const RETRY_MS = 60 * 1000;
@@ -48,6 +49,9 @@ function validState(value: unknown): value is CacheState {
       && options.every(option => !!option && typeof option.value === "string" && typeof option.label === "string"
         && option.value.length <= 200 && option.label.length <= 200))
     && typeof snapshot.season === "string" && Array.isArray(snapshot.columns)
+    && (snapshot.recentGames === undefined || Array.isArray(snapshot.recentGames) && snapshot.recentGames.length <= 5
+      && snapshot.recentGames.every(game => typeof game.id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(game.date)
+        && typeof game.opponent === "string" && /^https:\/\/teams\.one\/teams\/ygfires\/game\/\d+$/.test(game.url)))
     && snapshot.columns.length === columns.length
     && snapshot.columns.every((label, index) => label === columns[index])
     && Array.isArray(snapshot.rows) && snapshot.rows.length <= 250
@@ -69,7 +73,7 @@ function createFilteredLoader(filters: TeamsOneFilters, {
 } = {}) {
   const source = teamsOneSourceUrl(filters);
   const kind = filters.kind ?? "batting";
-  const season = filters.year === "all" ? "通算" : String(filters.year);
+  const season = filters.recent5 ? "直近5試合" : filters.year === "all" ? "通算" : String(filters.year);
   let memory: CacheState | undefined;
   let pending: Promise<TeamsOneBattingResponse> | undefined;
 
@@ -90,8 +94,8 @@ function createFilteredLoader(filters: TeamsOneFilters, {
 
   async function readAndRefresh(requestUrl: string): Promise<TeamsOneBattingResponse> {
     const cacheUrl = new URL("/api/teamsone/batters", requestUrl);
-    cacheUrl.search = new URLSearchParams({ cache: "v5", kind, year: String(filters.year), gameType: filters.gameType,
-      unreached: filters.unreached ? "1" : "0", opponent: filters.opponent ?? "", tournament: filters.tournament ?? "" }).toString();
+    cacheUrl.search = new URLSearchParams({ cache: "v6", kind, year: String(filters.year), gameType: filters.gameType,
+      unreached: filters.unreached ? "1" : "0", opponent: filters.opponent ?? "", tournament: filters.tournament ?? "", recent5: filters.recent5 ? "1" : "0" }).toString();
     const key = cacheUrl.toString();
     let cache: SharedCache | undefined;
     try {
@@ -100,7 +104,8 @@ function createFilteredLoader(filters: TeamsOneFilters, {
       const state: unknown = cached ? await cached.json() : undefined;
       if (validState(state) && (!state.snapshot || state.snapshot.kind === kind && state.snapshot.source === source
         && state.snapshot.season === season && state.snapshot.gameType === filters.gameType
-        && state.snapshot.opponent === (filters.opponent ?? "") && state.snapshot.tournament === (filters.tournament ?? ""))) {
+        && state.snapshot.opponent === (filters.opponent ?? "") && state.snapshot.tournament === (filters.tournament ?? "")
+        && (!filters.recent5 || Array.isArray(state.snapshot.recentGames)))) {
         const cachedTime = usable(state.snapshot) ? Date.parse(state.snapshot.fetchedAt) : 0;
         const memoryTime = usable(memory?.snapshot) ? Date.parse(memory.snapshot.fetchedAt) : 0;
         if (!memory || cachedTime > memoryTime || cachedTime === memoryTime && state.retryAt > memory.retryAt) memory = state;
@@ -111,18 +116,22 @@ function createFilteredLoader(filters: TeamsOneFilters, {
     if (memory && now() < memory.retryAt) throw new Error("Teams.one retry is delayed");
 
     try {
-      const response = await fetchPage(source, {
-        headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "YG-FIRES-stats/1.0" },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!response.ok || Number(response.headers.get("content-length")) > 512_000) throw new Error("Teams.one is unavailable");
-      const html = await readPage(response);
+      const readHtml = async (url: string) => {
+        const response = await fetchPage(url, {
+          headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "YG-FIRES-stats/1.0" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok || Number(response.headers.get("content-length")) > 512_000) throw new Error("Teams.one is unavailable");
+        return readPage(response);
+      };
+      const html = await readHtml(teamsOneSourceUrl({ ...filters, recent5: false }));
       if (filters.unreached && !/<input\b(?=[^>]*\bid=["']unreached["'])(?=[^>]*\bchecked(?:\s*=|\s|>|\/))[^>]*>/i.test(html)) {
         throw new Error("Teams.one did not include unqualified players");
       }
-      const table = parseTeamsOneStats(html, kind);
-      if (table.season !== season || table.gameType !== filters.gameType || table.opponent !== (filters.opponent ?? "")
-        || table.tournament !== (filters.tournament ?? "")) throw new Error("Teams.one filters do not match");
+      const base = parseTeamsOneStats(html, kind);
+      if (base.season !== (filters.year === "all" ? "通算" : String(filters.year)) || base.gameType !== filters.gameType || base.opponent !== (filters.opponent ?? "")
+        || base.tournament !== (filters.tournament ?? "")) throw new Error("Teams.one filters do not match");
+      const table = filters.recent5 ? await loadTeamsOneRecentStats(base, filters, readHtml, new Date(now())) : base;
       const snapshot = { ...table, source, fetchedAt: new Date(now()).toISOString() };
       await store(cache, key, { snapshot, retryAt: 0 });
       return result(snapshot);
