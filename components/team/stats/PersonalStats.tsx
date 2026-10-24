@@ -132,7 +132,7 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
             type="button" className="personal-stats-metric-trigger" aria-haspopup="dialog"
             aria-label={`${label}の上位3人と自分の成績を見る`}
             onClick={event => { metricTrigger.current = event.currentTarget; setSelectedMetric({ column, label }); setMetricOpen(true); }}
-          >{label}</button>{rank !== undefined && rank <= (pitching ? 1 : 3) && <span
+          >{label}</button>{rank !== undefined && rank <= 3 && <span
             className={`personal-stats-rank personal-stats-rank-${rank}`}
             role="img" aria-label={`チーム内${rank}位（${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}）`}
             title={`${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}の中で${rank}位（同率を含む・${pitching && column === "防御率" ? "数値が小さい順" : "数値が多い順"}）`}
@@ -160,7 +160,7 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
       </div>
       {notice(current)}
       {metrics(current)}
-      {selection(current).player && <p className="personal-stats-rank-note">{pitching ? "王冠は今年の1位のみです。勝率・防御率は規定到達者、他の項目は規定未達者も対象です。防御率は小さい順、他の項目は多い順・同率は同順位、0は対象外です。" : "王冠は今年の上位3位です。打率・出塁率・長打率・得点圏打率・OPSは規定到達者、他の項目は規定未達者も対象です。全項目で数値が多い順・同率は同順位、0は対象外です。"}</p>}
+      {selection(current).player && <p className="personal-stats-rank-note">{pitching ? "王冠は今年の上位3位です。勝率・防御率は規定到達者、他の項目は規定未達者も対象です。防御率は小さい順、他の項目は多い順・同率は同順位、0は対象外です。" : "王冠は今年の上位3位です。打率・出塁率・長打率・得点圏打率・OPSは規定到達者、他の項目は規定未達者も対象です。全項目で数値が多い順・同率は同順位、0は対象外です。"}</p>}
       {(qualified?.error || qualified?.data?.stale) && <p className="personal-stats-rank-note" role="status">{qualified.data ? "規定到達者の順位は前回取得した成績を基に表示しています。" : "規定到達者の成績を取得できなかったため、規定到達が必要な項目の王冠は表示していません。"}</p>}
     </section>
 
