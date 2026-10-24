@@ -285,12 +285,12 @@ export function StatsView({
       <header className="page-heading">
         <div>
           <p className="eyebrow">GAME STATS</p>
-          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "teamsone" ? "打者成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
+          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "teamsone" ? "成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
           <p>
             {statsTab === "personal"
-              ? "自分の今年・年別・通算の打者成績を確認できます。"
+              ? "自分の今年・年別・通算の野手・投手成績を確認できます。"
               : statsTab === "teamsone"
-              ? "Teams.oneに登録された打者成績を確認できます。"
+              ? "Teams.oneに登録された野手・投手成績を確認できます。"
               : statsTab === "confirmation"
               ? "試合ごとの成績を確認できます。"
               : member.isAdmin
@@ -348,7 +348,7 @@ export function StatsView({
             clearRegistrationMessage();
           }}
         >
-          打席成績一覧
+          成績一覧
         </button>
         <button
           className={statsTab === "personal" ? "active" : ""}
@@ -498,7 +498,7 @@ export function StatsView({
               disabled={!selectedPlayer || !selectedGameKey}
               onClick={resetEntry}
             >
-              {entryStatsTab === "pitching" ? "投手成績をリセット" : "入力をリセット"}
+              入力をリセット
             </button>
           </div>
         </div>

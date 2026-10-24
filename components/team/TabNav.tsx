@@ -44,7 +44,7 @@ export function TabNav({
           onClick={() => onViewChange("stats")}
         >
           <BarChart3 size={16} />
-          成績入力
+          成績管理
         </button>
         <button
           className={appView === "schedule" ? "active" : ""}

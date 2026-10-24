@@ -66,11 +66,13 @@
   border-radius: 10px;
   background: #f8fafc;
 }
+.stats-entry-subtabs.teamsone-stats-subtabs {
+  margin-top: 3px;
+}
 .teamsone-batters-filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  max-width: 480px;
 }
 .teamsone-batters-filters label {
   display: flex;
@@ -323,6 +325,7 @@
     margin: 10px 0 12px;
   }
   .teamsone-batters-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
   .teamsone-batters-filters label {
@@ -330,7 +333,7 @@
     font-size: 11px;
   }
   .teamsone-batters-filters select {
-    height: 44px;
+    height: 34px;
     padding: 0 8px;
   }
   .teamsone-batters-status {
@@ -1013,20 +1016,42 @@
 }
 
 .personal-stats {
+  --personal-stats-heading-gap: 6px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
 }
+.personal-stats .teamsone-batters-heading h2 {
+  margin-bottom: var(--personal-stats-heading-gap);
+}
+.personal-stats .stats-entry-subtabs.teamsone-stats-subtabs {
+  margin-top: calc(var(--personal-stats-heading-gap) + 4px);
+  margin-bottom: 6px;
+}
+.personal-stats .teamsone-stats-subtabs + .personal-stats-update {
+  margin-top: 0;
+}
 .personal-stats-player {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  color: #718396;
+  font-size: 12px;
   font-weight: 700;
 }
-.personal-stats-player > span {
+.personal-stats-player > span:first-child {
+  flex-shrink: 0;
   color: #0876c9;
   font-variant-numeric: tabular-nums;
+}
+.personal-stats-player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .personal-stats-update {
   display: flex;
@@ -1116,10 +1141,12 @@
   .personal-stats-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
-  .personal-stats { gap: 10px; }
+  .personal-stats { --personal-stats-heading-gap: 3px; gap: 10px; }
+  .personal-stats-player { font-size: 11px; }
   .personal-stats-update { margin: 10px 0; font-size: 10px; }
   .personal-stats-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
   .personal-stats-metrics > div { padding: 9px 4px; border-radius: 7px; }
   .personal-stats-metrics dt { font-size: 10px; }
   .personal-stats-metrics dd { margin-top: 4px; font-size: 19px; }
+  .personal-stats-metrics .personal-stats-innings dd { font-size: 14px; white-space: nowrap; }
 }
