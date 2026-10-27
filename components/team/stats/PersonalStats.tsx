@@ -8,7 +8,7 @@ import {
   teamsOneColumns, TEAMS_ONE_BATTERS_FRESH_MS, sortTeamsOneBatters,
   teamsOneCurrentYear, teamsOneYears, teamsOneSourceUrl, type TeamsOneBattingResponse, type TeamsOneStatsKind,
 } from "@/lib/teamsone-batters";
-import { findPersonalBatter, PERSONAL_BATTING_METRICS, PERSONAL_PITCHING_METRICS, personalMetricRank, personalMetricRequiresQualification, personalMetricValue } from "@/lib/teamsone-personal";
+import { findPersonalBatter, PERSONAL_BATTING_METRICS, PERSONAL_PITCHING_METRICS, personalMetricLowerIsBetter, personalMetricRank, personalMetricRequiresQualification, personalMetricValue } from "@/lib/teamsone-personal";
 import { api } from "../lib/api";
 import { comparePlayersByNumber } from "./stats-actions";
 import { PersonalMetricDialog } from "./PersonalMetricDialog";
@@ -140,6 +140,7 @@ function PersonalStatsPanel({ active, member, players, onMemberChange, kind, nav
     return <dl className="personal-stats-metrics">
       {metricColumns.map(([column, label]) => {
         const qualifiedOnly = personalMetricRequiresQualification(column, kind);
+        const lowerIsBetter = personalMetricLowerIsBetter(column, kind);
         const rank = personalMetricRank((qualifiedOnly ? qualified : entry)?.data?.rows ?? [], player, column, kind);
         return <div key={column} className={column === "投球回" ? "personal-stats-innings" : undefined}>
           <dt><button
@@ -149,7 +150,7 @@ function PersonalStatsPanel({ active, member, players, onMemberChange, kind, nav
           >{label}</button>{rank !== undefined && rank <= 3 && <span
             className={`personal-stats-rank personal-stats-rank-${rank}`}
             role="img" aria-label={`チーム内${rank}位（${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}）`}
-            title={`${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}の中で${rank}位（同率を含む・${pitching && column === "防御率" ? "数値が小さい順" : "数値が多い順"}）`}
+            title={`${qualifiedOnly ? "規定到達者" : "規定未達者を含む全選手"}の中で${rank}位（同率を含む・数値が${lowerIsBetter ? "小さい" : "多い"}順）`}
           ><Crown size={13} aria-hidden="true" /><span aria-hidden="true">{rank}位</span></span>}</dt>
           <dd>{personalMetricValue(player, column, kind)}</dd>
         </div>;
@@ -176,7 +177,9 @@ function PersonalStatsPanel({ active, member, players, onMemberChange, kind, nav
       </div>
       {notice(current)}
       {metrics(current)}
-      {selection(current).player && <p className="personal-stats-rank-note">{pitching ? "王冠は今年の上位3位です。勝率・防御率は規定到達者、他の項目は規定未達者も対象です。防御率は小さい順、他の項目は多い順・同率は同順位、0は対象外です。" : "王冠は今年の上位3位です。打率・出塁率・長打率・得点圏打率・OPSは規定到達者、他の項目は規定未達者も対象です。全項目で数値が多い順・同率は同順位、0は対象外です。"}</p>}
+      {selection(current).player && <p className="personal-stats-rank-note">{pitching
+        ? "王冠は今年の上位3位です。勝率・防御率・WHIP・K/9・BB/9・K/BB・H/9・HR/9・HBP/9・RA/9・投球数/回は規定到達者、他の項目は規定未達者も対象です。防御率・WHIP・BB/9・H/9・HR/9・HBP/9・RA/9・投球数/回は小さい順、他は多い順・同率は同順位、0は対象外です。"
+        : "王冠は今年の上位3位です。打率・出塁率・長打率・得点圏打率・OPS・ISO・BABIP・BB/K・BB%・K%・PA/HRは規定到達者、他の項目は規定未達者も対象です。K%・PA/HRは小さい順、他は多い順・同率は同順位、0は対象外です。"}</p>}
       {(qualified?.error || qualified?.data?.stale) && <p className="personal-stats-rank-note" role="status">{qualified.data ? "規定到達者の順位は前回取得した成績を基に表示しています。" : "規定到達者の成績を取得できなかったため、規定到達が必要な項目の王冠は表示していません。"}</p>}
     </section>
 
