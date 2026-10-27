@@ -32,6 +32,7 @@ import { PitchingEntryFields } from "./PitchingEntryFields";
 import { StatsConfirmation } from "./StatsConfirmation";
 import { PersonalStats } from "./PersonalStats";
 import { TeamsOneBatters } from "./TeamsOneBatters";
+import { TeamsOneCumulative } from "./TeamsOneCumulative";
 import { comparePlayersByNumber, removeStatsRegistration } from "./stats-actions";
 import { compareScheduleChoices, defaultScheduleChoice, shortScheduleLabel } from "../lib/schedule-options";
 
@@ -61,9 +62,10 @@ export function StatsView({
   const [selection, setSelection] = useState<string | null>(null);
   const [showPastSchedules, setShowPastSchedules] = useState(false);
   const [linkScheduleId, setLinkScheduleId] = useState("");
-  const [statsTab, setStatsTab] = useState<"entry" | "confirmation" | "teamsone" | "personal">("entry");
+  const [statsTab, setStatsTab] = useState<"entry" | "confirmation" | "teamsone" | "personal" | "cumulative">("entry");
   const [hasOpenedPersonal, setHasOpenedPersonal] = useState(false);
   const [hasOpenedTeamsOne, setHasOpenedTeamsOne] = useState(false);
+  const [hasOpenedCumulative, setHasOpenedCumulative] = useState(false);
   const [entryStatsTab, setEntryStatsTab] = useState<"batting" | "pitching">("batting");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
   const [registrationToDelete, setRegistrationToDelete] = useState<{
@@ -285,10 +287,12 @@ export function StatsView({
       <header className="page-heading">
         <div>
           <p className="eyebrow">GAME STATS</p>
-          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "teamsone" ? "成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
+          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "cumulative" ? "累計" : statsTab === "teamsone" ? "成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
           <p>
             {statsTab === "personal"
               ? "自分の今年・年別・通算の野手・投手成績を確認できます。"
+              : statsTab === "cumulative"
+              ? "規定未到達者を含む全選手・全試合のチーム累計成績を確認できます。"
               : statsTab === "teamsone"
               ? "Teams.oneに登録された野手・投手成績を確認できます。"
               : statsTab === "confirmation"
@@ -361,9 +365,21 @@ export function StatsView({
             clearRegistrationMessage();
           }}
         >個人成績</button>
+        <button
+          className={statsTab === "cumulative" ? "active" : ""}
+          type="button"
+          aria-pressed={statsTab === "cumulative"}
+          onClick={() => {
+            setHasOpenedCumulative(true);
+            setStatsTab("cumulative");
+            setOpenPlate(null);
+            clearRegistrationMessage();
+          }}
+        >累計</button>
       </nav>
       {hasOpenedTeamsOne && <div className="stats-teamsone-pane" hidden={statsTab !== "teamsone"}><TeamsOneBatters active={statsTab === "teamsone"} /></div>}
       {hasOpenedPersonal && <div className="stats-teamsone-pane" hidden={statsTab !== "personal"}><PersonalStats key={member.id} active={statsTab === "personal"} member={member} players={players} /></div>}
+      {hasOpenedCumulative && <div className="stats-teamsone-pane" hidden={statsTab !== "cumulative"}><TeamsOneCumulative active={statsTab === "cumulative"} /></div>}
       {statsTab === "confirmation" ? (
         <StatsConfirmation
           games={visibleRegisteredGames}
