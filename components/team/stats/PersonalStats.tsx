@@ -3,33 +3,47 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight, Crown, ExternalLink, RefreshCw } from "lucide-react";
 import type { AuthMember } from "@/lib/auth-types";
+import type { Player } from "@/lib/model";
 import {
   teamsOneColumns, TEAMS_ONE_BATTERS_FRESH_MS, sortTeamsOneBatters,
   teamsOneCurrentYear, teamsOneYears, teamsOneSourceUrl, type TeamsOneBattingResponse, type TeamsOneStatsKind,
 } from "@/lib/teamsone-batters";
 import { findPersonalBatter, PERSONAL_BATTING_METRICS, PERSONAL_PITCHING_METRICS, personalMetricRank, personalMetricRequiresQualification, personalMetricValue } from "@/lib/teamsone-personal";
 import { api } from "../lib/api";
+import { comparePlayersByNumber } from "./stats-actions";
 import { PersonalMetricDialog } from "./PersonalMetricDialog";
 
 type Entry = { data?: TeamsOneBattingResponse; error?: string };
 type Entries = Record<string, Entry>;
 type Sort = { column: number; descending: boolean };
 
-export function PersonalStats({ active, member }: { active: boolean; member: AuthMember }) {
+export function PersonalStats({ active, member, players }: { active: boolean; member: AuthMember; players: Player[] }) {
   const [kind, setKind] = useState<TeamsOneStatsKind>("batting");
   const [hasOpenedPitching, setHasOpenedPitching] = useState(false);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(member.id);
+  const selectablePlayers = useMemo(() => {
+    const roster = players.some((player) => player.id === member.id)
+      ? players
+      : [...players, { id: member.id, name: member.name, number: member.number, kana: "" }];
+    return [...roster].sort(comparePlayersByNumber);
+  }, [players, member.id, member.name, member.number]);
+  const selectedPlayer = selectablePlayers.find((player) => player.id === selectedPlayerId)
+    ?? selectablePlayers.find((player) => player.id === member.id);
+  const selectedMember = selectedPlayer
+    ? { ...member, id: selectedPlayer.id, name: selectedPlayer.name, number: selectedPlayer.number }
+    : member;
   const navigation = <nav className="tabs stats-entry-subtabs teamsone-stats-subtabs" aria-label="個人成績の種類">
     <button type="button" className={kind === "batting" ? "active" : ""} aria-pressed={kind === "batting"} onClick={() => setKind("batting")}>野手成績</button>
     <button type="button" className={kind === "pitching" ? "active" : ""} aria-pressed={kind === "pitching"} onClick={() => { setHasOpenedPitching(true); setKind("pitching"); }}>投手成績</button>
   </nav>;
   return <>
-    <div hidden={kind !== "batting"}><PersonalStatsPanel active={active && kind === "batting"} member={member} kind="batting" navigation={navigation} /></div>
-    {hasOpenedPitching && <div hidden={kind !== "pitching"}><PersonalStatsPanel active={active && kind === "pitching"} member={member} kind="pitching" navigation={navigation} /></div>}
+    <div hidden={kind !== "batting"}><PersonalStatsPanel active={active && kind === "batting"} member={selectedMember} players={selectablePlayers} onMemberChange={setSelectedPlayerId} kind="batting" navigation={navigation} /></div>
+    {hasOpenedPitching && <div hidden={kind !== "pitching"}><PersonalStatsPanel active={active && kind === "pitching"} member={selectedMember} players={selectablePlayers} onMemberChange={setSelectedPlayerId} kind="pitching" navigation={navigation} /></div>}
   </>;
 }
 
-function PersonalStatsPanel({ active, member, kind, navigation }: {
-  active: boolean; member: AuthMember; kind: TeamsOneStatsKind; navigation: ReactNode;
+function PersonalStatsPanel({ active, member, players, onMemberChange, kind, navigation }: {
+  active: boolean; member: AuthMember; players: Player[]; onMemberChange: (playerId: string) => void; kind: TeamsOneStatsKind; navigation: ReactNode;
 }) {
   const year = teamsOneCurrentYear();
   const pitching = kind === "pitching";
@@ -147,10 +161,12 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
   return <div className="personal-stats" aria-busy={loading}>
     <section className="panel teamsone-batters" aria-labelledby={`personal-current-title-${kind}`}>
       <div className="teamsone-batters-heading">
-        <div>
-          <h2 id={`personal-current-title-${kind}`}>今年の成績<small className="teamsone-batters-season">{year}年</small></h2>
-          <p className="personal-stats-player" title={member.name}><span>#{member.number}</span><span className="personal-stats-player-name">{member.name}</span></p>
-        </div>
+        <h2 id={`personal-current-title-${kind}`}>今年の成績<small className="teamsone-batters-season">{year}年</small></h2>
+        <label className="personal-stats-player-select">
+          <select aria-label="個人成績を見る選手" value={member.id} onChange={(event) => onMemberChange(event.target.value)}>
+            {players.map((player) => <option key={player.id} value={player.id}>#{player.number} {player.name}</option>)}
+          </select>
+        </label>
         <a href={teamsOneSourceUrl({ year, gameType: "", unreached: true, kind })} target="_blank" rel="noopener noreferrer">Teamsで見る<ExternalLink size={14} aria-hidden="true" /></a>
       </div>
       {navigation}
@@ -175,8 +191,8 @@ function PersonalStatsPanel({ active, member, kind, navigation }: {
     />
 
     <section className="panel teamsone-batters personal-stats-history" aria-labelledby={`personal-history-title-${kind}`}>
-      <div className="teamsone-batters-heading"><div><h2 id={`personal-history-title-${kind}`}>年別の{statsName}</h2><p>年ごとの成績をまとめて確認できます。</p></div></div>
-      <div className="teamsone-batters-table-heading"><span className="teamsone-batters-count">年別</span><p className="teamsone-batters-scroll-hint"><ArrowLeftRight size={14} aria-hidden="true" />横スクロールで全項目を表示</p></div>
+      <div className="teamsone-batters-heading"><div><h2 id={`personal-history-title-${kind}`}>年別の{statsName}</h2></div></div>
+      <div className="teamsone-batters-table-heading"><span className="teamsone-batters-count"></span><p className="teamsone-batters-scroll-hint"><ArrowLeftRight size={14} aria-hidden="true" />横スクロールで全項目を表示</p></div>
       <div className="teamsone-batters-scroll" role="region" aria-label={`年別の${statsName}（横スクロール）`} tabIndex={0}>
         <table className="teamsone-batters-table">
           <caption className="sr-only">{member.name} 年別・通算の{statsName}一覧</caption>

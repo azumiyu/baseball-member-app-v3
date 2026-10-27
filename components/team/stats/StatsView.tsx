@@ -363,7 +363,7 @@ export function StatsView({
         >個人成績</button>
       </nav>
       {hasOpenedTeamsOne && <div className="stats-teamsone-pane" hidden={statsTab !== "teamsone"}><TeamsOneBatters active={statsTab === "teamsone"} /></div>}
-      {hasOpenedPersonal && <div className="stats-teamsone-pane" hidden={statsTab !== "personal"}><PersonalStats key={member.id} active={statsTab === "personal"} member={member} /></div>}
+      {hasOpenedPersonal && <div className="stats-teamsone-pane" hidden={statsTab !== "personal"}><PersonalStats key={member.id} active={statsTab === "personal"} member={member} players={players} /></div>}
       {statsTab === "confirmation" ? (
         <StatsConfirmation
           games={visibleRegisteredGames}
