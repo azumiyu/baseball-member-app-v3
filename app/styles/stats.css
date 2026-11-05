@@ -1300,3 +1300,123 @@
   .personal-stats-metrics dd { margin-top: 4px; font-size: 19px; }
   .personal-stats-metrics .personal-stats-innings dd { font-size: 14px; white-space: nowrap; }
 }
+
+.stats-opportunity {
+  width: 100%;
+  min-width: 0;
+  padding: 22px;
+}
+.stats-opportunity-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.stats-opportunity-heading h2 {
+  margin: 0;
+  color: #253b50;
+  font-size: 18px;
+}
+.stats-opportunity-heading p {
+  margin: 5px 0 0;
+  color: #718396;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.stats-opportunity-period {
+  display: grid;
+  flex: 0 0 130px;
+  gap: 5px;
+  color: #617488;
+  font-size: 11px;
+  font-weight: 700;
+}
+.stats-opportunity-period select {
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid #cbd8e3;
+  border-radius: 7px;
+  background: #fff;
+  color: #253b50;
+  font: inherit;
+}
+.stats-opportunity-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 18px 0 12px;
+}
+.stats-opportunity-metrics > div {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 8px;
+  border: 1px solid #e3eaf1;
+  border-radius: 9px;
+  background: #f8fafc;
+  text-align: center;
+}
+.stats-opportunity-metrics span { color: #617488; font-size: 11px; font-weight: 600; }
+.stats-opportunity-metrics strong {
+  color: #0876c9;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.stats-opportunity-metrics small { margin-left: 3px; color: #718396; font-size: 10px; }
+.stats-opportunity-candidate {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #d6e9f7;
+  border-radius: 9px;
+  background: #f0f8fe;
+}
+.stats-opportunity-candidate strong { color: #17649b; font-size: 12px; }
+.stats-opportunity-candidate p { margin: 0; color: #3e5a70; font-size: 13px; line-height: 1.6; }
+.stats-opportunity-table { min-width: 360px; }
+.stats-opportunity .teamsone-batters-table tr > :first-child {
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
+  overflow: hidden;
+}
+.stats-opportunity .teamsone-batters-table tbody th span {
+  display: inline-block;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+.stats-opportunity-sort-hint {
+  margin: 10px 0 0;
+  color: #718396;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.stats-opportunity-note,
+.stats-opportunity-empty {
+  margin: 12px 0 0;
+  color: #718396;
+  font-size: 11px;
+  line-height: 1.7;
+}
+@media (max-width: 700px) {
+  .stats-opportunity { padding: 16px; }
+  .stats-opportunity-heading { align-items: stretch; flex-direction: column; gap: 10px; }
+  .stats-opportunity-period { grid-template-columns: auto minmax(110px, 1fr); align-items: center; flex-basis: auto; }
+  .stats-opportunity-metrics { gap: 6px; margin-top: 13px; }
+  .stats-opportunity-metrics > div { padding: 10px 4px; }
+  .stats-opportunity-metrics span { font-size: 10px; }
+  .stats-opportunity-metrics strong { font-size: 19px; }
+  .stats-opportunity .teamsone-batters-table tr > :first-child {
+    width: 108px;
+    min-width: 108px;
+    max-width: 108px;
+  }
+  .stats-opportunity .teamsone-batters-table tbody th span {
+    display: block;
+    max-width: 84px;
+  }
+}
