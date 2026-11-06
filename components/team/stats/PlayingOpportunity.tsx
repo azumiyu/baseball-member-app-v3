@@ -22,6 +22,8 @@ type OpportunityRow = TeamsOneBatter & {
   games: number | null;
   plateAppearances: number | null;
   averagePlateAppearances: number | null;
+  atBats: number | null;
+  averageAtBats: number | null;
   matched: boolean;
 };
 
@@ -85,6 +87,7 @@ export function PlayingOpportunity({ players, active }: { players: Player[]; act
     if (!data) return [];
     const gamesColumn = data.columns.indexOf("試合数");
     const plateAppearancesColumn = data.columns.indexOf("打席");
+    const atBatsColumn = data.columns.indexOf("打数");
     return players.map((member) => {
       const match = findPersonalBatter(data.rows, member);
       const source = match.player;
@@ -92,14 +95,19 @@ export function PlayingOpportunity({ players, active }: { players: Player[]; act
       const rawPlateAppearances = source && plateAppearancesColumn >= 0
         ? source.values[plateAppearancesColumn]
         : undefined;
+      const rawAtBats = source && atBatsColumn >= 0 ? source.values[atBatsColumn] : undefined;
       const parsedGames = teamsOneStatNumber(rawGames);
       const parsedPlateAppearances = teamsOneStatNumber(rawPlateAppearances);
-      const matched = !!source && Number.isFinite(parsedGames) && Number.isFinite(parsedPlateAppearances);
+      const parsedAtBats = teamsOneStatNumber(rawAtBats);
+      const matched = !!source && Number.isFinite(parsedGames)
+        && Number.isFinite(parsedPlateAppearances) && Number.isFinite(parsedAtBats);
       const games = matched ? parsedGames : null;
       const plateAppearances = matched ? parsedPlateAppearances : null;
+      const atBats = matched ? parsedAtBats : null;
       const averagePlateAppearances = games !== null && plateAppearances !== null && games > 0
         ? plateAppearances / games
         : null;
+      const averageAtBats = games !== null && atBats !== null && games > 0 ? atBats / games : null;
       return {
         id: member.id,
         number: member.number,
@@ -108,10 +116,14 @@ export function PlayingOpportunity({ players, active }: { players: Player[]; act
         games,
         plateAppearances,
         averagePlateAppearances,
+        atBats,
+        averageAtBats,
         matched,
         values: [
           averagePlateAppearances === null ? "—" : String(averagePlateAppearances),
           plateAppearances === null ? "—" : String(plateAppearances),
+          averageAtBats === null ? "—" : String(averageAtBats),
+          atBats === null ? "—" : String(atBats),
           games === null ? "—" : String(games),
         ],
       };
@@ -192,14 +204,14 @@ export function PlayingOpportunity({ players, active }: { players: Player[]; act
         </div>
         <div className="teamsone-batters-scroll" role="region" aria-label="出場機会一覧（横スクロールできます）" tabIndex={0}>
           <table className="teamsone-batters-table teamsone-batters-list-table stats-opportunity-table">
-            <caption className="sr-only">{label}のTeams.one成績を使ったメンバー別1試合平均打席数と試合数</caption>
+            <caption className="sr-only">{label}のTeams.one成績を使ったメンバー別1試合平均打席数、打席数、1試合平均打数、打数、試合数</caption>
             <thead><tr>
               <th scope="col" aria-sort={sortDirection(-1)}>
                 <button type="button" onClick={() => setSort((current) => ({ column: -1, descending: current.column === -1 ? !current.descending : false }))}>
                   <span>背番号・選手</span>{sortMarks}
                 </button>
               </th>
-              {["1試合平均打席", "打席", "試合数"].map((column, index) => <th key={column} scope="col" aria-sort={sortDirection(index)}>
+              {["1試合平均打席", "打席", "1試合平均打数", "打数", "試合数"].map((column, index) => <th key={column} scope="col" aria-sort={sortDirection(index)}>
                 <button type="button" onClick={() => setSort((current) => ({ column: index, descending: current.column === index ? !current.descending : index === 1 }))}>
                   <span>{column}</span>{sortMarks}
                 </button>
@@ -209,6 +221,8 @@ export function PlayingOpportunity({ players, active }: { players: Player[]; act
               <th scope="row"><small>#{row.number}</small><span>{row.name}</span></th>
               <td>{row.averagePlateAppearances === null ? "—" : fixedTwo(row.averagePlateAppearances)}</td>
               <td>{row.plateAppearances === null ? "—" : row.plateAppearances}</td>
+              <td>{row.averageAtBats === null ? "—" : fixedTwo(row.averageAtBats)}</td>
+              <td>{row.atBats === null ? "—" : row.atBats}</td>
               <td>{row.games === null ? "—" : row.games}</td>
             </tr>)}</tbody>
           </table>

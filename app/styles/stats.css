@@ -1375,7 +1375,7 @@
 }
 .stats-opportunity-candidate strong { color: #17649b; font-size: 12px; }
 .stats-opportunity-candidate p { margin: 0; color: #3e5a70; font-size: 13px; line-height: 1.6; }
-.stats-opportunity-table { min-width: 360px; }
+.stats-opportunity-table { min-width: 540px; }
 .stats-opportunity .teamsone-batters-table tr > :first-child {
   width: 132px;
   min-width: 132px;
