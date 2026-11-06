@@ -709,6 +709,27 @@ async function commitChanges(
   }
   const changes = groups.flatMap((group) => group.changes);
 
+  const appendRemovals = () => {
+    for (const { table, remove } of [...changes].reverse()) {
+      if (!remove.length) continue;
+      // JSON binds keep the statement count independent of the number of rows
+      // and avoid D1's per-statement bound-parameter limit.
+      const keys = `(${table.keys.join(",")}) IN (
+        SELECT ${table.keys.map((_, index) => `json_extract(value,'$[${index}]')`).join(",")} FROM json_each(?)
+      )`;
+      statements.push(database.prepare(`
+        ${table.retire
+          ? `UPDATE ${table.name} SET sort_order=NULL, bench_order=NULL, absent_order=NULL`
+          : `DELETE FROM ${table.name}`}
+        WHERE ${keys} AND ${guard}
+      `).bind(JSON.stringify(remove), scope, writeToken));
+    }
+  };
+
+  // When a game key moves, remove its old parent and child rows before adding
+  // the replacement. Upserts below still insert parent rows before children.
+  if (scope === "stats") appendRemovals();
+
   for (const { table, upsert } of changes) {
     if (!upsert.length) continue;
     const mutable = table.columns.filter((column) => !table.keys.includes(column));
@@ -722,20 +743,7 @@ async function commitChanges(
     `).bind(JSON.stringify(upsert), scope, writeToken));
   }
 
-  for (const { table, remove } of [...changes].reverse()) {
-    if (!remove.length) continue;
-    // JSON binds keep the statement count independent of the number of rows
-    // and avoid D1's per-statement bound-parameter limit.
-    const keys = `(${table.keys.join(",")}) IN (
-      SELECT ${table.keys.map((_, index) => `json_extract(value,'$[${index}]')`).join(",")} FROM json_each(?)
-    )`;
-    statements.push(database.prepare(`
-      ${table.retire
-        ? `UPDATE ${table.name} SET sort_order=NULL, bench_order=NULL, absent_order=NULL`
-        : `DELETE FROM ${table.name}`}
-      WHERE ${keys} AND ${guard}
-    `).bind(JSON.stringify(remove), scope, writeToken));
-  }
+  if (scope !== "stats") appendRemovals();
   if (scope === "stats") {
     // Enforce retention after authorized edits. This is a server policy, not
     // permission for clients to delete another member's statistics.

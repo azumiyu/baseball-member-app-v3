@@ -154,7 +154,7 @@ export function dataRoute(scope: DataScope) {
         if (error instanceof AccountingPermissionError) return json({ error: error.message }, 403);
         if (error instanceof StatsScheduleError) return json({ error: error.message }, 400);
         if (scope === "stats" && error instanceof Error && /UNIQUE constraint failed: stats_games.schedule_id/i.test(error.message)) {
-          return json({ error: "この試合には別の成績が登録されています。最新データを読み込んでください。" }, 409);
+          return json({ error: "同じ予定に複数試合の成績を登録するためのDB移行（0020）が未適用です。更新SQLを適用してください。" }, 503);
         }
         if (error instanceof StatsPermissionError || error instanceof LineupPermissionError || error instanceof SchedulePermissionError || error instanceof TeamSettingsPermissionError) return json({ error: error.message }, 403);
         if (error instanceof Error && /FOREIGN KEY constraint failed/i.test(error.message)) {

@@ -141,6 +141,13 @@
       "when": 1792484863566,
       "tag": "0019_pitching_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1793924718849,
+      "tag": "0020_multiple_stats_per_schedule",
+      "breakpoints": true
     }
   ]
 }

@@ -43,7 +43,14 @@ export type StatsSchedulePage = {
 
 /** 日付は既存成績の保存キーとして残し、予定との対応は変更されない ID で管理する。 */
 export function statsGameKeyForSchedule(data: StatsData, game: StatsScheduleOption): string {
-  const existing = Object.keys(data.games).find((key) => data.scheduleIds[key] === game.id);
+  const existing = Object.keys(data.games)
+    .filter((key) => data.scheduleIds[key] === game.id)
+    .sort((left, right) => {
+      const leftGame = parseGameKey(left);
+      const rightGame = parseGameKey(right);
+      const dateOrder = Number(leftGame?.date !== game.date) - Number(rightGame?.date !== game.date);
+      return dateOrder || (leftGame?.number ?? 1) - (rightGame?.number ?? 1);
+    })[0];
   if (existing) return existing;
   let number = 1;
   while (Object.hasOwn(data.games, gameKey(game.date, number))) number += 1;
@@ -146,10 +153,8 @@ export function validateStatsData(value: unknown): StatsData {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   if (!source.games || typeof source.games !== "object" || Array.isArray(source.games)) throw new Error("Invalid games");
   if (!source.scheduleIds || typeof source.scheduleIds !== "object" || Array.isArray(source.scheduleIds)) throw new Error("Schedule links are required");
-  const linkedIds = new Set<string>();
   for (const [key, id] of Object.entries(source.scheduleIds)) {
-    if (!Object.hasOwn(source.games, key) || typeof id !== "string" || !id || id.trim() !== id || id.length > 100 || linkedIds.has(id)) throw new Error("Invalid schedule link");
-    linkedIds.add(id);
+    if (!Object.hasOwn(source.games, key) || typeof id !== "string" || !id || id.trim() !== id || id.length > 100) throw new Error("Invalid schedule link");
   }
   const games: Record<string, GameStats> = {};
   for (const [key, rawGame] of Object.entries(source.games)) {

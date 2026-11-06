@@ -16,6 +16,7 @@ import {
 import {
   emptyPlayerStats,
   emptyPitchingStats,
+  gameKey,
   parseGameKey,
   statsGameKeyForSchedule,
   MAX_REGISTERED_STATS_GAMES,
@@ -61,6 +62,7 @@ export function StatsView({
   const stats = useStatsData();
   const [selectedPlayerId, setSelectedPlayerId] = useState(member.id);
   const [selection, setSelection] = useState<string | null>(null);
+  const [scheduleGameNumber, setScheduleGameNumber] = useState<{ scheduleId: string; date?: string; number: number } | null>(null);
   const [showPastSchedules, setShowPastSchedules] = useState(false);
   const [linkScheduleId, setLinkScheduleId] = useState("");
   const [statsTab, setStatsTab] = useState<"entry" | "confirmation" | "teamsone" | "personal" | "cumulative" | "opportunity">("entry");
@@ -85,8 +87,29 @@ export function StatsView({
   const selectedValue = selection ?? (defaultGame ? `schedule:${defaultGame.id}` : "");
   const selectedSchedule = selectedValue.startsWith("schedule:") ? scheduleById.get(selectedValue.slice(9)) : undefined;
   const legacyKey = selectedValue.startsWith("legacy:") ? selectedValue.slice(7) : "";
-  const selectedGameKey = selectedSchedule ? statsGameKeyForSchedule(stats.data, selectedSchedule)
+  const automaticScheduleKey = selectedSchedule ? statsGameKeyForSchedule(stats.data, selectedSchedule) : "";
+  const automaticGameNumber = parseGameKey(automaticScheduleKey)?.number ?? 1;
+  const selectedGameNumber = selectedSchedule && scheduleGameNumber?.scheduleId === selectedSchedule.id
+    ? scheduleGameNumber.number
+    : automaticGameNumber;
+  const selectedGameDate = selectedSchedule && scheduleGameNumber?.scheduleId === selectedSchedule.id
+    ? scheduleGameNumber.date ?? selectedSchedule.date
+    : selectedSchedule?.date;
+  const selectedGameKey = selectedSchedule && selectedGameDate ? gameKey(selectedGameDate, selectedGameNumber)
     : Object.hasOwn(stats.data.games, legacyKey) && !stats.data.scheduleIds[legacyKey] ? legacyKey : "";
+  const scheduleGameNumberOptions = selectedSchedule ? [...new Set([
+    1, 2, 3, 4, 5,
+    ...Object.keys(stats.data.games)
+      .map(parseGameKey)
+      .filter((game): game is { date: string; number: number } => game?.date === selectedGameDate)
+      .map((game) => game.number),
+    selectedGameNumber,
+  ])].sort((a, b) => a - b) : [];
+  const isScheduleGameNumberOccupied = (number: number) => {
+    if (!selectedSchedule) return false;
+    const key = gameKey(selectedGameDate ?? selectedSchedule.date, number);
+    return Object.hasOwn(stats.data.games, key) && stats.data.scheduleIds[key] !== selectedSchedule.id;
+  };
   const selectedPlayer = players.find(
     (player) => player.id === (member.isAdmin ? selectedPlayerId : member.id),
   );
@@ -97,7 +120,8 @@ export function StatsView({
   const labelForKey = (key: string) => {
     const schedule = scheduleById.get(stats.data.scheduleIds[key]);
     const game = parseGameKey(key);
-    return schedule ? scheduleLabel(schedule) : game ? `${game.date.replaceAll("-", "/")}・${game.number}試合目（未連携）` : key;
+    if (schedule) return `${game?.number ?? 1}試合目　${scheduleLabel(schedule)}`;
+    return game ? `${game.date.replaceAll("-", "/")}・${game.number}試合目（未連携）` : key;
   };
   useEffect(() => {
     return () => {
@@ -150,11 +174,20 @@ export function StatsView({
   const changeSelection = (value: string) => {
     if (!canLeaveDraft()) return false;
     setSelection(value);
+    setScheduleGameNumber(null);
     setEntryDraft(null);
     setLinkScheduleId("");
     setOpenPlate(null);
     clearRegistrationMessage();
     return true;
+  };
+  const changeScheduleGameNumber = (number: number) => {
+    if (!selectedSchedule || stats.saveState !== "saved" || isScheduleGameNumberOccupied(number) || !canLeaveDraft()) return;
+    setScheduleGameNumber({ scheduleId: selectedSchedule.id, date: selectedGameDate, number });
+    setSelection(selectedValue);
+    setEntryDraft(null);
+    setOpenPlate(null);
+    clearRegistrationMessage();
   };
   const editPlayer = (updater: (current: PlayerStats) => PlayerStats) => {
     if (!selectedGameKey || !selectedPlayer || !canEditPlayer(selectedPlayer.id))
@@ -190,7 +223,10 @@ export function StatsView({
   ) => {
     if (!canEditPlayer(playerId) || !canLeaveDraft()) return;
     clearRegistrationMessage();
-    setSelection(stats.data.scheduleIds[key] ? `schedule:${stats.data.scheduleIds[key]}` : `legacy:${key}`);
+    const scheduleId = stats.data.scheduleIds[key];
+    const game = parseGameKey(key);
+    setSelection(scheduleId ? `schedule:${scheduleId}` : `legacy:${key}`);
+    setScheduleGameNumber(scheduleId && game ? { scheduleId, date: game.date, number: game.number } : null);
     const date = scheduleById.get(stats.data.scheduleIds[key])?.date ?? parseGameKey(key)?.date;
     if (date && date < today) setShowPastSchedules(true);
     setSelectedPlayerId(playerId);
@@ -249,9 +285,11 @@ export function StatsView({
   };
   const linkLegacyGame = () => {
     if (!member.isAdmin || !selectedGameKey || stats.data.scheduleIds[selectedGameKey] || stats.saveState !== "saved" ||
-        !schedules.some((game) => game.id === linkScheduleId) || Object.values(stats.data.scheduleIds).includes(linkScheduleId)) return;
+        !schedules.some((game) => game.id === linkScheduleId)) return;
     stats.edit((current) => ({ ...current, scheduleIds: { ...current.scheduleIds, [selectedGameKey]: linkScheduleId } }));
     setSelection(`schedule:${linkScheduleId}`);
+    const game = parseGameKey(selectedGameKey);
+    setScheduleGameNumber(game ? { scheduleId: linkScheduleId, date: game.date, number: game.number } : null);
     setLinkScheduleId("");
   };
 
@@ -428,6 +466,22 @@ export function StatsView({
                   {visibleLegacyGames.map(({ key, game }) => <option key={key} value={`legacy:${key}`}>{game.date.slice(5).replace("-", "/")} 第{game.number}試合（未連携）</option>)}
                 </optgroup>}
               </select>
+              {selectedSchedule && <div className="stats-game-number-field">
+                <label htmlFor="stats-game-number">何試合目</label>
+                <select
+                  id="stats-game-number"
+                  value={selectedGameNumber}
+                  disabled={stats.saveState !== "saved"}
+                  onChange={(event) => changeScheduleGameNumber(Number(event.currentTarget.value))}
+                >
+                  {scheduleGameNumberOptions.map((number) => {
+                    const occupied = isScheduleGameNumberOccupied(number);
+                    return <option key={number} value={number} disabled={occupied && number !== selectedGameNumber}>
+                      {number}試合目{occupied && number !== selectedGameNumber ? "（登録済み）" : ""}
+                    </option>;
+                  })}
+                </select>
+              </div>}
               {selectedSchedule && <p className="stats-schedule-details">{selectedSchedule.startTime || "時刻未定"}{selectedSchedule.opponent && ` · vs ${selectedSchedule.opponent}`}{selectedSchedule.location && <span>{selectedSchedule.location}</span>}</p>}
               {!visibleSchedules.length && <p className="stats-schedule-details">{showPastSchedules ? "試合はまだ表示されていません。" : "本日以降の試合は登録されていません。"}新しい試合はスケジュール管理から登録できます。</p>}
               {showPastSchedules && (stats.hasMoreSchedules || stats.scheduleError) && <button type="button" className="secondary stats-load-schedules" disabled={stats.schedulesLoading} onClick={() => void stats.loadOlderSchedules()}>{stats.schedulesLoading ? "読み込み中…" : stats.scheduleError ? "過去の試合を再読み込み" : "さらに過去の試合を表示"}</button>}
@@ -440,7 +494,7 @@ export function StatsView({
               <label htmlFor="stats-link-schedule">紐づける試合</label>
               <select id="stats-link-schedule" value={linkScheduleId} onChange={(event) => setLinkScheduleId(event.target.value)}>
                 <option value="">試合を選択してください</option>
-                {visibleSchedules.filter((game) => !Object.values(stats.data.scheduleIds).includes(game.id)).map((game) => <option key={game.id} value={game.id}>{shortScheduleLabel(game, visibleSchedules)}</option>)}
+                {visibleSchedules.map((game) => <option key={game.id} value={game.id}>{shortScheduleLabel(game, visibleSchedules)}</option>)}
               </select>
               <button type="button" className="secondary" disabled={!linkScheduleId || stats.saveState !== "saved"} onClick={linkLegacyGame}>この試合に紐づける</button>
             </> : <p>紐づけは管理者が設定できます。登録済みの成績はそのまま編集できます。</p>}

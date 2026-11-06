@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, blob, primaryKey, foreignKey, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, primaryKey, foreignKey, index, check } from "drizzle-orm/sqlite-core";
 
 // Legacy JSON backups retained by 0003_normalize_data; application reads/writes
 // use the normalized tables below. Do not drop these until backups are archived.
@@ -129,10 +129,11 @@ export const statsGames = sqliteTable("stats_games", {
     gameDate: text("game_date").notNull(),
     gameNumber: integer("game_number").notNull(),
     // Preserve the historical stats key when a schedule is edited or deleted.
+    // One schedule can have multiple stats rows for a doubleheader.
     scheduleId: text("schedule_id").references(() => scheduleGames.id, { onDelete: "set null" }),
 }, (table) => [
     primaryKey({ columns: [table.gameDate, table.gameNumber] }),
-    uniqueIndex("stats_games_schedule_id_unique").on(table.scheduleId),
+    index("stats_games_schedule_id_idx").on(table.scheduleId),
 ]);
 
 export const playerGameStats = sqliteTable("player_game_stats", {

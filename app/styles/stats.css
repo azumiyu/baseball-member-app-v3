@@ -468,6 +468,16 @@
 .stats-game-fields label {
   margin-bottom: 8px;
 }
+.stats-game-number-field {
+  width: 100%;
+  max-width: 220px;
+  margin-top: 12px;
+}
+.stats-game-number-field label {
+  margin-bottom: 8px;
+  color: #344f67;
+  font-size: 13px;
+}
 .stats-schedule-details { margin: 9px 0 0; color: #617488; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .stats-schedule-details span { display: block; margin-top: 3px; }
 .stats-load-schedules { min-height: 44px; margin-top: 10px; }
