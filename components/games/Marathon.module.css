@@ -30,9 +30,17 @@
 .speech > strong { display: block; font-size: clamp(12px, 3.6vw, 20px); line-height: 1.5; font-weight: 900; }
 .speech > small { display: block; margin-top: 5px; color: #997129; font-size: 10px; font-weight: 800; }
 .speech > small > span { margin-left: 8px; color: #6a7b68; font-weight: 400; }
+.speech[data-gacha-result="true"] { top: 15px; max-width: 92%; padding: 15px 20px 16px; border: 3px solid #a56e21; background: #fff1bd; box-shadow: 0 5px 0 #61482024; }
+.speech[data-gacha-result="true"]::after { border-right-color: #a56e21; border-bottom-color: #a56e21; }
+.speech[data-gacha-result="true"] > span { color: #a56e21; font-size: 9px; }
+.speech[data-gacha-result="true"] > strong { font-size: clamp(16px, 4.3vw, 24px); line-height: 1.35; }
+.speech[data-gacha-result="true"] > small { color: #7e591d; font-size: 11px; }
 .scene[data-mood="parched"] .speech { border-color: #a56a2c; background: #fff1bb; }
 .scene[data-mood="runners-high"] .speech { border-color: #72538b; background: #f4e9ff; }
 .scene[data-mood="runners-high"] .speech > small { color: #72538b; }
+.scene .speech[data-gacha-result="true"] { border-color: #a56e21; background: #fff1bd; }
+.scene[data-resting="true"] .speech { border-color: #4a7180; background: #e8f5f5; }
+.scene[data-resting="true"] .speech > small { color: #4a7180; }
 .track { position: absolute; z-index: 1; inset: auto 0 34px; height: 90px; background: #cc8661; border-top: 5px solid #f2e0b3; border-bottom: 5px solid #f2e0b3; box-shadow: 0 -7px 0 #b0c17c, inset 0 6px 0 #bc745230; }
 .track > i { position: absolute; inset: 16px 0 auto; height: 2px; background: #edc7a4; }
 .track > i:nth-child(2) { top: 45px; }
@@ -65,6 +73,8 @@
 .thirstCopy > strong { color: #57765a; font-weight: 700; text-align: right; }
 .thirstMeter { height: 9px; overflow: hidden; border-radius: 20px; border: 1px solid #d4ddc5; background: #e7eadb; }
 .thirstMeter > span { display: block; width: var(--thirst); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a3c888, #e3bc5b); transition: width 1s linear; }
+.dailyQuota { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; color: #75866f; font-size: 10px; }
+.dailyQuota > strong { color: #436b55; font-variant-numeric: tabular-nums; }
 .waterButton { position: relative; width: 100%; min-height: 87px; margin-top: 20px; padding: 15px 18px; display: flex; align-items: center; justify-content: center; gap: 16px; border: 2px solid #1b6259; border-radius: 12px; background: #277f74; color: #f8ffe9; box-shadow: 0 5px 0 #185047, inset 0 1px 0 #70b8a6; cursor: pointer; touch-action: manipulation; }
 .waterButton:not(:disabled):hover { background: #1d7368; }
 .waterButton:not(:disabled):active { transform: translateY(4px); box-shadow: 0 1px 0 #185047; }
@@ -77,6 +87,26 @@
 .bottle { position: relative; flex-shrink: 0; width: 34px; height: 43px; display: grid; place-items: center; border: 2px solid #d5f4e4; border-radius: 8px 8px 10px 10px; background: linear-gradient(0deg, #85c5be99 67%, #fff1 67%); transform: rotate(-8deg); }
 .bottle::after { content: ""; position: absolute; inset: 9px auto auto 3px; height: 22px; width: 3px; border-radius: 10px; background: #e0ffdf80; }
 .bottle > i { position: absolute; top: -8px; height: 7px; width: 18px; border: 2px solid #d5f4e4; border-radius: 3px 3px 1px 1px; background: #cee8c7; }
+.stealQuota { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; color: #896c61; font-size: 10px; }
+.stealQuota > strong { color: #9a493d; font-variant-numeric: tabular-nums; }
+.stealButton { width: 100%; min-height: 68px; margin-top: 8px; padding: 13px 16px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 2px solid #8c453b; border-radius: 11px; background: #a95645; color: #fff8e8; box-shadow: 0 4px 0 #743c35, inset 0 1px 0 #d88e71; cursor: pointer; touch-action: manipulation; }
+.stealButton:not(:disabled):hover { background: #974b3e; }
+.stealButton:not(:disabled):active { transform: translateY(3px); box-shadow: 0 1px 0 #743c35; }
+.stealButton:disabled { border-color: #b29b8d; background: #c5b7a7; box-shadow: 0 3px 0 #a49687; color: #fff9eb; cursor: default; }
+.stealButton > svg { flex-shrink: 0; }
+.stealButton > span { flex: 1; text-align: left; }
+.stealButton strong { display: block; font-size: 15px; font-weight: 900; line-height: 1.4; }
+.stealButton small { display: block; margin-top: 4px; color: #ffe2ca; font-size: 9px; line-height: 1.5; }
+.stealButton:disabled small { color: #fff8ec; }
+.stealNotice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 13px 14px; border: 1px solid #d7a55e; border-radius: 9px; background: #fff4d7; color: #70502c; }
+.stealNotice strong { display: block; font-size: 12px; font-weight: 900; }
+.stealNotice p { margin: 4px 0 0; font-size: 10px; line-height: 1.6; }
+.stealNotice > button { flex-shrink: 0; min-height: 36px; padding: 6px 10px; border-radius: 6px; background: #93622c; color: #fff8e7; font-size: 10px; font-weight: 800; }
+.stealNotice > button:disabled { opacity: .55; }
+.stealResult { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 10px; padding: 9px; border: 1px solid #e1b6a0; border-radius: 7px; background: #fff3e9; color: #804439; font-size: 10px; text-align: center; }
+.stealResult > svg { flex-shrink: 0; }
+.stealResult strong { font-weight: 900; }
+.stealResult small { display: block; margin-top: 3px; color: #987062; font-size: 9px; }
 .receipt { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 63px; padding: 16px 0 12px; color: #6f856c; font-size: 10px; line-height: 1.8; text-align: center; }
 .receipt > svg { flex-shrink: 0; color: #47887a; }
 .receipt strong { color: #267968; }
@@ -124,6 +154,10 @@
   .waterButton { padding: 15px 13px; gap: 12px; }
   .waterButton > svg { width: 20px; }
   .waterButton small { font-size: 9px; }
+  .stealButton { padding-inline: 12px; gap: 9px; }
+  .stealButton strong { font-size: 14px; }
+  .stealNotice { align-items: flex-start; flex-direction: column; }
+  .stealNotice > button { align-self: flex-end; }
   .thirstCopy { font-size: 9px; }
   .receipt { font-size: 9px; }
   .lastWater { gap: 6px; font-size: 9px; }

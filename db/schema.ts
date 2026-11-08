@@ -219,10 +219,31 @@ export const marathonState = sqliteTable("marathon_state", {
     totalWaterMl: integer("total_water_ml").notNull().default(0),
     lastGiverName: text("last_giver_name"),
     writeToken: text("write_token").notNull().default(""),
+    exclusivePlayerId: text("exclusive_player_id"),
+    exclusiveUntil: integer("exclusive_until").notNull().default(0),
 }, (table) => [
     check("marathon_state_singleton_check", sql`${table.id} = 1`),
     check("marathon_state_revision_check", sql`${table.revision} >= 0`),
     check("marathon_state_total_check", sql`${table.totalWaterMl} >= 0`),
+]);
+
+// Keep only each member's current JST-day count; the row count stays bounded
+// by the number of players rather than growing with every new day.
+export const marathonGiverLimits = sqliteTable("marathon_giver_limits", {
+    playerId: text("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
+    japanDate: text("japan_date").notNull(),
+    waterCount: integer("water_count").notNull().default(0),
+    stealCount: integer("steal_count").notNull().default(0),
+    lastStealRequestId: text("last_steal_request_id"),
+    lastStealResultJson: text("last_steal_result_json"),
+    pendingStealCount: integer("pending_steal_count").notNull().default(0),
+    pendingStealMl: integer("pending_steal_ml").notNull().default(0),
+    pendingStealLastGiverName: text("pending_steal_last_giver_name"),
+    pendingStealVersion: integer("pending_steal_version").notNull().default(0),
+}, (table) => [
+    check("marathon_giver_limits_count_check", sql`${table.waterCount} BETWEEN 0 AND 10`),
+    check("marathon_giver_limits_steal_count_check", sql`${table.stealCount} BETWEEN 0 AND 2`),
+    check("marathon_giver_limits_pending_check", sql`${table.pendingStealCount} >= 0 AND ${table.pendingStealMl} >= 0 AND ${table.pendingStealVersion} >= 0`),
 ]);
 
 export const accountingEntries = sqliteTable("accounting_entries", {

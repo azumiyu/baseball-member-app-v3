@@ -10,7 +10,7 @@ type MarathonResponse = MarathonSnapshot & {
   snapshot?: MarathonSnapshot;
 };
 
-/** The shared runner advances locally. Only visits, refreshes, and watering use the API. */
+/** The shared runner advances locally. The API handles visits, refreshes, water, steals, and notifications. */
 export function useMarathonApi() {
   const [snapshot, setSnapshot] = useState<MarathonSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,9 +19,11 @@ export function useMarathonApi() {
   const [error, setError] = useState("");
   const [unauthorized, setUnauthorized] = useState(false);
   const [retryPending, setRetryPending] = useState(false);
+  const [stealRetryPending, setStealRetryPending] = useState(false);
   const alive = useRef(false);
   const current = useRef<MarathonSnapshot | null>(null);
   const pending = useRef<WaterRequest | null>(null);
+  const pendingSteal = useRef<WaterRequest | null>(null);
   const reading = useRef<number | null>(null);
   const readSequence = useRef(0);
   const mutating = useRef(false);
@@ -144,5 +146,80 @@ export function useMarathonApi() {
     }
   }, [accept]);
 
-  return { snapshot, loading, refreshing, busy, error, unauthorized, retryPending, read, water, now };
+  const steal = useCallback(async (): Promise<MarathonSnapshot | null> => {
+    if (mutating.current || reading.current || !current.current) return null;
+    const request = pendingSteal.current ?? {
+      requestId: createEntityId(),
+      expectedRevision: current.current.state.revision,
+    };
+    pendingSteal.current = request;
+    mutating.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/games/marathon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "steal", ...request }),
+      });
+      const value = await response.json() as MarathonResponse;
+      if (response.status === 401) {
+        pendingSteal.current = null;
+        if (alive.current) setUnauthorized(true);
+        return null;
+      }
+      if (response.status === 409) {
+        pendingSteal.current = null;
+        if (value.snapshot) accept(value.snapshot);
+        if (alive.current) setError(value.error || "強奪できませんでした。最新の状態を読み込みました。");
+        return null;
+      }
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) pendingSteal.current = null;
+        throw new Error(value.error || "強奪の結果を確認できませんでした。同じ操作を再試行してください。");
+      }
+      pendingSteal.current = null;
+      accept(value);
+      return alive.current ? value : null;
+    } catch (cause) {
+      if (alive.current) setError(cause instanceof Error ? cause.message : "通信できませんでした。同じ強奪を再試行してください。");
+      return null;
+    } finally {
+      mutating.current = false;
+      if (alive.current) {
+        setBusy(false);
+        setStealRetryPending(Boolean(pendingSteal.current));
+      }
+    }
+  }, [accept]);
+
+  const acknowledgeStealNotification = useCallback(async (version: number): Promise<MarathonSnapshot | null> => {
+    if (mutating.current || reading.current || !current.current) return null;
+    mutating.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/games/marathon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "acknowledge-steal-notification", version }),
+      });
+      const value = await response.json() as MarathonResponse;
+      if (response.status === 401) {
+        if (alive.current) setUnauthorized(true);
+        return null;
+      }
+      if (!response.ok) throw new Error(value.error || "強奪通知を確認できませんでした。");
+      accept(value);
+      return alive.current ? value : null;
+    } catch (cause) {
+      if (alive.current) setError(cause instanceof Error ? cause.message : "通信できませんでした。通知を再確認してください。");
+      return null;
+    } finally {
+      mutating.current = false;
+      if (alive.current) setBusy(false);
+    }
+  }, [accept]);
+
+  return { snapshot, loading, refreshing, busy, error, unauthorized, retryPending, stealRetryPending, read, water, steal, acknowledgeStealNotification, now };
 }
