@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, blob, primaryKey, foreignKey, index, check } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, blob, primaryKey, foreignKey, index, check } from "drizzle-orm/sqlite-core";
 
 // Legacy JSON backups retained by 0003_normalize_data; application reads/writes
 // use the normalized tables below. Do not drop these until backups are archived.
@@ -161,6 +161,40 @@ export const playerGameStats = sqliteTable("player_game_stats", {
         columns: [table.gameDate, table.gameNumber],
         foreignColumns: [statsGames.gameDate, statsGames.gameNumber],
     }).onDelete("cascade"),
+]);
+
+export const playerGoals = sqliteTable("player_goals", {
+    id: text("id").primaryKey(),
+    playerId: text("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+    season: integer("season").notNull(),
+    title: text("title").notNull(),
+    kind: text("kind").notNull(),
+    metric: text("metric"),
+    targetValue: real("target_value"),
+    direction: text("direction"),
+    manualProgress: integer("manual_progress").notNull().default(0),
+    manualNote: text("manual_note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+    index("player_goals_player_season_idx").on(table.playerId, table.season, table.sortOrder),
+    check("player_goals_title_check", sql`length(trim(${table.title})) BETWEEN 1 AND 100`),
+    check("player_goals_kind_check", sql`${table.kind} IN ('batting', 'pitching', 'manual')`),
+    check("player_goals_manual_progress_check", sql`${table.manualProgress} BETWEEN 0 AND 100`),
+    check("player_goals_shape_check", sql`(${table.kind} = 'manual' AND ${table.metric} IS NULL AND ${table.targetValue} IS NULL AND ${table.direction} IS NULL) OR (${table.kind} IN ('batting', 'pitching') AND ${table.metric} IS NOT NULL AND ${table.targetValue} > 0 AND ${table.direction} IN ('gte', 'lte'))`),
+]);
+
+export const playerGoalProgressSnapshots = sqliteTable("player_goal_progress_snapshots", {
+    season: integer("season").notNull(),
+    japanDate: text("japan_date").notNull(),
+    achievedCount: integer("achieved_count").notNull(),
+    totalCount: integer("total_count").notNull(),
+    progressPercent: real("progress_percent").notNull().default(0),
+    recordedAt: integer("recorded_at").notNull(),
+}, (table) => [
+    primaryKey({ columns: [table.season, table.japanDate] }),
+    check("player_goal_progress_counts_check", sql`${table.achievedCount} BETWEEN 0 AND ${table.totalCount} AND ${table.totalCount} >= 0`),
 ]);
 
 export const plateAppearances = sqliteTable("plate_appearances", {

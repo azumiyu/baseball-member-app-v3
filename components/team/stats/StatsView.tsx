@@ -33,7 +33,7 @@ import { PitchingEntryFields } from "./PitchingEntryFields";
 import { StatsConfirmation } from "./StatsConfirmation";
 import { PersonalStats } from "./PersonalStats";
 import { TeamsOneBatters } from "./TeamsOneBatters";
-import { TeamsOneCumulative } from "./TeamsOneCumulative";
+import { IndividualGoals } from "./IndividualGoals";
 import { PlayingOpportunity } from "./PlayingOpportunity";
 import { comparePlayersByNumber, removeStatsRegistration } from "./stats-actions";
 import { compareScheduleChoices, defaultScheduleChoice, shortScheduleLabel } from "../lib/schedule-options";
@@ -65,10 +65,10 @@ export function StatsView({
   const [scheduleGameNumber, setScheduleGameNumber] = useState<{ scheduleId: string; date?: string; number: number } | null>(null);
   const [showPastSchedules, setShowPastSchedules] = useState(false);
   const [linkScheduleId, setLinkScheduleId] = useState("");
-  const [statsTab, setStatsTab] = useState<"entry" | "confirmation" | "teamsone" | "personal" | "cumulative" | "opportunity">("entry");
+  const [statsTab, setStatsTab] = useState<"entry" | "confirmation" | "teamsone" | "personal" | "goals" | "opportunity">("entry");
   const [hasOpenedPersonal, setHasOpenedPersonal] = useState(false);
   const [hasOpenedTeamsOne, setHasOpenedTeamsOne] = useState(false);
-  const [hasOpenedCumulative, setHasOpenedCumulative] = useState(false);
+  const [hasOpenedGoals, setHasOpenedGoals] = useState(false);
   const [hasOpenedOpportunities, setHasOpenedOpportunities] = useState(false);
   const [entryStatsTab, setEntryStatsTab] = useState<"batting" | "pitching">("batting");
   const [openPlate, setOpenPlate] = useState<number | null>(null);
@@ -327,12 +327,12 @@ export function StatsView({
       <header className="page-heading">
         <div>
           <p className="eyebrow">GAME STATS</p>
-          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "cumulative" ? "累計" : statsTab === "opportunity" ? "出場機会" : statsTab === "teamsone" ? "成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
+          <h1>{statsTab === "personal" ? "個人成績" : statsTab === "goals" ? "個人目標" : statsTab === "opportunity" ? "出場機会" : statsTab === "teamsone" ? "成績一覧" : statsTab === "confirmation" ? "成績登録確認" : "成績登録"}</h1>
           <p>
             {statsTab === "personal"
               ? "自分の今年・年別・通算の野手・投手成績を確認できます。"
-              : statsTab === "cumulative"
-              ? "規定未到達者を含む全選手・全試合のチーム累計成績を確認できます。"
+              : statsTab === "goals"
+              ? "各選手の目標達成率とチーム全体の目標達成率を確認できます。"
               : statsTab === "opportunity"
               ? "選手ごとの出場試合数と平均打席数を比較し、次回の起用を検討できます。"
               : statsTab === "teamsone"
@@ -408,16 +408,16 @@ export function StatsView({
           }}
         >個人成績</button>
         <button
-          className={statsTab === "cumulative" ? "active" : ""}
+          className={statsTab === "goals" ? "active" : ""}
           type="button"
-          aria-pressed={statsTab === "cumulative"}
+          aria-pressed={statsTab === "goals"}
           onClick={() => {
-            setHasOpenedCumulative(true);
-            setStatsTab("cumulative");
+            setHasOpenedGoals(true);
+            setStatsTab("goals");
             setOpenPlate(null);
             clearRegistrationMessage();
           }}
-        >累計</button>
+        >個人目標</button>
         {member.canEditLineup && <button
           className={statsTab === "opportunity" ? "active" : ""}
           type="button"
@@ -432,7 +432,7 @@ export function StatsView({
       </nav>
       {hasOpenedTeamsOne && <div className="stats-teamsone-pane" hidden={statsTab !== "teamsone"}><TeamsOneBatters active={statsTab === "teamsone"} /></div>}
       {hasOpenedPersonal && <div className="stats-teamsone-pane" hidden={statsTab !== "personal"}><PersonalStats key={member.id} active={statsTab === "personal"} member={member} players={players} /></div>}
-      {hasOpenedCumulative && <div className="stats-teamsone-pane" hidden={statsTab !== "cumulative"}><TeamsOneCumulative active={statsTab === "cumulative"} /></div>}
+      {hasOpenedGoals && <div className="stats-teamsone-pane" hidden={statsTab !== "goals"}><IndividualGoals active={statsTab === "goals"} member={member} players={players} /></div>}
       {member.canEditLineup && hasOpenedOpportunities && <div className="stats-teamsone-pane" hidden={statsTab !== "opportunity"}><PlayingOpportunity players={players} active={statsTab === "opportunity"} /></div>}
       {statsTab === "confirmation" ? (
         <StatsConfirmation

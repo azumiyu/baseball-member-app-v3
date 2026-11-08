@@ -1383,6 +1383,78 @@
   border-radius: 9px;
   background: #f0f8fe;
 }
+
+.player-goals { width: 100%; min-width: 0; padding: 22px; }
+.player-goals-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.player-goals-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: #253b50; font-size: 19px; }
+.player-goals-heading h2 svg { color: #138267; }
+.player-goals-heading p { margin: 6px 0 0; color: #718396; font-size: 12px; line-height: 1.6; }
+.player-goals-year { display: grid; flex: 0 0 116px; gap: 5px; color: #617488; font-size: 11px; font-weight: 700; }
+.player-goals-year select, .player-goals-toolbar select { min-height: 39px; padding: 0 10px; border: 1px solid #cbd8e3; border-radius: 7px; background: #fff; color: #253b50; font: inherit; }
+.team-goal-progress { margin-top: 18px; padding: 16px; border: 1px solid #c9e5d9; border-radius: 11px; background: linear-gradient(135deg,#f1fbf6,#f7fcff); }
+.team-goal-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.team-goal-progress-top > div { display: grid; gap: 3px; }
+.team-goal-progress-top > div > span { color: #547367; font-size: 11px; font-weight: 800; }
+.team-goal-progress-top > div > strong { color: #13765f; font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.team-goal-progress-top > span { color: #49665c; font-size: 12px; font-weight: 800; }
+.team-goal-progress-track, .player-goal-progress-track { height: 9px; overflow: hidden; border-radius: 20px; background: #dce9e3; }
+.team-goal-progress-track { margin-top: 12px; }
+.team-goal-progress-track > span, .player-goal-progress-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#36a886,#83c88f); transition: width .25s ease; }
+.team-goal-progress > p { margin: 7px 0 0; color: #708279; font-size: 10px; line-height: 1.5; }
+.team-goal-comparisons { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #d8e9df; color: #546c61; font-size: 11px; font-weight: 800; }
+.team-goal-comparisons small { margin-left: 4px; color: #7a8b82; font-size: 10px; font-weight: 500; }
+.player-goals-toolbar { display: flex; align-items: end; gap: 10px; margin-top: 17px; padding-bottom: 13px; border-bottom: 1px solid #e5ebef; }
+.player-goals-toolbar > label { display: grid; flex: 1; min-width: 0; gap: 5px; color: #617488; font-size: 11px; font-weight: 700; }
+.player-goals-toolbar > span { padding-bottom: 10px; color: #718396; font-size: 11px; white-space: nowrap; }
+.player-goals-toolbar > button, .player-goals-player-heading > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 39px; white-space: nowrap; }
+.player-goals-list { display: grid; gap: 10px; margin-top: 15px; }
+.player-goals-player-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 2px; }
+.player-goals-player-heading > div { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.player-goals-player-heading > div > span { color: #7b8b98; font-size: 11px; font-weight: 800; }
+.player-goals-player-heading h3 { margin: 0; color: #2a4054; font-size: 16px; overflow-wrap: anywhere; }
+.player-goal-card { min-width: 0; padding: 14px; border: 1px solid #e1e9ee; border-radius: 10px; background: #fff; }
+.player-goal-card-top { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.player-goal-card-top > div:first-child { min-width: 0; }
+.player-goal-status { display: inline-flex; padding: 3px 7px; border-radius: 20px; background: #fff2dc; color: #8b6224; font-size: 9px; font-weight: 800; }
+.player-goal-status.is-achieved { background: #e4f6e9; color: #277348; }
+.player-goal-card h4 { margin: 6px 0 2px; color: #2a4054; font-size: 15px; overflow-wrap: anywhere; }
+.player-goal-card small { color: #798b98; font-size: 10px; line-height: 1.5; }
+.player-goal-actions { display: flex; gap: 5px; flex: 0 0 auto; }
+.player-goal-actions > button { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 32px; padding: 4px 8px; font-size: 10px; }
+.player-goal-progress-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 12px 0 6px; }
+.player-goal-progress-row > span { min-width: 0; color: #718396; font-size: 11px; overflow-wrap: anywhere; }
+.player-goal-progress-row > strong { flex: 0 0 auto; color: #168064; font-size: 18px; font-variant-numeric: tabular-nums; }
+.player-goal-progress-track { height: 7px; background: #e7edf0; }
+.player-goal-progress-track > span { background: linear-gradient(90deg,#3a91ca,#61b6a2); }
+.player-goals-empty, .player-goal-note { margin: 0; padding: 14px; border-radius: 8px; background: #f6f9fb; color: #718396; font-size: 12px; line-height: 1.6; }
+.player-goal-error { margin: 12px 0 0; padding: 11px 13px; border: 1px solid #f0c9c5; border-radius: 8px; background: #fff4f2; color: #a43d34; font-size: 12px; line-height: 1.6; }
+.player-goal-form { display: grid; gap: 11px; padding: 15px; border: 1px solid #c9dff0; border-radius: 10px; background: #f6fbff; }
+.player-goal-form > label, .player-goal-linked-fields > label { display: grid; min-width: 0; gap: 5px; color: #526b80; font-size: 11px; font-weight: 700; }
+.player-goal-form input, .player-goal-form select, .player-goal-form textarea { width: 100%; min-width: 0; min-height: 39px; padding: 7px 9px; border: 1px solid #cbd8e3; border-radius: 7px; background: #fff; color: #253b50; font: inherit; font-size: 13px; }
+.player-goal-form textarea { min-height: 76px; resize: vertical; }
+.player-goal-manual-note { margin: 6px 0 0; color: #536b80; font-size: 11px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.player-goal-linked-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,.7fr) minmax(0,.8fr); gap: 9px; }
+.player-goal-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.player-goal-form-actions > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; }
+@media (max-width: 700px) {
+  .player-goals { padding: 16px; }
+  .player-goals-heading { gap: 9px; }
+  .player-goals-heading h2 { font-size: 17px; }
+  .player-goals-heading p { font-size: 10px; }
+  .player-goals-year { flex-basis: 89px; font-size: 10px; }
+  .team-goal-progress { margin-top: 13px; padding: 12px; }
+  .team-goal-progress-top > div > strong { font-size: 26px; }
+  .team-goal-progress-top > span { font-size: 10px; }
+  .team-goal-comparisons { gap: 5px 12px; font-size: 10px; }
+  .team-goal-comparisons small { display: block; margin: 2px 0 0; }
+  .player-goals-toolbar { flex-wrap: wrap; align-items: end; gap: 7px; }
+  .player-goals-toolbar > label { flex-basis: 100%; }
+  .player-goals-toolbar > span { margin-right: auto; padding-bottom: 10px; }
+  .player-goals-player-heading h3 { font-size: 14px; }
+  .player-goals-player-heading > button { min-height: 35px; padding: 5px 8px; font-size: 11px; }
+  .player-goal-linked-fields { grid-template-columns: minmax(0,1fr) minmax(0,.8fr); }
+  .player-goal-linked-fields > label:last-child { grid-column: 1 / -1; }
+}
 .stats-opportunity-candidate strong { color: #17649b; font-size: 12px; }
 .stats-opportunity-candidate p { margin: 0; color: #3e5a70; font-size: 13px; line-height: 1.6; }
 .stats-opportunity-table { min-width: 540px; }

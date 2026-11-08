@@ -1,5 +1,5 @@
 import { createTeamsOneBattersLoader } from "@/lib/teamsone-batters-cache";
-import { parseTeamsOneFilters, TEAMS_ONE_BATTERS_FRESH_MS, type TeamsOneStatsKind } from "@/lib/teamsone-batters";
+import { parseTeamsOneFilters, TEAMS_ONE_BATTERS_FRESH_MS, type TeamsOneStatsKind, type TeamsOneBattingResponse } from "@/lib/teamsone-batters";
 
 const load = createTeamsOneBattersLoader();
 
@@ -23,4 +23,12 @@ export async function getTeamsOneStats(request: Request, kind: TeamsOneStatsKind
       status: 503, headers: { "Cache-Control": "public, max-age=30, s-maxage=60", "Retry-After": "60" },
     });
   }
+}
+
+export async function readTeamsOneStats(requestUrl: string, kind: TeamsOneStatsKind): Promise<TeamsOneBattingResponse> {
+  const url = new URL(requestUrl);
+  url.searchParams.set("kind", kind);
+  const normalizedUrl = url.toString();
+  parseTeamsOneFilters(normalizedUrl);
+  return load(normalizedUrl);
 }

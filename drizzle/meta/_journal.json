@@ -162,6 +162,20 @@
       "when": 1794100015342,
       "tag": "0022_marathon_steal",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1794130008032,
+      "tag": "0023_player_goals",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794130640627,
+      "tag": "0024_player_goal_notes_and_rate",
+      "breakpoints": true
     }
   ]
 }
