@@ -156,7 +156,7 @@ export function IndividualGoals({ active, member, players }: {
   const form = editor && <form className="player-goal-form" onSubmit={(event) => { void saveGoal(event); }}>
     <label>目標名<input required maxLength={100} value={editor.draft.title} onChange={(event) => updateDraft({ title: event.currentTarget.value })} placeholder="例：打率、球速 145 km/h" /></label>
     <label>達成率の集計<select value={editor.draft.kind} onChange={(event) => changeKind(event.currentTarget.value as Draft["kind"])}>
-      <option value="batting">Teams.one 野手成績</option><option value="pitching">Teams.one 投手成績</option><option value="manual">自分で達成率を入力</option>
+      <option value="batting">Teams 野手成績</option><option value="pitching">Teams 投手成績</option><option value="manual">自分で達成率を入力</option>
     </select></label>
     {editor.draft.kind === "manual" ? <>
       <label>達成率（%）<select value={editor.draft.manualProgress} onChange={(event) => updateDraft({ manualProgress: Number(event.currentTarget.value) })}>
@@ -177,7 +177,7 @@ export function IndividualGoals({ active, member, players }: {
 
   return <section className="panel player-goals" aria-labelledby="player-goals-title" aria-busy={loading || refreshing}>
     <div className="player-goals-heading">
-      <div><h2 id="player-goals-title"><Target size={19} aria-hidden="true" />個人目標</h2><p>Teams.oneの成績に連動した達成率と、自己入力の目標を確認できます。</p></div>
+      <div><h2 id="player-goals-title"><Target size={19} aria-hidden="true" />個人目標</h2><p>Teamsの成績に連動した達成率と、自己入力の目標を確認できます。</p></div>
       <label className="player-goals-year">年度<select value={year} onChange={(event) => { setYear(Number(event.currentTarget.value)); setData(null); }}>
         {years.map((value) => <option key={value} value={value}>{value}年</option>)}
       </select></label>
@@ -202,9 +202,9 @@ export function IndividualGoals({ active, member, players }: {
     </div>
 
     {error && <p className="player-goal-error" role="alert">{error}</p>}
-    {data?.statsUnavailable.length ? <p className="player-goal-note" role="status">Teams.oneの{data.statsUnavailable.map((kind) => kind === "batting" ? "野手" : "投手").join("・")}成績を取得できない目標は、再取得まで達成率を表示できません。</p> : null}
-    {data?.statsStale.length ? <p className="player-goal-note" role="status">Teams.oneの{data.statsStale.map((kind) => kind === "batting" ? "野手" : "投手").join("・")}成績の最新取得に失敗したため、前回取得時の値で達成率を表示しています。</p> : null}
-    {loading && !data && <p className="teamsone-batters-message" role="status">目標とTeams.oneの成績を読み込んでいます…</p>}
+    {data?.statsUnavailable.length ? <p className="player-goal-note" role="status">Teamsの{data.statsUnavailable.map((kind) => kind === "batting" ? "野手" : "投手").join("・")}成績を取得できない目標は、再取得まで達成率を表示できません。</p> : null}
+    {data?.statsStale.length ? <p className="player-goal-note" role="status">Teamsの{data.statsStale.map((kind) => kind === "batting" ? "野手" : "投手").join("・")}成績の最新取得に失敗したため、前回取得時の値で達成率を表示しています。</p> : null}
+    {loading && !data && <p className="teamsone-batters-message" role="status">目標とTeamsの成績を読み込んでいます…</p>}
 
     {selectedPlayer && <div className="player-goals-list">
       <div className="player-goals-player-heading"><div><span>#{selectedPlayer.number}</span><h3>{selectedPlayer.name}の{year}年目標</h3></div>{canEdit && selectedGoals.length < PLAYER_GOAL_LIMIT && <button type="button" className="secondary" disabled={saving} onClick={beginCreate}><Plus size={15} aria-hidden="true" />目標を追加</button>}</div>
@@ -215,8 +215,8 @@ export function IndividualGoals({ active, member, players }: {
         const target = goal.kind === "manual" || goal.targetValue === null || !goal.direction
           ? null : formatPlayerGoalTarget(goal.metric ?? "", goal.targetValue, goal.direction);
         return <article className="player-goal-card" key={goal.id}>
-          <div className="player-goal-card-top"><div><span className={`player-goal-status${goal.achieved ? " is-achieved" : ""}`}>{progress === null ? "成績未掲載" : goal.achieved ? "達成" : "挑戦中"}</span><h4>{goal.title}</h4><small>{goal.kind === "manual" ? "自己入力" : `Teams.one・${goal.metric}`}{target && ` ／ 目標 ${target}`}</small>{goal.kind === "manual" && goal.manualNote && <p className="player-goal-manual-note">メモ：{goal.manualNote}</p>}</div>{canEdit && <div className="player-goal-actions"><button type="button" className="secondary" disabled={saving} aria-label={`${goal.title}を編集`} onClick={() => beginEdit(goal)}>編集</button><button type="button" className="secondary" disabled={saving} aria-label={`${goal.title}を削除`} onClick={() => { void deleteGoal(goal); }}><Trash2 size={14} aria-hidden="true" /><span className="sr-only">削除</span></button></div>}</div>
-          <div className="player-goal-progress-row"><span>{goal.kind === "manual" ? "自己入力の達成率" : `現在：${goal.actualValue ?? "Teams.one未掲載"}`}</span><strong>{progress === null ? "—" : goalProgressLabel(progress)}</strong></div>
+          <div className="player-goal-card-top"><div><span className={`player-goal-status${goal.achieved ? " is-achieved" : ""}`}>{progress === null ? "成績未掲載" : goal.achieved ? "達成" : "挑戦中"}</span><h4>{goal.title}</h4><small>{goal.kind === "manual" ? "自己入力" : `Teams・${goal.metric}`}{target && ` ／ 目標 ${target}`}</small>{goal.kind === "manual" && goal.manualNote && <p className="player-goal-manual-note">メモ：{goal.manualNote}</p>}</div>{canEdit && <div className="player-goal-actions"><button type="button" className="secondary" disabled={saving} aria-label={`${goal.title}を編集`} onClick={() => beginEdit(goal)}>編集</button><button type="button" className="secondary" disabled={saving} aria-label={`${goal.title}を削除`} onClick={() => { void deleteGoal(goal); }}><Trash2 size={14} aria-hidden="true" /><span className="sr-only">削除</span></button></div>}</div>
+          <div className="player-goal-progress-row"><span>{goal.kind === "manual" ? "自己入力の達成率" : `現在：${goal.actualValue ?? "Teams未掲載"}`}</span><strong>{progress === null ? "—" : goalProgressLabel(progress)}</strong></div>
           <div className="player-goal-progress-track" role="meter" aria-label={`${goal.title}の達成率`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressWidth)}><span style={{ width: `${progressWidth}%` }} /></div>
         </article>;
       }) : <p className="player-goals-empty">この年度の目標はまだありません。</p>}

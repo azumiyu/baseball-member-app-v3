@@ -94,5 +94,5 @@ export function formatPlayerGoalTarget(metric: string, value: number, direction:
     display = String(value);
   }
   const suffix = metric === "本塁打" ? "本" : metric === "打点" || metric === "得点" ? "点" : metric === "盗塁" ? "個" : metric === "犠打" || metric === "犠飛" ? "本" : "";
-  return `${direction === "gte" ? "以上" : "以下"} ${display}${suffix}`;
+  return `${display}${suffix}${direction === "gte" ? "以上" : "以下"}`;
 }
