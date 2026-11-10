@@ -176,6 +176,20 @@
       "when": 1794130640627,
       "tag": "0024_player_goal_notes_and_rate",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1794312130771,
+      "tag": "0025_marathon_shop",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1794313805515,
+      "tag": "0026_marathon_trap_ownership",
+      "breakpoints": true
     }
   ]
 }

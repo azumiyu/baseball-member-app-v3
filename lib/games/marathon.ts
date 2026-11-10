@@ -26,11 +26,34 @@ export const MARATHON = {
   gachaResultDisplayMs: 5_000,
 };
 
+export const MARATHON_SHOP_PRICE = {
+  miniKobayashiBaseMl: 20_000,
+  stealGuardMl: 60_000,
+  stealCounterMl: 40_000,
+  poisonTrapMl: 25_000,
+  stealGloveBaseMl: 50_000,
+} as const;
+
+export type MarathonShopItem = "mini-kobayashi" | "steal-guard" | "steal-counter" | "poison-trap" | "steal-glove";
+export type MarathonShopCounts = Pick<MarathonShopState,
+  "miniKobayashiCount" | "stealGuardCharges" | "stealCounterCharges" | "stealGloveCount">;
+
+export function marathonShopPrice(item: MarathonShopItem, counts: MarathonShopCounts): number {
+  if (item === "mini-kobayashi") return Math.min(Number.MAX_SAFE_INTEGER,
+    Math.ceil(MARATHON_SHOP_PRICE.miniKobayashiBaseMl * 1.05 ** counts.miniKobayashiCount));
+  if (item === "steal-guard") return MARATHON_SHOP_PRICE.stealGuardMl;
+  if (item === "steal-counter") return MARATHON_SHOP_PRICE.stealCounterMl;
+  if (item === "poison-trap") return MARATHON_SHOP_PRICE.poisonTrapMl;
+  return Math.min(Number.MAX_SAFE_INTEGER,
+    Math.ceil(MARATHON_SHOP_PRICE.stealGloveBaseMl * 1.5 ** counts.stealGloveCount));
+}
+
 export type MarathonState = {
   startedAt: number;
   lastWateredAt: number;
   revision: number;
   totalWaterMl: number;
+  pendingTrapCount: number;
   lastGiverName: string | null;
   exclusivePlayerId: string | null;
   exclusivePlayerName: string | null;
@@ -54,6 +77,7 @@ export type MarathonWater = {
   gachaLabel: string;
   gachaMultiplier: number;
   stolenFromName: string | null;
+  trapTriggered: boolean;
 };
 export type MarathonSteal = {
   requestId: string;
@@ -63,6 +87,9 @@ export type MarathonSteal = {
   percent: number;
   targetPlayerId: string;
   targetName: string;
+  blocked: boolean;
+  countered: boolean;
+  counteredMl: number;
 };
 export type MarathonStealNotification = {
   version: number;
@@ -81,9 +108,25 @@ export type MarathonSnapshot = Omit<GameSnapshot, "gameId" | "run"> & {
   stealTargetCount: number;
   lastSteal: MarathonSteal | null;
   pendingStealNotification: MarathonStealNotification | null;
+  shop: MarathonShopState;
+  lastShopPurchase: MarathonShopPurchase | null;
 };
 export type MarathonWaterRequest = { requestId: string; expectedRevision: number };
 export type MarathonStealRequest = { requestId: string; expectedRevision: number };
+export type MarathonShopRequest = { requestId: string; expectedRevision: number; item: MarathonShopItem };
+export type MarathonShopState = {
+  walletMl: number;
+  miniKobayashiCount: number;
+  stealGuardCharges: number;
+  stealCounterCharges: number;
+  stealGloveCount: number;
+  guardPurchasesToday: number;
+  counterPurchasesToday: number;
+  trapPurchasesToday: number;
+  pendingTrapCount: number;
+  pricesMl: Record<MarathonShopItem, number>;
+};
+export type MarathonShopPurchase = { requestId: string; item: MarathonShopItem; costMl: number; purchasedAt: number };
 
 export type MarathonGachaKind = "exclusive" | "triple" | "half" | "double" | "steal" | "normal";
 export type MarathonGacha = { kind: MarathonGachaKind; label: string; multiplier: number };

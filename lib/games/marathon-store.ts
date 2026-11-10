@@ -2,11 +2,12 @@ import type { AuthMember } from "../auth-types";
 import { db, digest, random, token, validToken } from "../server";
 import type { LeaderboardEntry } from "./api-types";
 import { MARATHON, marathonAvailableWaterMl, marathonJapanDate, marathonJapanDayEnd,
-  marathonMood, marathonNoWaterWindow, marathonWaitMs, rollMarathonGacha,
+  marathonMood, marathonNoWaterWindow, marathonShopPrice, marathonWaitMs, rollMarathonGacha,
   type MarathonSnapshot, type MarathonState, type MarathonSteal, type MarathonStealNotification,
+  type MarathonShopItem, type MarathonShopPurchase, type MarathonShopRequest, type MarathonShopState,
   type MarathonStealRequest, type MarathonWater, type MarathonWaterRequest } from "./marathon";
 
-type Score = Omit<LeaderboardEntry, "rank">;
+type Score = Omit<LeaderboardEntry, "rank"> & { guardCharges: number; counterCharges: number };
 type ContextRow = {
   id: string; name: string; number: string; is_admin: number; can_edit_lineup: number;
   started_at: number; last_watered_at: number; revision: number; total_water_ml: number;
@@ -14,13 +15,19 @@ type ContextRow = {
   exclusive_until: number; japan_date: string | null; daily_water_count: number | null; daily_steal_count: number | null;
   receipt_json: string | null; last_steal_request_id: string | null; last_steal_result_json: string | null;
   pending_steal_count: number | null; pending_steal_ml: number | null;
-  pending_steal_last_giver_name: string | null; pending_steal_version: number | null; scores_json: string;
+  pending_steal_last_giver_name: string | null; pending_steal_version: number | null;
+  pending_trap_count: number; own_pending_trap_count: number | null;
+  mini_kobayashi_count: number | null; steal_guard_charges: number | null;
+  steal_counter_charges: number | null; steal_glove_count: number | null; shop_japan_date: string | null;
+  guard_purchases: number | null; counter_purchases: number | null; trap_purchases: number | null;
+  last_shop_purchase_json: string | null; scores_json: string;
 };
 export type MarathonContext = {
   member: AuthMember; sessionHash: string; state: MarathonState;
   scores: Score[]; dailyWaterCount: number; lastWater: MarathonWater | null;
   dailyStealCount: number; stealTargetCount: number; lastSteal: MarathonSteal | null;
   pendingStealNotification: MarathonStealNotification | null;
+  shop: MarathonShopState; lastShopPurchase: MarathonShopPurchase | null;
 };
 
 // One indexed query authenticates and returns the shared timestamps, ranking,
@@ -34,19 +41,27 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     SELECT p.id,p.name,p.number,p.is_admin,p.can_edit_lineup,
       m.started_at,m.last_watered_at,m.revision,m.total_water_ml,m.last_giver_name,
       m.exclusive_player_id,(SELECT name FROM players WHERE id=m.exclusive_player_id) AS exclusive_player_name,
-      m.exclusive_until,
+      m.exclusive_until,m.pending_trap_count,shop.pending_trap_count AS own_pending_trap_count,
       g.japan_date,g.water_count AS daily_water_count,g.steal_count AS daily_steal_count,
       g.last_steal_request_id,g.last_steal_result_json,
       g.pending_steal_count,g.pending_steal_ml,g.pending_steal_last_giver_name,g.pending_steal_version,
+      shop.mini_kobayashi_count,shop.steal_guard_charges,shop.steal_counter_charges,shop.steal_glove_count,
+      shop.japan_date AS shop_japan_date,shop.guard_purchases,shop.counter_purchases,shop.trap_purchases,
+      shop.last_purchase_result_json AS last_shop_purchase_json,
       (SELECT r.result_json FROM mini_game_runs r WHERE r.game_id=? AND r.player_id=p.id) AS receipt_json,
       (SELECT json_group_array(json_object('playerId',scores.player_id,'name',scores.name,
-        'number',scores.number,'score',scores.score,'achievedAt',scores.achieved_at))
+        'number',scores.number,'score',scores.score,'achievedAt',scores.achieved_at,
+        'guardCharges',scores.guard_charges,'counterCharges',scores.counter_charges))
        FROM (SELECT s.player_id,s.score,s.achieved_at,players.name,players.number
+         ,COALESCE(shop_scores.steal_guard_charges,0) AS guard_charges,
+          COALESCE(shop_scores.steal_counter_charges,0) AS counter_charges
          FROM mini_game_scores s JOIN players ON players.id=s.player_id AND players.sort_order IS NOT NULL
+         LEFT JOIN marathon_shop_inventory shop_scores ON shop_scores.player_id=s.player_id
          WHERE s.game_id=? ORDER BY s.score DESC,s.achieved_at,s.player_id) scores) AS scores_json
     FROM sessions session JOIN member_devices device ON device.hash=session.device_hash
     JOIN players p ON p.id=device.player_id AND p.sort_order IS NOT NULL
     LEFT JOIN marathon_giver_limits g ON g.player_id=p.id
+    LEFT JOIN marathon_shop_inventory shop ON shop.player_id=p.id
     JOIN marathon_state m ON m.id=1
     WHERE session.hash=? AND (session.expires=0 OR session.expires>?)
   `).bind(MARATHON.gameId, MARATHON.gameId, sessionHash, now).first<ContextRow>();
@@ -60,12 +75,31 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     ? { version: row.pending_steal_version ?? 0, count: row.pending_steal_count ?? 0,
         stolenMl: row.pending_steal_ml ?? 0, lastGiverName: row.pending_steal_last_giver_name ?? "メンバー" }
     : null;
+  const miniKobayashiCount = row.mini_kobayashi_count ?? 0;
+  const stealGuardCharges = row.steal_guard_charges ?? 0;
+  const stealCounterCharges = row.steal_counter_charges ?? 0;
+  const stealGloveCount = row.steal_glove_count ?? 0;
+  const inventory = { miniKobayashiCount, stealGuardCharges, stealCounterCharges, stealGloveCount };
+  const shop: MarathonShopState = {
+    walletMl: ownScore, ...inventory,
+    guardPurchasesToday: row.shop_japan_date === today ? row.guard_purchases ?? 0 : 0,
+    counterPurchasesToday: row.shop_japan_date === today ? row.counter_purchases ?? 0 : 0,
+    trapPurchasesToday: row.shop_japan_date === today ? row.trap_purchases ?? 0 : 0,
+    pendingTrapCount: row.own_pending_trap_count ?? 0,
+    pricesMl: {
+      "mini-kobayashi": marathonShopPrice("mini-kobayashi", inventory),
+      "steal-guard": marathonShopPrice("steal-guard", inventory),
+      "steal-counter": marathonShopPrice("steal-counter", inventory),
+      "poison-trap": marathonShopPrice("poison-trap", inventory),
+      "steal-glove": marathonShopPrice("steal-glove", inventory),
+    },
+  };
   return {
     member: { id: row.id, name: row.name, number: row.number,
       isAdmin: row.is_admin === 1, canEditLineup: row.can_edit_lineup === 1 },
     sessionHash,
     state: { startedAt: row.started_at, lastWateredAt: row.last_watered_at, revision: row.revision,
-      totalWaterMl: row.total_water_ml, lastGiverName: row.last_giver_name,
+      totalWaterMl: row.total_water_ml, pendingTrapCount: row.pending_trap_count, lastGiverName: row.last_giver_name,
       exclusivePlayerId: row.exclusive_player_id, exclusivePlayerName: row.exclusive_player_name,
       exclusiveUntil: row.exclusive_until },
     scores,
@@ -76,17 +110,24 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     lastSteal: row.last_steal_request_id && row.last_steal_result_json
       ? JSON.parse(row.last_steal_result_json) as MarathonSteal : null,
     pendingStealNotification,
+    shop,
+    lastShopPurchase: row.last_shop_purchase_json ? JSON.parse(row.last_shop_purchase_json) as MarathonShopPurchase : null,
   };
 }
 
 export function marathonSnapshot(context: MarathonContext, serverNow = Date.now()): MarathonSnapshot {
   const ranked = context.scores.map((score, index) => ({ ...score, rank: index + 1 }));
+  const publicRanked: LeaderboardEntry[] = ranked.map((score) => ({
+    playerId: score.playerId, name: score.name, number: score.number,
+    score: score.score, achievedAt: score.achievedAt, rank: score.rank,
+  }));
   return { member: context.member, gameId: MARATHON.gameId, run: null, serverNow,
     state: context.state, dailyWaterCount: context.dailyWaterCount, lastWater: context.lastWater,
     dailyStealCount: context.dailyStealCount, stealTargetCount: context.stealTargetCount,
     lastSteal: context.lastSteal, pendingStealNotification: context.pendingStealNotification,
-    leaderboard: ranked.slice(0, 10),
-    personalBest: ranked.find((score) => score.playerId === context.member.id) ?? null };
+    shop: context.shop, lastShopPurchase: context.lastShopPurchase,
+    leaderboard: publicRanked.slice(0, 10),
+    personalBest: publicRanked.find((score) => score.playerId === context.member.id) ?? null };
 }
 
 function getEligibleStealTargets(scores: Score[], playerId: string, ownIndex: number): Score[] {
@@ -128,6 +169,19 @@ export function parseMarathonStealRequest(value: unknown): MarathonStealRequest 
     ? { requestId, expectedRevision: expectedRevision as number } : null;
 }
 
+const marathonShopItems = new Set<MarathonShopItem>([
+  "mini-kobayashi", "steal-guard", "steal-counter", "poison-trap", "steal-glove",
+]);
+
+export function parseMarathonShopRequest(value: unknown): MarathonShopRequest | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { requestId, expectedRevision, item } = value as Record<string, unknown>;
+  return typeof requestId === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(requestId)
+    && Number.isSafeInteger(expectedRevision) && (expectedRevision as number) >= 0
+    && typeof item === "string" && marathonShopItems.has(item as MarathonShopItem)
+    ? { requestId, expectedRevision: expectedRevision as number, item: item as MarathonShopItem } : null;
+}
+
 export function parseMarathonNotificationVersion(value: unknown): number | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const version = (value as Record<string, unknown>).version;
@@ -150,15 +204,32 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
 
   const baseAmountMl = marathonAvailableWaterMl(context.state, now);
   const mood = marathonMood(context.state, now);
-  const gacha = rollMarathonGacha();
+  const trapTriggered = context.state.pendingTrapCount > context.shop.pendingTrapCount;
+  const gacha = trapTriggered
+    ? { kind: "normal" as const, label: "毒給水トラップに引っかかった！", multiplier: 1 }
+    : rollMarathonGacha();
   const leader = context.scores[0];
-  const stolenMl = gacha.kind === "steal" && leader && leader.playerId !== context.member.id
+  const possibleStolenMl = gacha.kind === "steal" && leader && leader.playerId !== context.member.id
     ? Math.floor(leader.score * 0.1) : 0;
-  const didSteal = stolenMl > 0 && !!leader && leader.playerId !== context.member.id;
+  let didSteal = possibleStolenMl > 0 && !!leader && leader.playerId !== context.member.id;
+  const leaderGuardBlocked = didSteal && (leader?.guardCharges ?? 0) > 0;
+  const leaderCountered = didSteal && !leaderGuardBlocked && (leader?.counterCharges ?? 0) > 0;
+  if (leaderGuardBlocked || leaderCountered) didSteal = false;
+  const stolenMl = didSteal ? possibleStolenMl : 0;
   const exclusive = gacha.kind === "exclusive";
   const regularWaterMultiplier = gacha.kind === "steal" ? 1 : gacha.multiplier;
-  const amountMl = didSteal ? stolenMl : Math.floor(baseAmountMl * regularWaterMultiplier);
-  const gachaLabel = gacha.kind === "steal" && !didSteal
+  const boostedRegularMl = Math.floor(baseAmountMl * regularWaterMultiplier * (1 + context.shop.miniKobayashiCount * 0.05));
+  const trapLossMl = trapTriggered
+    ? -Math.min(baseAmountMl, context.shop.walletMl, context.state.totalWaterMl)
+    : 0;
+  const amountMl = trapTriggered ? trapLossMl : didSteal ? stolenMl : boostedRegularMl;
+  const gachaLabel = trapTriggered
+    ? gacha.label
+    : leaderGuardBlocked
+      ? "強奪ガードが発動！給水量は守られました"
+      : leaderCountered
+        ? "強奪カウンターが発動！強奪を防ぎました"
+        : gacha.kind === "steal" && !didSteal
     ? leader?.playerId === context.member.id
       ? "1位はあなたなので、通常給水になりました"
       : "1位の給水量がまだ少ないため、通常給水になりました"
@@ -169,13 +240,15 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
     moodMultiplier: mood.multiplier, gacha: gacha.kind, gachaLabel,
     gachaMultiplier: didSteal ? 1 : regularWaterMultiplier,
     stolenFromName: didSteal ? leader?.name ?? null : null,
+    trapTriggered,
   };
   const writeToken = random();
   const database = db();
   const japanDate = marathonJapanDate(now);
   const notResting = marathonNoWaterWindow(now).isResting ? 0 : 1;
   const statements = [database.prepare(`
-    UPDATE marathon_state SET last_watered_at=?,revision=revision+1,total_water_ml=total_water_ml+?,
+    UPDATE marathon_state SET last_watered_at=?,revision=revision+1,total_water_ml=MAX(0,total_water_ml+?),
+      pending_trap_count=CASE WHEN ?>0 THEN pending_trap_count-1 ELSE pending_trap_count END,
       last_giver_name=?,write_token=?,
       exclusive_player_id=CASE WHEN ?=1 THEN ? ELSE exclusive_player_id END,
       exclusive_until=CASE WHEN ?=1 THEN ? ELSE exclusive_until END
@@ -186,11 +259,21 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
         JOIN players p ON p.id=d.player_id WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
           AND p.id=? AND p.sort_order IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM mini_game_runs WHERE game_id=? AND player_id=? AND last_request_id=?)
-  `).bind(now, didSteal ? 0 : amountMl, context.member.name, writeToken,
+  `).bind(now, didSteal ? 0 : amountMl, trapTriggered ? 1 : 0, context.member.name, writeToken,
     exclusive ? 1 : 0, context.member.id, exclusive ? 1 : 0, marathonJapanDayEnd(now),
     request.expectedRevision, now - MARATHON.minWaterIntervalMs, notResting, now, context.member.id,
     context.member.id, japanDate, MARATHON.dailyWaterLimit, context.sessionHash, now,
     context.member.id, MARATHON.gameId, context.member.id, request.requestId)];
+
+  if (trapTriggered) {
+    statements.push(database.prepare(`
+      UPDATE marathon_shop_inventory SET pending_trap_count=pending_trap_count-1
+      WHERE player_id=(SELECT player_id FROM marathon_shop_inventory
+        WHERE pending_trap_count>0 AND player_id<>? ORDER BY player_id LIMIT 1)
+        AND pending_trap_count>0
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(context.member.id, writeToken));
+  }
 
   if (didSteal && leader) {
     statements.push(database.prepare(`
@@ -198,11 +281,24 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
       WHERE game_id=? AND player_id=? AND score>=? AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
     `).bind(amountMl, now, MARATHON.gameId, leader.playerId, amountMl, writeToken));
   }
+  if (leaderGuardBlocked && leader) {
+    statements.push(database.prepare(`
+      UPDATE marathon_shop_inventory SET steal_guard_charges=steal_guard_charges-1
+      WHERE player_id=? AND steal_guard_charges>0
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(leader.playerId, writeToken));
+  } else if (leaderCountered && leader) {
+    statements.push(database.prepare(`
+      UPDATE marathon_shop_inventory SET steal_counter_charges=steal_counter_charges-1
+      WHERE player_id=? AND steal_counter_charges>0
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(leader.playerId, writeToken));
+  }
   statements.push(database.prepare(`
     INSERT INTO mini_game_scores(game_id,player_id,score,achieved_at)
-    SELECT ?,?,?,? FROM marathon_state WHERE id=1 AND write_token=?
-    ON CONFLICT(game_id,player_id) DO UPDATE SET score=mini_game_scores.score+excluded.score,achieved_at=excluded.achieved_at
-  `).bind(MARATHON.gameId, context.member.id, amountMl, now, writeToken));
+    SELECT ?,?,MAX(0,?),? FROM marathon_state WHERE id=1 AND write_token=?
+    ON CONFLICT(game_id,player_id) DO UPDATE SET score=MAX(0,mini_game_scores.score+?),achieved_at=excluded.achieved_at
+  `).bind(MARATHON.gameId, context.member.id, amountMl, now, writeToken, amountMl));
   statements.push(database.prepare(`
     INSERT INTO marathon_giver_limits(player_id,japan_date,water_count,steal_count)
     SELECT ?,?,1,0 FROM marathon_state WHERE id=1 AND write_token=?
@@ -217,7 +313,7 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
     ON CONFLICT(game_id,player_id) DO UPDATE SET run_id=excluded.run_id,turn=excluded.turn,balance=excluded.balance,
       status='finished',last_request_id=excluded.last_request_id,result_json=excluded.result_json,
       started_at=excluded.started_at,updated_at=excluded.updated_at
-  `).bind(MARATHON.gameId, context.member.id, request.requestId, amountMl,
+  `).bind(MARATHON.gameId, context.member.id, request.requestId, Math.max(0, amountMl),
     request.requestId, JSON.stringify(receipt), now, now, writeToken));
   const batch = await database.batch(statements);
   const fresh = await readMarathonContext(req);
@@ -237,7 +333,8 @@ export type MarathonStealResult = {
 export async function stealMarathon(req: Request, context: MarathonContext, request: MarathonStealRequest): Promise<MarathonStealResult> {
   if (context.lastSteal?.requestId === request.requestId) return { status: "duplicate", context };
   if (context.state.revision !== request.expectedRevision) return { status: "conflict", context };
-  if (context.dailyStealCount >= MARATHON.dailyStealLimit) return { status: "daily-limit", context };
+  const dailyLimit = MARATHON.dailyStealLimit + context.shop.stealGloveCount;
+  if (context.dailyStealCount >= dailyLimit) return { status: "daily-limit", context };
 
   const ownIndex = context.scores.findIndex((score) => score.playerId === context.member.id);
   const ownScore = ownIndex >= 0 ? context.scores[ownIndex]?.score ?? 0 : 0;
@@ -249,14 +346,18 @@ export async function stealMarathon(req: Request, context: MarathonContext, requ
   const target = targets[secureIndex(targets.length)];
   if (!target) return { status: "no-target", context };
   const percent = rollStealPercent();
-  const stolenMl = Math.floor(target.score * percent / 100);
-  if (stolenMl < 1) return { status: "no-target", context };
+  const attemptedMl = Math.floor(target.score * percent / 100);
+  if (attemptedMl < 1) return { status: "no-target", context };
+  const blocked = target.guardCharges > 0;
+  const countered = !blocked && target.counterCharges > 0;
+  const counteredMl = countered ? Math.min(attemptedMl, Math.max(0, ownScore - consumedMl)) : 0;
+  const stolenMl = !blocked && !countered ? attemptedMl : 0;
 
   const now = Date.now();
   const japanDate = marathonJapanDate(now);
   const receipt: MarathonSteal = {
     requestId: request.requestId, stolenAt: now, consumedMl, stolenMl, percent,
-    targetPlayerId: target.playerId, targetName: target.name,
+    targetPlayerId: target.playerId, targetName: target.name, blocked, countered, counteredMl,
   };
   const writeToken = random();
   const database = db();
@@ -273,20 +374,35 @@ export async function stealMarathon(req: Request, context: MarathonContext, requ
             AND p.id=? AND p.sort_order IS NOT NULL)
         AND NOT EXISTS (SELECT 1 FROM marathon_giver_limits WHERE player_id=? AND last_steal_request_id=?)
     `).bind(consumedMl, writeToken, request.expectedRevision, consumedMl,
-      japanDate, context.member.id, MARATHON.dailyStealLimit,
+      japanDate, context.member.id, dailyLimit,
       MARATHON.gameId, context.member.id, consumedMl,
-      MARATHON.gameId, target.playerId, stolenMl,
+      MARATHON.gameId, target.playerId, attemptedMl,
       context.sessionHash, now, context.member.id, context.member.id, request.requestId),
-    database.prepare(`
+    ...(stolenMl > 0 ? [database.prepare(`
       UPDATE mini_game_scores SET score=score-?,achieved_at=?
       WHERE game_id=? AND player_id=? AND score>=?
         AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
-    `).bind(stolenMl, now, MARATHON.gameId, target.playerId, stolenMl, writeToken),
+    `).bind(stolenMl, now, MARATHON.gameId, target.playerId, stolenMl, writeToken)] : []),
+    ...(counteredMl > 0 ? [database.prepare(`
+      UPDATE mini_game_scores SET score=score+?,achieved_at=?
+      WHERE game_id=? AND player_id=?
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(counteredMl, now, MARATHON.gameId, target.playerId, writeToken)] : []),
     database.prepare(`
-      UPDATE mini_game_scores SET score=score-?+?,achieved_at=?
+      UPDATE mini_game_scores SET score=score-?+?-?,achieved_at=?
       WHERE game_id=? AND player_id=? AND score>=?
         AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
-    `).bind(consumedMl, stolenMl, now, MARATHON.gameId, context.member.id, consumedMl, writeToken),
+    `).bind(consumedMl, stolenMl, counteredMl, now, MARATHON.gameId, context.member.id, consumedMl + counteredMl, writeToken),
+    ...(blocked ? [database.prepare(`
+      UPDATE marathon_shop_inventory SET steal_guard_charges=steal_guard_charges-1
+      WHERE player_id=? AND steal_guard_charges>0
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(target.playerId, writeToken)] : []),
+    ...(countered ? [database.prepare(`
+      UPDATE marathon_shop_inventory SET steal_counter_charges=steal_counter_charges-1
+      WHERE player_id=? AND steal_counter_charges>0
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(target.playerId, writeToken)] : []),
     database.prepare(`
       INSERT INTO marathon_giver_limits(player_id,japan_date,water_count,steal_count,last_steal_request_id,last_steal_result_json)
       SELECT ?,?,0,1,?,? FROM marathon_state WHERE id=1 AND write_token=?
@@ -297,7 +413,7 @@ export async function stealMarathon(req: Request, context: MarathonContext, requ
         last_steal_result_json=excluded.last_steal_result_json,
         japan_date=excluded.japan_date
     `).bind(context.member.id, japanDate, request.requestId, JSON.stringify(receipt), writeToken),
-    database.prepare(`
+    ...(stolenMl > 0 ? [database.prepare(`
       INSERT INTO marathon_giver_limits(player_id,japan_date,water_count,steal_count,
         pending_steal_count,pending_steal_ml,pending_steal_last_giver_name,pending_steal_version)
       SELECT ?,?,0,0,1,?,?,1 FROM marathon_state WHERE id=1 AND write_token=?
@@ -309,12 +425,117 @@ export async function stealMarathon(req: Request, context: MarathonContext, requ
         pending_steal_last_giver_name=excluded.pending_steal_last_giver_name,
         pending_steal_version=marathon_giver_limits.pending_steal_version+1,
         japan_date=excluded.japan_date
-    `).bind(target.playerId, japanDate, stolenMl, context.member.name, writeToken),
+    `).bind(target.playerId, japanDate, stolenMl, context.member.name, writeToken)] : []),
   ]);
   const fresh = await readMarathonContext(req);
   if (!fresh) return { status: "unauthorized", context: null };
   if (batch[0].meta.changes === 1) return { status: "accepted", context: fresh };
   if (fresh.lastSteal?.requestId === request.requestId) return { status: "duplicate", context: fresh };
+  return { status: "conflict", context: fresh };
+}
+
+export type MarathonShopBuyResult = {
+  status: "accepted" | "duplicate" | "conflict" | "daily-limit" | "insufficient" | "unauthorized";
+  context: MarathonContext | null;
+};
+
+export async function buyMarathonShopItem(
+  req: Request,
+  context: MarathonContext,
+  request: MarathonShopRequest,
+): Promise<MarathonShopBuyResult> {
+  if (context.lastShopPurchase?.requestId === request.requestId) return { status: "duplicate", context };
+  if (context.state.revision !== request.expectedRevision) return { status: "conflict", context };
+
+  const caps: Partial<Record<MarathonShopItem, number>> = {
+    "steal-guard": 2, "steal-counter": 1, "poison-trap": 2,
+  };
+  const boughtToday: Partial<Record<MarathonShopItem, number>> = {
+    "steal-guard": context.shop.guardPurchasesToday,
+    "steal-counter": context.shop.counterPurchasesToday,
+    "poison-trap": context.shop.trapPurchasesToday,
+  };
+  const cap = caps[request.item];
+  if (cap !== undefined && (boughtToday[request.item] ?? 0) >= cap) return { status: "daily-limit", context };
+
+  const costMl = context.shop.pricesMl[request.item];
+  if (context.shop.walletMl < costMl) return { status: "insufficient", context };
+  const now = Date.now();
+  const japanDate = marathonJapanDate(now);
+  const purchase: MarathonShopPurchase = { requestId: request.requestId, item: request.item, costMl, purchasedAt: now };
+  const inventory = context.shop;
+  const guardPurchases = (inventory.guardPurchasesToday) + (request.item === "steal-guard" ? 1 : 0);
+  const counterPurchases = (inventory.counterPurchasesToday) + (request.item === "steal-counter" ? 1 : 0);
+  const trapPurchases = (inventory.trapPurchasesToday) + (request.item === "poison-trap" ? 1 : 0);
+  const nextInventory = {
+    miniKobayashiCount: inventory.miniKobayashiCount + (request.item === "mini-kobayashi" ? 1 : 0),
+    stealGuardCharges: inventory.stealGuardCharges + (request.item === "steal-guard" ? 3 : 0),
+    stealCounterCharges: inventory.stealCounterCharges + (request.item === "steal-counter" ? 1 : 0),
+    stealGloveCount: inventory.stealGloveCount + (request.item === "steal-glove" ? 1 : 0),
+    pendingTrapCount: inventory.pendingTrapCount + (request.item === "poison-trap" ? 1 : 0),
+  };
+  const writeToken = random();
+  const database = db();
+  const statements = [database.prepare(`
+    UPDATE marathon_state SET revision=revision+1,write_token=?
+    WHERE id=1 AND revision=?
+      AND COALESCE((SELECT score FROM mini_game_scores WHERE game_id=? AND player_id=?),0)>=?
+      AND COALESCE((SELECT last_purchase_request_id FROM marathon_shop_inventory WHERE player_id=?),'')<>?
+      AND EXISTS (SELECT 1 FROM sessions s JOIN member_devices d ON d.hash=s.device_hash
+        JOIN players p ON p.id=d.player_id WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
+          AND p.id=? AND p.sort_order IS NOT NULL)
+      AND (?<0 OR COALESCE((SELECT CASE WHEN japan_date=? THEN guard_purchases ELSE 0 END
+        FROM marathon_shop_inventory WHERE player_id=?),0)<?)
+      AND (?<0 OR COALESCE((SELECT CASE WHEN japan_date=? THEN counter_purchases ELSE 0 END
+        FROM marathon_shop_inventory WHERE player_id=?),0)<?)
+      AND (?<0 OR COALESCE((SELECT CASE WHEN japan_date=? THEN trap_purchases ELSE 0 END
+        FROM marathon_shop_inventory WHERE player_id=?),0)<?)
+  `).bind(writeToken, request.expectedRevision, MARATHON.gameId, context.member.id, costMl,
+    context.member.id, request.requestId, context.sessionHash, now, context.member.id,
+    request.item === "steal-guard" ? guardPurchases - 1 : -1, japanDate, context.member.id, 2,
+    request.item === "steal-counter" ? counterPurchases - 1 : -1, japanDate, context.member.id, 1,
+    request.item === "poison-trap" ? trapPurchases - 1 : -1, japanDate, context.member.id, 2),
+    database.prepare(`
+      UPDATE mini_game_scores SET score=score-?,achieved_at=?
+      WHERE game_id=? AND player_id=? AND score>=?
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(costMl, now, MARATHON.gameId, context.member.id, costMl, writeToken),
+    database.prepare(`
+      INSERT INTO marathon_shop_inventory(player_id,mini_kobayashi_count,steal_guard_charges,
+        steal_counter_charges,steal_glove_count,pending_trap_count,japan_date,guard_purchases,counter_purchases,
+        trap_purchases,last_purchase_request_id,last_purchase_result_json)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,? FROM marathon_state WHERE id=1 AND write_token=?
+      ON CONFLICT(player_id) DO UPDATE SET
+        mini_kobayashi_count=excluded.mini_kobayashi_count,
+        steal_guard_charges=excluded.steal_guard_charges,
+        steal_counter_charges=excluded.steal_counter_charges,
+        steal_glove_count=excluded.steal_glove_count,
+        pending_trap_count=excluded.pending_trap_count,
+        japan_date=excluded.japan_date,
+        guard_purchases=excluded.guard_purchases,
+        counter_purchases=excluded.counter_purchases,
+        trap_purchases=excluded.trap_purchases,
+        last_purchase_request_id=excluded.last_purchase_request_id,
+        last_purchase_result_json=excluded.last_purchase_result_json
+    `).bind(context.member.id, nextInventory.miniKobayashiCount, nextInventory.stealGuardCharges,
+      nextInventory.stealCounterCharges, nextInventory.stealGloveCount, nextInventory.pendingTrapCount, japanDate,
+      guardPurchases, counterPurchases, trapPurchases, request.requestId, JSON.stringify(purchase), writeToken),
+  ];
+  if (request.item === "poison-trap") {
+    statements.push(database.prepare(`
+      UPDATE marathon_state SET pending_trap_count=pending_trap_count+1
+      WHERE id=1 AND write_token=?
+    `).bind(writeToken));
+  }
+  const batch = await database.batch(statements);
+  const fresh = await readMarathonContext(req);
+  if (!fresh) return { status: "unauthorized", context: null };
+  if (batch[0].meta.changes === 1) return { status: "accepted", context: fresh };
+  if (fresh.lastShopPurchase?.requestId === request.requestId) return { status: "duplicate", context: fresh };
+  if (fresh.state.revision === request.expectedRevision) {
+    if (fresh.shop.walletMl < fresh.shop.pricesMl[request.item]) return { status: "insufficient", context: fresh };
+    if (cap !== undefined && (boughtToday[request.item] ?? 0) >= cap) return { status: "daily-limit", context: fresh };
+  }
   return { status: "conflict", context: fresh };
 }
 

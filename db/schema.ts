@@ -255,10 +255,12 @@ export const marathonState = sqliteTable("marathon_state", {
     writeToken: text("write_token").notNull().default(""),
     exclusivePlayerId: text("exclusive_player_id"),
     exclusiveUntil: integer("exclusive_until").notNull().default(0),
+    pendingTrapCount: integer("pending_trap_count").notNull().default(0),
 }, (table) => [
     check("marathon_state_singleton_check", sql`${table.id} = 1`),
     check("marathon_state_revision_check", sql`${table.revision} >= 0`),
     check("marathon_state_total_check", sql`${table.totalWaterMl} >= 0`),
+    check("marathon_state_pending_trap_check", sql`${table.pendingTrapCount} >= 0`),
 ]);
 
 // Keep only each member's current JST-day count; the row count stays bounded
@@ -276,8 +278,27 @@ export const marathonGiverLimits = sqliteTable("marathon_giver_limits", {
     pendingStealVersion: integer("pending_steal_version").notNull().default(0),
 }, (table) => [
     check("marathon_giver_limits_count_check", sql`${table.waterCount} BETWEEN 0 AND 10`),
-    check("marathon_giver_limits_steal_count_check", sql`${table.stealCount} BETWEEN 0 AND 2`),
+    check("marathon_giver_limits_steal_count_check", sql`${table.stealCount} >= 0`),
     check("marathon_giver_limits_pending_check", sql`${table.pendingStealCount} >= 0 AND ${table.pendingStealMl} >= 0 AND ${table.pendingStealVersion} >= 0`),
+]);
+
+// Player-owned marathon shop effects and JST-day purchase limits.
+export const marathonShopInventory = sqliteTable("marathon_shop_inventory", {
+    playerId: text("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
+    miniKobayashiCount: integer("mini_kobayashi_count").notNull().default(0),
+    stealGuardCharges: integer("steal_guard_charges").notNull().default(0),
+    stealCounterCharges: integer("steal_counter_charges").notNull().default(0),
+    stealGloveCount: integer("steal_glove_count").notNull().default(0),
+    pendingTrapCount: integer("pending_trap_count").notNull().default(0),
+    japanDate: text("japan_date").notNull(),
+    guardPurchases: integer("guard_purchases").notNull().default(0),
+    counterPurchases: integer("counter_purchases").notNull().default(0),
+    trapPurchases: integer("trap_purchases").notNull().default(0),
+    lastPurchaseRequestId: text("last_purchase_request_id"),
+    lastPurchaseResultJson: text("last_purchase_result_json"),
+}, (table) => [
+    check("marathon_shop_inventory_counts_check", sql`${table.miniKobayashiCount} >= 0 AND ${table.stealGuardCharges} >= 0 AND ${table.stealCounterCharges} >= 0 AND ${table.stealGloveCount} >= 0 AND ${table.pendingTrapCount} >= 0`),
+    check("marathon_shop_inventory_daily_check", sql`${table.guardPurchases} BETWEEN 0 AND 2 AND ${table.counterPurchases} BETWEEN 0 AND 1 AND ${table.trapPurchases} BETWEEN 0 AND 2`),
 ]);
 
 export const accountingEntries = sqliteTable("accounting_entries", {

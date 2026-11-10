@@ -1,9 +1,11 @@
 import { json, readBody, renewSessionHeaders, sameOrigin } from "@/lib/server";
 import {
   acknowledgeMarathonStealNotification,
+  buyMarathonShopItem,
   marathonSnapshot,
   parseMarathonNotificationVersion,
   parseMarathonRequest,
+  parseMarathonShopRequest,
   parseMarathonStealRequest,
   readMarathonContext,
   stealMarathon,
@@ -53,6 +55,19 @@ export async function POST(req: Request) {
       if (result.status === "daily-limit") return json({ error: "今日は強奪を2回使いました。", snapshot }, 409, headers);
       if (result.status === "insufficient") return json({ error: "強奪には累計給水量が10mL以上必要です。", snapshot }, 409, headers);
       if (result.status === "no-target") return json({ error: "強奪できる上位メンバーがいません。", snapshot }, 409, headers);
+      return json(snapshot, 200, headers);
+    }
+
+    if (action === "shop-buy") {
+      const request = parseMarathonShopRequest(body);
+      if (!request) return json({ error: "ショップの購入情報を確認してください。" }, 400);
+      const result = await buyMarathonShopItem(req, context, request);
+      if (!result.context) return json({ error: "チーム画面でログインし直してください。" }, 401);
+      const snapshot = marathonSnapshot(result.context);
+      const headers = renewSessionHeaders(req);
+      if (result.status === "conflict") return json({ error: "小林の様子が更新されました。残高を確認してください。", snapshot }, 409, headers);
+      if (result.status === "daily-limit") return json({ error: "このアイテムは今日の購入上限に達しています。", snapshot }, 409, headers);
+      if (result.status === "insufficient") return json({ error: "累計給水量が足りません。", snapshot }, 409, headers);
       return json(snapshot, 200, headers);
     }
 

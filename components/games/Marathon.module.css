@@ -98,6 +98,14 @@
 .stealButton strong { display: block; font-size: 15px; font-weight: 900; line-height: 1.4; }
 .stealButton small { display: block; margin-top: 4px; color: #ffe2ca; font-size: 9px; line-height: 1.5; }
 .stealButton:disabled small { color: #fff8ec; }
+.shopOpenButton { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 58px; margin-top: 9px; padding: 10px 16px; border: 1px solid #8e7a43; border-radius: 9px; background: #f0e5b9; color: #536546; box-shadow: 0 3px 0 #bbaa75; cursor: pointer; touch-action: manipulation; }
+.shopOpenButton:not(:disabled):hover { background: #e9dca8; }
+.shopOpenButton:active { transform: translateY(2px); box-shadow: 0 1px 0 #bbaa75; }
+.shopOpenButton > span { display: flex; align-items: baseline; gap: 8px; }
+.shopOpenButton strong { font-size: 14px; font-weight: 900; }
+.shopOpenButton small { color: #78836b; font-size: 9px; }
+.shopOpenButton > svg:first-child { color: #8b7134; }
+.shopOpenButton > svg:last-child { margin-left: auto; opacity: .7; }
 .stealNotice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 13px 14px; border: 1px solid #d7a55e; border-radius: 9px; background: #fff4d7; color: #70502c; }
 .stealNotice strong { display: block; font-size: 12px; font-weight: 900; }
 .stealNotice p { margin: 4px 0 0; font-size: 10px; line-height: 1.6; }
@@ -125,6 +133,34 @@
 .refreshRow > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; color: #53775c; font-size: 10px; font-weight: 700; padding: 5px 3px; text-decoration: underline; text-underline-offset: 3px; }
 .refreshRow > button:disabled { opacity: .5; }
 .spinning { animation: spin 1s linear infinite; }
+.shopBackdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 18px; background: #081b18b8; backdrop-filter: blur(4px); }
+.shopDialog { width: min(860px, 100%); max-height: min(90dvh, 850px); overflow-y: auto; overscroll-behavior: contain; padding: 22px; border: 2px solid #a7c7b6; border-radius: 16px; background: #f9f8e9; color: #193c36; box-shadow: 0 12px 50px #04171470; outline: none; }
+.shopModalTop { position: sticky; z-index: 2; top: -22px; display: flex; align-items: center; gap: 12px; margin: -22px -22px 0; padding: 17px 22px 0; background: #f9f8e9; }
+.shopClose { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; margin: 0 0 12px auto; border: 1px solid #c5d5c2; border-radius: 50%; background: #edf2e4; color: #496b55; cursor: pointer; }
+.shopClose:hover { background: #e2edda; }
+.shopClose:focus-visible, .shopOpenButton:focus-visible, .shopCard > button:focus-visible { outline: 3px solid #cd9f43; outline-offset: 2px; }
+.shopHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #d8e1cd; }
+.shopHeading > div > span { display: flex; align-items: center; gap: 6px; color: #71886c; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.shopHeading > div > span > svg { color: #3c816b; }
+.shopHeading h2 { margin: 5px 0 0; color: #214e3e; font-size: 21px; font-weight: 900; }
+.shopHeading > p { flex-shrink: 0; margin: 0; text-align: right; color: #7a8b73; font-size: 9px; line-height: 1.6; }
+.shopHeading > p > strong { color: #277c6b; font: 900 21px/1.4 Arial, sans-serif; font-variant-numeric: tabular-nums; }
+.shopInventory { display: flex; flex-wrap: wrap; gap: 7px; padding: 13px 0 15px; }
+.shopInventory > span { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid #d5dfca; border-radius: 5px; background: #f0f2e4; color: #74826e; font-size: 9px; }
+.shopInventory b { color: #42684f; font-weight: 800; }
+.shopSuccess { margin: 0 0 12px; padding: 9px 11px; border: 1px solid #a9ceb0; border-radius: 6px; background: #eaf5e6; color: #397253; font-size: 10px; font-weight: 800; }
+.shopGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.shopCard { display: flex; flex-direction: column; min-width: 0; padding: 13px; border: 1px solid #d1ddc9; border-radius: 9px; background: #fffef4; }
+.shopItemTitle { display: flex; align-items: center; gap: 9px; }
+.shopItemTitle > span { display: grid; place-items: center; flex: 0 0 35px; height: 35px; border-radius: 8px; background: #e4f0df; color: #3c8067; }
+.shopItemTitle h3 { margin: 0; color: #315e48; font-size: 13px; font-weight: 900; }
+.shopItemTitle small { display: block; margin-top: 2px; color: #87917a; font-size: 8px; }
+.shopCard > p { flex: 1; margin: 10px 0 12px; color: #75806d; font-size: 9px; line-height: 1.7; }
+.shopCard > button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-height: 39px; padding: 7px 10px; border: 1px solid #40826b; border-radius: 6px; background: #347a67; color: #f8ffeb; cursor: pointer; }
+.shopCard > button:not(:disabled):hover { background: #286c5b; }
+.shopCard > button:disabled { border-color: #c0c9b4; background: #d7ddcd; color: #7f8978; cursor: default; }
+.shopCard > button > span { font-size: 9px; font-weight: 800; text-align: left; }
+.shopCard > button > strong { flex-shrink: 0; font: 900 12px/1 Arial, sans-serif; font-variant-numeric: tabular-nums; }
 .scene[data-paused="true"] *, .scene[data-paused="true"] *::after { animation-play-state: paused !important; }
 @keyframes runnerFrames { 0% { background-position: 0 0; } 25% { background-position: 100% 0; } 50% { background-position: 0 100%; } 75% { background-position: 100% 100%; } 100% { background-position: 0 0; } }
 @keyframes road { to { background-position-x: -240px; } }
@@ -149,6 +185,13 @@
   .station > i { height: 48px; width: 4px; }
   .sceneFooter { padding-inline: 12px; font-size: 6px; letter-spacing: .06em; }
   .controls { padding: 21px 18px 16px; }
+  .shopBackdrop { padding: 8px; }
+  .shopDialog { max-height: 94dvh; padding: 17px 14px; border-radius: 12px; }
+  .shopModalTop { top: -17px; margin: -17px -14px 0; padding: 13px 14px 0; }
+  .shopClose { flex-basis: 34px; width: 34px; height: 34px; }
+  .shopHeading h2 { font-size: 18px; }
+  .shopHeading > p > strong { font-size: 17px; }
+  .shopGrid { grid-template-columns: 1fr; }
   .waterHeading { margin-bottom: 17px; }
   .multiplier { font-size: 9px; padding: 7px; }
   .waterButton { padding: 15px 13px; gap: 12px; }
