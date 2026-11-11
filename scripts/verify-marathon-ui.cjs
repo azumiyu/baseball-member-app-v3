@@ -34,6 +34,18 @@ function snapshot(patch = {}) {
     leaderboard: [{ rank: 1, playerId: "me", name: "テスト給水係", number: "99", score: 1250, achievedAt: NOW }],
     personalBest: { rank: 1, playerId: "me", name: "テスト給水係", number: "99", score: 1250, achievedAt: NOW },
     lastWater: null,
+    dailyWaterCount: 0, dailyStealCount: 0, stealTargetCount: 0,
+    lastSteal: null, pendingStealNotification: null, lastShopPurchase: null,
+    shop: {
+      walletMl: 1250, handMl: 1250, reservoirMl: 0, reservoirOwned: false, reservoirGodCount: 0,
+      reservoirLastDepositAt: null, reservoirNextDepositAt: null, miniKobayashiCount: 0,
+      stealGuardCharges: 0, stealCounterCharges: 0, stealGloveCount: 0, guardPurchasesToday: 0,
+      counterPurchasesToday: 0, trapPurchasesToday: 0, pendingTrapCount: 0,
+      pricesMl: {
+        "mini-kobayashi": 20_000, "steal-guard": 60_000, "steal-counter": 40_000,
+        "poison-trap": 25_000, "steal-glove": 50_000, reservoir: 200_000, "reservoir-god": 200_000,
+      },
+    },
     ...patch,
   };
   value.state = { startedAt: NOW - 600_000, lastWateredAt: NOW - 300_000, revision: 0, totalWaterMl: 1500, lastGiverName: "前の給水係", ...patch.state };
@@ -140,16 +152,20 @@ function harness(page = false) {
     for (const effect of effects) effect();
     return tree;
   }
-  function nodes(node = tree) {
+  function nodes(node = tree, seen = new Set()) {
     if (!node || typeof node !== "object") return [];
-    if (Array.isArray(node)) return node.flatMap(item => nodes(item));
-    return [node, ...nodes(node.props?.children ?? null)];
+    if (seen.has(node)) return [];
+    seen.add(node);
+    if (Array.isArray(node)) return node.flatMap(item => nodes(item, seen));
+    return [node, ...nodes(node.props?.children ?? null, seen)];
   }
-  function text(node = tree) {
+  function text(node = tree, seen = new Set()) {
     if (node === null || node === undefined || typeof node === "boolean") return "";
     if (typeof node !== "object") return String(node);
-    if (Array.isArray(node)) return node.map(item => text(item)).join("");
-    return text(node.props?.children ?? null);
+    if (seen.has(node)) return "";
+    seen.add(node);
+    if (Array.isArray(node)) return node.map(item => text(item, seen)).join("");
+    return text(node.props?.children ?? null, seen);
   }
   async function settle() {
     await new Promise(setImmediate);
@@ -386,6 +402,8 @@ async function check(name, task) {
     assert.equal(ranking.props.scoreUnit, "L");
     assert.equal(ranking.props.scoreScale, 1000);
     assert.equal(ranking.props.precision, 3);
+    assert.equal(ranking.props.rankingNote, "手持ちの給水量と貯水池残高の合計で競います。貯水池の水は強奪されません。");
+    assert.equal(ranking.props.personalScoreLabel, "あなたのランキング合計");
     assert.match(h.text(h.nodes().find(node => node.props?.className === "totals")), /1\.250L/);
     assert.ok(h.nodes().find(node => node.type === "img" && node.props.src === "/homepage/introduce/4.JPEG"));
     const preload = h.nodes().find(node => node.type === "img" && node.props.src === "/game/kobayashi-runner.png");

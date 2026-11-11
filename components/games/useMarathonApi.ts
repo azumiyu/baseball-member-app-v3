@@ -21,11 +21,13 @@ export function useMarathonApi() {
   const [retryPending, setRetryPending] = useState(false);
   const [stealRetryPending, setStealRetryPending] = useState(false);
   const [shopRetryPending, setShopRetryPending] = useState(false);
+  const [reservoirRetryPending, setReservoirRetryPending] = useState(false);
   const alive = useRef(false);
   const current = useRef<MarathonSnapshot | null>(null);
   const pending = useRef<WaterRequest | null>(null);
   const pendingSteal = useRef<WaterRequest | null>(null);
   const pendingShop = useRef<(WaterRequest & { item: MarathonShopItem }) | null>(null);
+  const pendingReservoirDeposit = useRef<(WaterRequest & { amountMl: number }) | null>(null);
   const reading = useRef<number | null>(null);
   const readSequence = useRef(0);
   const mutating = useRef(false);
@@ -243,6 +245,54 @@ export function useMarathonApi() {
     }
   }, [accept]);
 
+  const depositReservoir = useCallback(async (amountMl: number): Promise<MarathonSnapshot | null> => {
+    if (mutating.current || reading.current || !current.current) return null;
+    const request = pendingReservoirDeposit.current ?? {
+      requestId: createEntityId(),
+      expectedRevision: current.current.state.revision,
+      amountMl,
+    };
+    pendingReservoirDeposit.current = request;
+    mutating.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/games/marathon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reservoir-deposit", ...request }),
+      });
+      const value = await response.json() as MarathonResponse;
+      if (response.status === 401) {
+        pendingReservoirDeposit.current = null;
+        if (alive.current) setUnauthorized(true);
+        return null;
+      }
+      if (response.status === 409) {
+        pendingReservoirDeposit.current = null;
+        if (value.snapshot) accept(value.snapshot);
+        if (alive.current) setError(value.error || "貯水池に預け入れできませんでした。最新情報を読み込みました。");
+        return null;
+      }
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) pendingReservoirDeposit.current = null;
+        throw new Error(value.error || "貯水池への預け入れを確認できませんでした。同じ操作を再試行してください。");
+      }
+      pendingReservoirDeposit.current = null;
+      accept(value);
+      return alive.current ? value : null;
+    } catch (cause) {
+      if (alive.current) setError(cause instanceof Error ? cause.message : "通信できませんでした。同じ預け入れを再試行してください。");
+      return null;
+    } finally {
+      mutating.current = false;
+      if (alive.current) {
+        setBusy(false);
+        setReservoirRetryPending(Boolean(pendingReservoirDeposit.current));
+      }
+    }
+  }, [accept]);
+
   const acknowledgeStealNotification = useCallback(async (version: number): Promise<MarathonSnapshot | null> => {
     if (mutating.current || reading.current || !current.current) return null;
     mutating.current = true;
@@ -271,5 +321,5 @@ export function useMarathonApi() {
     }
   }, [accept]);
 
-  return { snapshot, loading, refreshing, busy, error, unauthorized, retryPending, stealRetryPending, shopRetryPending, read, water, steal, shopBuy, acknowledgeStealNotification, now };
+  return { snapshot, loading, refreshing, busy, error, unauthorized, retryPending, stealRetryPending, shopRetryPending, reservoirRetryPending, read, water, steal, shopBuy, depositReservoir, acknowledgeStealNotification, now };
 }

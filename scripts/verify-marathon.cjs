@@ -61,6 +61,7 @@ const realNow = Date.now;
   };
   const server = load('lib/server.ts');
   const rules = load('lib/games/marathon.ts');
+  rules.rollMarathonGacha = () => ({ kind: 'normal', label: '通常給水', multiplier: 1 });
   const store = load('lib/games/marathon-store.ts');
   const route = load('app/api/games/marathon/route.ts');
   const execute = (sql, ...values) => actualDB.prepare(sql).bind(...values).run();
@@ -124,11 +125,11 @@ const realNow = Date.now;
     assert.deepEqual(await shared(), before);
   });
   let first;
-  await check('water uses server elapsed time and one fixed three-write transaction', async () => {
+  await check('water uses server elapsed time and one fixed four-write transaction', async () => {
     await execute('UPDATE marathon_state SET last_watered_at=? WHERE id=1', now - 120_000);
     const count = queries.length;
     first = await payload(await route.POST(request({ requestId: 'water-first', expectedRevision: 0, amountMl: 999999999, serverNow: now + 999999999 })));
-    assert.equal(queries.length - count, 5); // Read, three atomic writes, read.
+    assert.equal(queries.length - count, 6); // Read, four atomic writes, read.
     assert.equal(first.lastWater.amountMl, 120);
     assert.equal(first.state.totalWaterMl, 120);
     assert.equal(first.state.revision, 1);
@@ -234,12 +235,28 @@ const realNow = Date.now;
     assert.deepEqual(await shared(), before);
     assert.equal(await score(playerIds[0]), beforeScore);
   });
-  await check('ranking uses cumulative ml and every statement remains within D1 bounds', async () => {
-    const snapshot = await payload(await route.GET(request()));
-    const sum = snapshot.leaderboard.reduce((total, entry) => total + entry.score, 0);
-    assert.equal(sum, snapshot.state.totalWaterMl);
+  await check('ranking combines hand water and reservoir balance without changing wallet balances', async () => {
+    for (const [index, amount] of [100, 50, 300].entries()) {
+      await execute(`INSERT INTO mini_game_scores(game_id,player_id,score,achieved_at) VALUES(?,?,?,?)
+        ON CONFLICT(game_id,player_id) DO UPDATE SET score=excluded.score,achieved_at=excluded.achieved_at`,
+      rules.MARATHON.gameId, playerIds[index], amount, now);
+    }
+    await execute('UPDATE players SET sort_order=2 WHERE id=?', playerIds[2]);
+    await execute(`INSERT INTO marathon_shop_inventory(player_id,japan_date,reservoir_owned,reservoir_ml,reservoir_growth_japan_date)
+      VALUES(?,?,1,1000,?)`, playerIds[1], rules.marathonJapanDate(now), rules.marathonJapanDate(now));
+    const snapshot = await payload(await route.GET(request(undefined, 1)));
+    assert.deepEqual(snapshot.leaderboard.map(entry => [entry.playerId, entry.score]), [
+      [playerIds[1], 1050], [playerIds[2], 300], [playerIds[0], 100],
+    ]);
+    assert.equal(snapshot.shop.handMl, 50);
+    assert.equal(snapshot.shop.reservoirMl, 1000);
+    assert.equal(snapshot.shop.walletMl, 1050);
+    assert.equal(await score(playerIds[1]), 50);
+    assert.equal(snapshot.personalBest.score, 1050);
     assert.equal(snapshot.leaderboard[0].rank, 1);
     assert.ok(snapshot.leaderboard.every((entry, index, entries) => index === 0 || entries[index - 1].score >= entry.score));
+  });
+  await check('every statement remains within D1 bounds', async () => {
     assert.ok(queries.every(query => query.values.length <= 100));
     assert.ok(queries.every(query => !/\bUNION\b/i.test(query.sql)));
     assert.ok(queries.every(query => !/\b(?:INSERT|UPDATE|DELETE)\b/.test(query.sql.trim().split(/\s+/)[0]) || /marathon_state|mini_game_scores|mini_game_runs/.test(query.sql)));

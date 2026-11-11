@@ -11,6 +11,7 @@ export const MARATHON = {
   eventDurationMs: 60_000,
   japanUtcOffsetMs: 9 * 60 * 60 * 1_000,
   dayMs: 24 * 60 * 60 * 1_000,
+  reservoirDepositIntervalMs: 7 * 24 * 60 * 60 * 1_000,
   restStartMinuteJst: 2 * 60,
   restDurationMs: 4 * 60 * 60 * 1_000 + 48 * 60 * 1_000,
   dailyWaterLimit: 10,
@@ -32,11 +33,13 @@ export const MARATHON_SHOP_PRICE = {
   stealCounterMl: 40_000,
   poisonTrapMl: 25_000,
   stealGloveBaseMl: 50_000,
+  reservoirMl: 200_000,
+  reservoirGodBaseMl: 200_000,
 } as const;
 
-export type MarathonShopItem = "mini-kobayashi" | "steal-guard" | "steal-counter" | "poison-trap" | "steal-glove";
+export type MarathonShopItem = "mini-kobayashi" | "steal-guard" | "steal-counter" | "poison-trap" | "steal-glove" | "reservoir" | "reservoir-god";
 export type MarathonShopCounts = Pick<MarathonShopState,
-  "miniKobayashiCount" | "stealGuardCharges" | "stealCounterCharges" | "stealGloveCount">;
+  "miniKobayashiCount" | "stealGuardCharges" | "stealCounterCharges" | "stealGloveCount" | "reservoirGodCount">;
 
 export function marathonShopPrice(item: MarathonShopItem, counts: MarathonShopCounts): number {
   if (item === "mini-kobayashi") return Math.min(Number.MAX_SAFE_INTEGER,
@@ -44,8 +47,21 @@ export function marathonShopPrice(item: MarathonShopItem, counts: MarathonShopCo
   if (item === "steal-guard") return MARATHON_SHOP_PRICE.stealGuardMl;
   if (item === "steal-counter") return MARATHON_SHOP_PRICE.stealCounterMl;
   if (item === "poison-trap") return MARATHON_SHOP_PRICE.poisonTrapMl;
-  return Math.min(Number.MAX_SAFE_INTEGER,
+  if (item === "steal-glove") return Math.min(Number.MAX_SAFE_INTEGER,
     Math.ceil(MARATHON_SHOP_PRICE.stealGloveBaseMl * 1.5 ** counts.stealGloveCount));
+  if (item === "reservoir") return MARATHON_SHOP_PRICE.reservoirMl;
+  return Math.min(Number.MAX_SAFE_INTEGER,
+    Math.ceil(MARATHON_SHOP_PRICE.reservoirGodBaseMl * 1.05 ** counts.reservoirGodCount));
+}
+
+export function marathonReservoirBalance(balanceMl: number, growthJapanDate: string | null, godCount: number, now: number): number {
+  if (balanceMl <= 0 || godCount <= 0 || !growthJapanDate) return balanceMl;
+  const today = marathonJapanDate(now);
+  const todayIndex = Date.parse(`${today}T00:00:00Z`) / MARATHON.dayMs;
+  const growthIndex = Date.parse(`${growthJapanDate}T00:00:00Z`) / MARATHON.dayMs;
+  const elapsedDays = Math.max(0, Math.floor(todayIndex - growthIndex));
+  if (elapsedDays === 0) return balanceMl;
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.floor(balanceMl * (1 + godCount * 0.05) ** elapsedDays));
 }
 
 export type MarathonState = {
@@ -116,6 +132,12 @@ export type MarathonStealRequest = { requestId: string; expectedRevision: number
 export type MarathonShopRequest = { requestId: string; expectedRevision: number; item: MarathonShopItem };
 export type MarathonShopState = {
   walletMl: number;
+  handMl: number;
+  reservoirMl: number;
+  reservoirOwned: boolean;
+  reservoirGodCount: number;
+  reservoirLastDepositAt: number | null;
+  reservoirNextDepositAt: number | null;
   miniKobayashiCount: number;
   stealGuardCharges: number;
   stealCounterCharges: number;
@@ -127,6 +149,7 @@ export type MarathonShopState = {
   pricesMl: Record<MarathonShopItem, number>;
 };
 export type MarathonShopPurchase = { requestId: string; item: MarathonShopItem; costMl: number; purchasedAt: number };
+export type MarathonReservoirDepositRequest = { requestId: string; expectedRevision: number; amountMl: number };
 
 export type MarathonGachaKind = "exclusive" | "triple" | "half" | "double" | "steal" | "normal";
 export type MarathonGacha = { kind: MarathonGachaKind; label: string; multiplier: number };

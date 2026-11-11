@@ -290,6 +290,11 @@ export const marathonShopInventory = sqliteTable("marathon_shop_inventory", {
     stealCounterCharges: integer("steal_counter_charges").notNull().default(0),
     stealGloveCount: integer("steal_glove_count").notNull().default(0),
     pendingTrapCount: integer("pending_trap_count").notNull().default(0),
+    reservoirOwned: integer("reservoir_owned").notNull().default(0),
+    reservoirMl: integer("reservoir_ml").notNull().default(0),
+    reservoirGrowthJapanDate: text("reservoir_growth_japan_date").notNull().default("1970-01-01"),
+    reservoirLastDepositAt: integer("reservoir_last_deposit_at"),
+    reservoirGodCount: integer("reservoir_god_count").notNull().default(0),
     japanDate: text("japan_date").notNull(),
     guardPurchases: integer("guard_purchases").notNull().default(0),
     counterPurchases: integer("counter_purchases").notNull().default(0),
@@ -297,7 +302,7 @@ export const marathonShopInventory = sqliteTable("marathon_shop_inventory", {
     lastPurchaseRequestId: text("last_purchase_request_id"),
     lastPurchaseResultJson: text("last_purchase_result_json"),
 }, (table) => [
-    check("marathon_shop_inventory_counts_check", sql`${table.miniKobayashiCount} >= 0 AND ${table.stealGuardCharges} >= 0 AND ${table.stealCounterCharges} >= 0 AND ${table.stealGloveCount} >= 0 AND ${table.pendingTrapCount} >= 0`),
+    check("marathon_shop_inventory_counts_check", sql`${table.miniKobayashiCount} >= 0 AND ${table.stealGuardCharges} >= 0 AND ${table.stealCounterCharges} >= 0 AND ${table.stealGloveCount} >= 0 AND ${table.pendingTrapCount} >= 0 AND ${table.reservoirOwned} BETWEEN 0 AND 1 AND ${table.reservoirMl} >= 0 AND ${table.reservoirGodCount} >= 0`),
     check("marathon_shop_inventory_daily_check", sql`${table.guardPurchases} BETWEEN 0 AND 2 AND ${table.counterPurchases} BETWEEN 0 AND 1 AND ${table.trapPurchases} BETWEEN 0 AND 2`),
 ]);
 

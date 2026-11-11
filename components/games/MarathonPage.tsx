@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- The runner is a local animated sprite with a supplied photo fallback. */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowUpRight, ChevronDown, Droplets, Flag, RefreshCw, ShieldCheck, ShoppingBag, Swords, Waves, X, Zap } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Droplets, Flag, RefreshCw, ShieldCheck, ShoppingBag, Sparkles, Swords, Waves, X, Zap } from "lucide-react";
 import {
   MARATHON,
   marathonAvailableWaterMl,
@@ -34,6 +34,10 @@ function elapsedLabel(elapsedMs: number) {
 
 function japanTimeLabel(timestamp: number) {
   return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" }).format(timestamp);
+}
+
+function japanDateTimeLabel(timestamp: number) {
+  return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 }
 
 /** Paint the clock only while visible; running never requires background requests. */
@@ -70,6 +74,7 @@ export function MarathonPage() {
   const [spriteLoaded, setSpriteLoaded] = useState(false);
   const [receipt, setReceipt] = useState<MarathonSnapshot["lastWater"]>(null);
   const [shopOpen, setShopOpen] = useState(false);
+  const [depositLiters, setDepositLiters] = useState("");
   const shopButtonRef = useRef<HTMLButtonElement>(null);
   const shopDialogRef = useRef<HTMLElement>(null);
   const shopCloseRef = useRef<HTMLButtonElement>(null);
@@ -154,6 +159,11 @@ export function MarathonPage() {
   const guardPurchasesToday = isSameJapanDay ? snapshot.shop.guardPurchasesToday : 0;
   const counterPurchasesToday = isSameJapanDay ? snapshot.shop.counterPurchasesToday : 0;
   const trapPurchasesToday = isSameJapanDay ? snapshot.shop.trapPurchasesToday : 0;
+  const reservoirDepositMl = Math.round(Number(depositLiters) * 1000);
+  const reservoirCanDeposit = snapshot.shop.reservoirOwned && snapshot.shop.handMl > 0
+    && (snapshot.shop.reservoirNextDepositAt === null || currentNow >= snapshot.shop.reservoirNextDepositAt);
+  const reservoirDepositValid = Number.isFinite(reservoirDepositMl) && reservoirDepositMl > 0
+    && reservoirDepositMl <= snapshot.shop.handMl;
   const hasEnoughToSteal = (snapshot.personalBest?.score ?? 0) >= MARATHON.stealMinimumScoreMl;
   const noStealTarget = snapshot.stealTargetCount <= 0;
   const stealDisabled = api.busy || api.refreshing || api.retryPending || api.stealRetryPending
@@ -293,9 +303,22 @@ export function MarathonPage() {
             <span>強奪カウンター <b>{snapshot.shop.stealCounterCharges}回分</b></span>
             <span>強奪強化グローブ <b>{snapshot.shop.stealGloveCount}個</b></span>
             <span>設置中の毒トラップ <b>{snapshot.shop.pendingTrapCount}個</b></span>
+            <span>貯水池 <b>{snapshot.shop.reservoirOwned ? `${liters(snapshot.shop.reservoirMl)} L` : "未購入"}</b></span>
+            <span>貯水池の神 <b>{snapshot.shop.reservoirGodCount}体（+{snapshot.shop.reservoirGodCount * 5}%/日）</b></span>
           </div>
-          {shopReceipt && <p className={styles.shopSuccess} role="status" aria-live="polite">購入しました：{shopReceipt.item === "mini-kobayashi" ? "ミニ小林" : shopReceipt.item === "steal-guard" ? "強奪ガード" : shopReceipt.item === "steal-counter" ? "強奪カウンター" : shopReceipt.item === "poison-trap" ? "毒給水トラップ" : "強奪強化グローブ"}（{liters(shopReceipt.costMl)} L消費）</p>}
-          {api.error && <div className={shared.error} role="alert"><p>{api.error}</p>{api.shopRetryPending && <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void api.shopBuy("mini-kobayashi"); }}>同じ購入を再試行</button>}</div>}
+          {snapshot.shop.reservoirOwned && <section className={styles.reservoirPanel} aria-label="貯水池への預け入れ">
+            <div><strong>貯水池に預ける</strong><p>手持ちから預けます。預けた水は強奪されません。預け入れは7日に1度です。</p></div>
+            {snapshot.shop.reservoirNextDepositAt !== null && currentNow < snapshot.shop.reservoirNextDepositAt
+              ? <p className={styles.reservoirCooldown}>次回の預け入れ：{japanDateTimeLabel(snapshot.shop.reservoirNextDepositAt)} 以降</p>
+              : <p className={styles.reservoirCooldown}>預け入れ可能 · 手持ち {liters(snapshot.shop.handMl)} L</p>}
+            <div className={styles.reservoirForm}>
+              <label className={styles.reservoirAmount}><span>預ける量（L）</span><input type="number" min="0.001" step="0.001" max={liters(snapshot.shop.handMl)} value={depositLiters} onChange={(event) => { setDepositLiters(event.target.value); }} placeholder={liters(snapshot.shop.handMl)} /></label>
+              <button type="button" disabled={api.busy || api.refreshing || snapshot.shop.handMl <= 0} onClick={() => { setDepositLiters((snapshot.shop.handMl / 1000).toFixed(3)); }}>手持ち全額</button>
+              <button type="button" disabled={api.busy || api.refreshing || !reservoirCanDeposit || !reservoirDepositValid || api.reservoirRetryPending} onClick={() => { void api.depositReservoir(reservoirDepositMl).then((next) => { if (next) setDepositLiters(""); }); }}>預け入れる</button>
+            </div>
+          </section>}
+          {shopReceipt && <p className={styles.shopSuccess} role="status" aria-live="polite">購入しました：{shopReceipt.item === "mini-kobayashi" ? "ミニ小林" : shopReceipt.item === "steal-guard" ? "強奪ガード" : shopReceipt.item === "steal-counter" ? "強奪カウンター" : shopReceipt.item === "poison-trap" ? "毒給水トラップ" : shopReceipt.item === "steal-glove" ? "強奪強化グローブ" : shopReceipt.item === "reservoir" ? "貯水池" : "貯水池の神"}（{liters(shopReceipt.costMl)} L消費）</p>}
+          {api.error && <div className={shared.error} role="alert"><p>{api.error}</p>{api.shopRetryPending && <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void api.shopBuy("mini-kobayashi"); }}>同じ購入を再試行</button>}{api.reservoirRetryPending && <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void api.depositReservoir(reservoirDepositMl); }}>同じ預け入れを再試行</button>}</div>}
           <div className={styles.shopGrid}>
             {([
               { item: "mini-kobayashi", name: "ミニ小林", icon: <Zap size={18} />, effect: "給水のたび、獲得量が常に+5%。何体でも購入でき、価格は1体ごとに5%上昇。", owned: `${snapshot.shop.miniKobayashiCount}体（+${snapshot.shop.miniKobayashiCount * 5}%）`, disabled: false },
@@ -303,7 +326,9 @@ export function MarathonPage() {
               { item: "steal-counter", name: "強奪カウンター", icon: <Swords size={18} />, effect: "次に受ける強奪を1回カウンターし、相手に給水量を返します。1日1回まで。", owned: `残り ${snapshot.shop.stealCounterCharges}回分・本日 ${counterPurchasesToday}/1個`, disabled: counterPurchasesToday >= 1 },
               { item: "poison-trap", name: "毒給水トラップ", icon: <Droplets size={18} />, effect: "次に給水する他のメンバーの累計給水量を減らします（自分には発動しません）。1日2個まで設置可能。", owned: `設置中 ${snapshot.shop.pendingTrapCount}個・本日 ${trapPurchasesToday}/2個`, disabled: trapPurchasesToday >= 2 },
               { item: "steal-glove", name: "強奪強化グローブ", icon: <Swords size={18} />, effect: "1日の強奪回数が+1。何個でも購入でき、価格は1個ごとに50%上昇。", owned: `${snapshot.shop.stealGloveCount}個所持・本日上限 ${dailyStealLimit}回`, disabled: false },
-            ] satisfies { item: MarathonShopItem; name: string; icon: ReactNode; effect: string; owned: string; disabled: boolean }[]).map((product) => {
+              { item: "reservoir", name: "貯水池", icon: <Waves size={18} />, effect: "200Lで1度だけ購入。手持ちの水を7日に1度預けられ、池の水は強奪されません。買い物では手持ちから先に使い、不足分を池から使います。", owned: snapshot.shop.reservoirOwned ? "購入済み" : "未購入", disabled: snapshot.shop.reservoirOwned, disabledLabel: "購入済み" },
+              { item: "reservoir-god", name: "貯水池の神", icon: <Sparkles size={18} />, effect: "貯水池が必要です。所持数1体ごとに、池の水が毎日5%ずつ増えます。何度でも購入でき、価格は1体ごとに5%上昇。", owned: `${snapshot.shop.reservoirGodCount}体（+${snapshot.shop.reservoirGodCount * 5}%/日）`, disabled: !snapshot.shop.reservoirOwned, disabledLabel: "先に貯水池を購入" },
+            ] satisfies { item: MarathonShopItem; name: string; icon: ReactNode; effect: string; owned: string; disabled: boolean; disabledLabel?: string }[]).map((product) => {
               const price = snapshot.shop.pricesMl[product.item];
               const insufficient = snapshot.shop.walletMl < price;
               const cannotBuy = api.busy || api.refreshing || api.shopRetryPending || product.disabled || insufficient;
@@ -311,7 +336,7 @@ export function MarathonPage() {
                 <div className={styles.shopItemTitle}><span>{product.icon}</span><div><h3>{product.name}</h3><small>{product.owned}</small></div></div>
                 <p>{product.effect}</p>
                 <button type="button" disabled={cannotBuy} onClick={() => { void api.shopBuy(product.item); }}>
-                  <span>{insufficient ? "給水量が足りません" : product.disabled ? "本日の購入上限" : "購入する"}</span>
+                  <span>{product.disabled ? product.disabledLabel ?? "購入できません" : insufficient ? "手持ちと貯水池の残高が足りません" : "購入する"}</span>
                   <strong>{liters(price)} L</strong>
                 </button>
               </article>;
@@ -324,14 +349,16 @@ export function MarathonPage() {
         <summary>給水所のあそび方<ChevronDown size={17} aria-hidden="true" /></summary>
         <div className={shared.rulesBody}>
           <p>小林は、みんなで見守る 1 人のランナー。ページを閉じている間も、1 分 300 m でずっと走り続けます。</p>
-          <p>水をあげると、あなたの累計給水量に加算。たくさんお水をあげた人がランキング上位に！ 誰かが給水すると、みんなの小林のおなかがいっぱいになります。次の給水は 10 秒後から。給水の間隔が長いほど、たくさん飲んでくれます。1人1日10回までです。</p>
-          <p>毎日 02:00〜06:48（日本時間）は「今は水いらないよ！」の休憩時間です。水をあげるたびに抽選があり、3倍（10%）、0.5倍（10%）、2倍（20%）、1位から累計給水量の10%を移す（5%）、今日1人だけ給水できる（1%）、通常（54%）のいずれかになります。結果は小林の吹き出しにも表示されます。</p>
-          <p>強奪ボタンでは通常1日2回まで、自分の累計給水量の10%を消費して、ランキング上位のメンバーから給水量を移せます。移す割合は5%（50%）、10%（30%）、15%（15%）、20%（5%）の抽選です。1位の場合は対象がランダムに選ばれます。強奪された人には次回ゲームを開いたときに通知します。強化グローブで1日上限を増やせます。</p>
-          <p>ショップでは自分の累計給水量を消費して購入します。ミニ小林は給水量+5%（20Lから、所持数ごとに価格+5%）、強奪ガードは3回防御（60L・1日2個）、カウンターは1回反撃（40L・1日1個）、毒給水トラップは次の給水をマイナスに（25L・1日2個）、強奪強化グローブは1日上限+1回（50Lから、所持数ごとに価格+50%）です。</p>
+          <p>ランキングは手持ちの給水量と貯水池の残高の合計で決まります。貯水池の水は強奪されません。誰かが給水すると、みんなの小林のおなかがいっぱいになります。次の給水は 10 秒後から。給水の間隔が長いほど、たくさん飲んでくれます。1人1日10回までです。</p>
+          <p>毎日 02:00〜06:48（日本時間）は「今は水いらないよ！」の休憩時間です。水をあげるたびに抽選があり、3倍（10%）、0.5倍（10%）、2倍（20%）、ランキング1位の手持ち給水量の10%を移す（5%）、今日1人だけ給水できる（1%）、通常（54%）のいずれかになります。結果は小林の吹き出しにも表示されます。</p>
+          <p>強奪ボタンでは通常1日2回まで、自分の手持ち給水量の10%を消費して、ランキング上位のメンバーから手持ち給水量を移せます。貯水池の水は強奪できません。移す割合は5%（50%）、10%（30%）、15%（15%）、20%（5%）の抽選です。1位の場合は対象がランダムに選ばれます。強奪された人には次回ゲームを開いたときに通知します。強化グローブで1日上限を増やせます。</p>
+          <p>ショップでは自分の手持ち給水量と貯水池の水を消費して購入します。ミニ小林は給水量+5%（20Lから、所持数ごとに価格+5%）、強奪ガードは3回防御（60L・1日2個）、カウンターは1回反撃（40L・1日1個）、毒給水トラップは次の給水をマイナスに（25L・1日2個）、強奪強化グローブは1日上限+1回（50Lから、所持数ごとに価格+50%）です。</p>
           <p>たまに「ちょうのどかわいた！！」で給水量が 2 倍。「ランナーズハイ中！！」は半分に。同時に誰かが給水したときは最新の様子に変わるので、ひと息おいて応援しましょう。</p>
         </div>
       </details>
-      <GameLeaderboard entries={snapshot.leaderboard} personalBest={snapshot.personalBest} memberId={snapshot.member.id} scoreUnit="L" scoreScale={1000} precision={3} cumulative />
+      <GameLeaderboard entries={snapshot.leaderboard} personalBest={snapshot.personalBest} memberId={snapshot.member.id} scoreUnit="L" scoreScale={1000} precision={3} cumulative
+        rankingNote="手持ちの給水量と貯水池残高の合計で競います。貯水池の水は強奪されません。"
+        personalScoreLabel="あなたのランキング合計" />
     </GameShell>
   );
 }

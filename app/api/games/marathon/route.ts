@@ -2,9 +2,11 @@ import { json, readBody, renewSessionHeaders, sameOrigin } from "@/lib/server";
 import {
   acknowledgeMarathonStealNotification,
   buyMarathonShopItem,
+  depositMarathonReservoir,
   marathonSnapshot,
   parseMarathonNotificationVersion,
   parseMarathonRequest,
+  parseMarathonReservoirDepositRequest,
   parseMarathonShopRequest,
   parseMarathonStealRequest,
   readMarathonContext,
@@ -65,9 +67,24 @@ export async function POST(req: Request) {
       if (!result.context) return json({ error: "チーム画面でログインし直してください。" }, 401);
       const snapshot = marathonSnapshot(result.context);
       const headers = renewSessionHeaders(req);
+      if (result.status === 'unavailable') return json({ error: '貯水池の購入状況を確認してください。', snapshot }, 409, headers);
       if (result.status === "conflict") return json({ error: "小林の様子が更新されました。残高を確認してください。", snapshot }, 409, headers);
       if (result.status === "daily-limit") return json({ error: "このアイテムは今日の購入上限に達しています。", snapshot }, 409, headers);
       if (result.status === "insufficient") return json({ error: "累計給水量が足りません。", snapshot }, 409, headers);
+      return json(snapshot, 200, headers);
+    }
+
+    if (action === "reservoir-deposit") {
+      const request = parseMarathonReservoirDepositRequest(body);
+      if (!request) return json({ error: "貯水池への預け入れ情報を確認してください。" }, 400);
+      const result = await depositMarathonReservoir(req, context, request);
+      if (!result.context) return json({ error: "チーム画面でログインし直してください。" }, 401);
+      const snapshot = marathonSnapshot(result.context);
+      const headers = renewSessionHeaders(req);
+      if (result.status === "conflict") return json({ error: "状態が更新されました。最新情報を読み込みました。", snapshot }, 409, headers);
+      if (result.status === "cooldown") return json({ error: "貯水池への預け入れは7日に1度です。次回の預け入れ可能日までお待ちください。", snapshot }, 409, headers);
+      if (result.status === "insufficient") return json({ error: "手持ちの給水量が不足しています。", snapshot }, 409, headers);
+      if (result.status === "unavailable") return json({ error: "貯水池を購入すると預け入れできます。", snapshot }, 409, headers);
       return json(snapshot, 200, headers);
     }
 
