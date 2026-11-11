@@ -2,15 +2,18 @@
 
 /* eslint-disable @next/next/no-img-element -- The runner is a local animated sprite with a supplied photo fallback. */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowUpRight, ChevronDown, Droplets, Flag, RefreshCw, ShieldCheck, ShoppingBag, Sparkles, Swords, Waves, X, Zap } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Droplets, Flag, RefreshCw, ShieldCheck, ShoppingBag, Sparkles, Swords, Waves, Wine, X, Zap } from "lucide-react";
 import {
   MARATHON,
   marathonAvailableWaterMl,
   marathonDistanceKm,
+  marathonDrunkEffectLabel,
   marathonJapanDate,
   marathonMood,
   marathonNoWaterWindow,
   marathonWaitMs,
+  marathonWaterElapsedMs,
+  type MarathonDrunkEffect,
   type MarathonShopItem,
   type MarathonSnapshot,
 } from "@/lib/games/marathon";
@@ -38,6 +41,15 @@ function japanTimeLabel(timestamp: number) {
 
 function japanDateTimeLabel(timestamp: number) {
   return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", dateStyle: "medium", timeStyle: "short" }).format(timestamp);
+}
+
+function drunkEffectDescription(effect: MarathonDrunkEffect): string {
+  switch (effect) {
+    case "super-dehydrated": return "給水量が10倍になります";
+    case "rampage": return "ランキング全体に5〜20Lが加算されます";
+    case "stopped": return "走行距離と給水量が一時停止します";
+    case "generous": return "ショップ全商品が20%OFFです";
+  }
 }
 
 /** Paint the clock only while visible; running never requires background requests. */
@@ -75,6 +87,7 @@ export function MarathonPage() {
   const [receipt, setReceipt] = useState<MarathonSnapshot["lastWater"]>(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [depositLiters, setDepositLiters] = useState("");
+  const [drinkChoiceOpen, setDrinkChoiceOpen] = useState(false);
   const shopButtonRef = useRef<HTMLButtonElement>(null);
   const shopDialogRef = useRef<HTMLElement>(null);
   const shopCloseRef = useRef<HTMLButtonElement>(null);
@@ -119,8 +132,9 @@ export function MarathonPage() {
     };
   }, [shopOpen]);
 
-  async function giveWater() {
-    const next = await api.water();
+  async function giveWater(alcohol = false) {
+    setDrinkChoiceOpen(false);
+    const next = await api.water(alcohol);
     if (next?.lastWater) setReceipt(next.lastWater);
   }
 
@@ -142,12 +156,17 @@ export function MarathonPage() {
   }
 
   const currentNow = Math.max(snapshot.serverNow, clock);
+  const drunkActive = snapshot.state.drunkEffect !== null && snapshot.state.drunkUntil > currentNow;
+  const drunkEffect = drunkActive ? snapshot.state.drunkEffect : null;
+  const stoppedDrunk = drunkEffect === "stopped";
+  const drunkRemainingMs = drunkActive ? snapshot.state.drunkUntil - currentNow : 0;
+  const drunkRemainingSeconds = Math.ceil(drunkRemainingMs / 1000);
   const mood = marathonMood(snapshot.state, currentNow);
   const availableMl = marathonAvailableWaterMl(snapshot.state, currentNow);
   const waitMs = marathonWaitMs(snapshot.state, currentNow);
   const noWaterWindow = marathonNoWaterWindow(currentNow);
   const distanceKm = marathonDistanceKm(snapshot.state, currentNow);
-  const thirstMs = Math.max(0, currentNow - snapshot.state.lastWateredAt);
+  const thirstMs = marathonWaterElapsedMs(snapshot.state, currentNow);
   const thirstPercent = Math.min(100, thirstMs / MARATHON.initialThirstMs * 100);
   const exclusiveForOther = snapshot.state.exclusiveUntil > currentNow && snapshot.state.exclusivePlayerId !== snapshot.member.id;
   const isSameJapanDay = marathonJapanDate(snapshot.serverNow) === marathonJapanDate(currentNow);
@@ -159,12 +178,13 @@ export function MarathonPage() {
   const guardPurchasesToday = isSameJapanDay ? snapshot.shop.guardPurchasesToday : 0;
   const counterPurchasesToday = isSameJapanDay ? snapshot.shop.counterPurchasesToday : 0;
   const trapPurchasesToday = isSameJapanDay ? snapshot.shop.trapPurchasesToday : 0;
+  const alcoholPurchasesToday = isSameJapanDay ? snapshot.shop.alcoholPurchasesToday : 0;
   const reservoirDepositMl = Math.round(Number(depositLiters) * 1000);
   const reservoirCanDeposit = snapshot.shop.reservoirOwned && snapshot.shop.handMl > 0
     && (snapshot.shop.reservoirNextDepositAt === null || currentNow >= snapshot.shop.reservoirNextDepositAt);
   const reservoirDepositValid = Number.isFinite(reservoirDepositMl) && reservoirDepositMl > 0
     && reservoirDepositMl <= snapshot.shop.handMl;
-  const hasEnoughToSteal = (snapshot.personalBest?.score ?? 0) >= MARATHON.stealMinimumScoreMl;
+  const hasEnoughToSteal = snapshot.shop.handMl >= MARATHON.stealMinimumScoreMl;
   const noStealTarget = snapshot.stealTargetCount <= 0;
   const stealDisabled = api.busy || api.refreshing || api.retryPending || api.stealRetryPending
     || dailyStealLimitReached || !hasEnoughToSteal || noStealTarget;
@@ -180,7 +200,7 @@ export function MarathonPage() {
     ? snapshot.lastShopPurchase : null;
   const thirstLabel = noWaterWindow.isResting ? "今は水いらないよ！" : waitMs > 0 ? "おなかいっぱい" : thirstPercent < 25 ? "まだ、ひとくちで大丈夫" : thirstPercent < 75 ? "だんだん、のどが渇いてきた" : "のどがカラカラ！";
   const moodRemaining = mood.endsAt ? Math.max(0, Math.ceil((mood.endsAt - currentNow) / 1000)) : 0;
-  const buttonDisabled = api.busy || api.refreshing || api.retryPending || api.stealRetryPending || waitMs > 0 || noWaterWindow.isResting || exclusiveForOther || dailyLimitReached;
+  const buttonDisabled = api.busy || api.refreshing || api.retryPending || api.stealRetryPending || waitMs > 0 || noWaterWindow.isResting || exclusiveForOther || dailyLimitReached || stoppedDrunk;
 
   return (
     <GameShell isGame memberName={snapshot.member.name}>
@@ -189,29 +209,31 @@ export function MarathonPage() {
         <h1>小林の走れ！<span>マラソン！</span></h1>
         <small>小林は、今日も走る。みんなは、給水で応援。</small>
       </div>
+      {drunkEffect === "generous" && drunkActive && <p className={styles.saleNotice} role="status">大奮発中！泥酔が続く間、ショップ全商品が20%OFF</p>}
 
       <section className={styles.machine} aria-label="小林のマラソン給水所">
         <div className={styles.distancePanel}>
-          <div className={styles.distanceTitle}><Flag size={15} aria-hidden="true" /><span>小林の累計走行距離</span><b>ずっと RUNNING</b></div>
+          <div className={styles.distanceTitle}><Flag size={15} aria-hidden="true" /><span>小林の累計走行距離</span><b>{drunkEffect === "stopped" && drunkActive ? "STOPPED" : "ずっと RUNNING"}</b></div>
           <div className={styles.distance}><strong>{distanceKm.toLocaleString("ja-JP", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</strong><span>km</span></div>
-          <div className={styles.pace}><span />1 分 300 m のマイペース。お休みなし！</div>
+          <div className={styles.pace}><span />{drunkEffect === "stopped" && drunkActive ? "泥酔して立ち止まっています。回復までしばらくお待ちください。" : drunkActive ? "泥酔中！ふらふらしながら走っています。" : "1 分 300 m のマイペース。お休みなし！"}</div>
         </div>
 
-        <div className={styles.scene} data-mood={mood.kind} data-paused={paused} data-resting={noWaterWindow.isResting}>
+        <div className={styles.scene} data-mood={mood.kind} data-paused={paused} data-resting={noWaterWindow.isResting}
+          data-drunk={drunkActive} data-drunk-effect={drunkEffect ?? undefined}>
           <div className={styles.sun} aria-hidden="true" />
           <div className={styles.clouds} aria-hidden="true"><i /><i /><i /></div>
           <div className={styles.farHills} aria-hidden="true" />
           <div className={styles.nearHills} aria-hidden="true" />
-          <div className={styles.speech} data-gacha-result={showGachaResult}>
-            <span>{noWaterWindow.isResting || exclusiveForOther ? "KOBAYASHI SAYS" : showGachaResult ? "GACHA RESULT" : mood.kind === "normal" ? "KOBAYASHI SAYS" : "SPECIAL CONDITION"}</span>
-            <strong>{noWaterWindow.isResting ? "今は水いらないよ！" : exclusiveForOther ? `今日は${snapshot.state.exclusivePlayerName ?? "メンバー"}だけが給水できるよ！` : showGachaResult ? gachaReceipt?.gachaLabel : mood.kind === "normal" ? (waitMs > 0 ? "ぷは〜！ おなかいっぱい！" : thirstLabel) : mood.label}</strong>
-            {noWaterWindow.isResting ? <small>給水は {japanTimeLabel(noWaterWindow.endsAt)} から</small> : exclusiveForOther ? <small>日付が変わると、またみんなが給水できるよ</small> : showGachaResult ? <small>{liters(gachaReceipt?.amountMl ?? 0)} L{gachaReceipt?.stolenFromName ? `（${gachaReceipt.stolenFromName}から移転）` : ""}</small> : mood.kind !== "normal" && <small>{mood.kind === "parched" ? "給水できる量 × 2" : "給水できる量 × 0.5"} <span>あと {moodRemaining} 秒</span></small>}
+          <div className={styles.speech} data-gacha-result={showGachaResult && !drunkActive}>
+            <span>{drunkActive ? "KOBAYASHI IS DRUNK" : noWaterWindow.isResting || exclusiveForOther ? "KOBAYASHI SAYS" : showGachaResult ? "GACHA RESULT" : mood.kind === "normal" ? "KOBAYASHI SAYS" : "SPECIAL CONDITION"}</span>
+            <strong>{drunkActive && drunkEffect ? `泥酔！ ${marathonDrunkEffectLabel(drunkEffect)}` : noWaterWindow.isResting ? "今は水いらないよ！" : exclusiveForOther ? `今日は${snapshot.state.exclusivePlayerName ?? "メンバー"}だけが給水できるよ！` : showGachaResult ? gachaReceipt?.gachaLabel : mood.kind === "normal" ? (waitMs > 0 ? "ぷは〜！ おなかいっぱい！" : thirstLabel) : mood.label}</strong>
+            {drunkActive ? <small>泥酔中 · あと {Math.floor(drunkRemainingSeconds / 60)}分{drunkRemainingSeconds % 60}秒</small> : noWaterWindow.isResting ? <small>給水は {japanTimeLabel(noWaterWindow.endsAt)} から</small> : exclusiveForOther ? <small>日付が変わると、またみんなが給水できるよ</small> : showGachaResult ? <small>{liters(gachaReceipt?.amountMl ?? 0)} L{gachaReceipt?.stolenFromName ? `（${gachaReceipt.stolenFromName}から移転）` : ""}</small> : mood.kind !== "normal" && <small>{mood.kind === "parched" ? "給水できる量 × 2" : "給水できる量 × 0.5"} <span>あと {moodRemaining} 秒</span></small>}
           </div>
           <div className={styles.track} aria-hidden="true"><i /><i /><i /></div>
           <div className={styles.runner}>
             <div className={styles.runnerShadow} aria-hidden="true" />
             <img className={styles.spritePreload} src="/game/kobayashi-runner.png" alt="" aria-hidden="true" onLoad={() => setSpriteLoaded(true)} onError={() => setSpriteLoaded(false)} />
-            {spriteLoaded ? <div className={styles.runnerSprite} role="img" aria-label="走り続ける小林" /> : <img className={styles.runnerPhoto} src="/homepage/introduce/4.JPEG" alt="走り続ける小林" />}
+            {spriteLoaded ? <div className={styles.runnerSprite} role="img" aria-label={drunkActive && drunkEffect ? `泥酔した小林：${marathonDrunkEffectLabel(drunkEffect)}` : "走り続ける小林"} /> : <img className={styles.runnerPhoto} src="/homepage/introduce/4.JPEG" alt={drunkActive && drunkEffect ? `泥酔した小林：${marathonDrunkEffectLabel(drunkEffect)}` : "走り続ける小林"} />}
             <span className={styles.runnerTag}>KOBAYASHI <ArrowUpRight size={12} aria-hidden="true" /></span>
           </div>
           <div className={styles.station} aria-hidden="true"><span>給水所</span><Droplets size={29} /><i /><b>WATER</b></div>
@@ -219,16 +241,34 @@ export function MarathonPage() {
         </div>
 
         <div className={styles.controls}>
-          <div className={styles.waterHeading}><div><span>いま給水できる量の目安</span><strong>{liters(availableMl)}<small>L</small></strong></div><span className={styles.multiplier} data-special={mood.kind !== "normal"}><Waves size={15} aria-hidden="true" />{mood.multiplier === 1 ? "いつものペース" : `給水量 × ${mood.multiplier}`}</span></div>
+          <div className={styles.waterHeading}><div><span>いま給水できる量の目安</span><strong>{liters(availableMl)}<small>L</small></strong></div><span className={styles.multiplier} data-special={mood.kind !== "normal" || drunkActive}><Waves size={15} aria-hidden="true" />{drunkEffect === "super-dehydrated" && drunkActive ? `給水量 × ${mood.multiplier * 10}` : mood.multiplier === 1 ? "いつものペース" : `給水量 × ${mood.multiplier}`}</span></div>
           <div className={styles.thirstCopy}><span><Droplets size={13} aria-hidden="true" />のどの渇き</span><strong>{thirstLabel}</strong></div>
           <div className={styles.thirstMeter} role="meter" aria-label="のどの渇き" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(thirstPercent)} aria-valuetext={thirstLabel}><span style={{ "--thirst": `${thirstPercent}%` } as CSSProperties} /></div>
           <div className={styles.dailyQuota}><span>今日のあなたの給水</span><strong>{dailyWaterCount} / {MARATHON.dailyWaterLimit} 回</strong></div>
 
-          <button type="button" className={styles.waterButton} disabled={buttonDisabled} onClick={() => { void giveWater(); }}>
+          <button type="button" className={styles.waterButton} disabled={buttonDisabled} onClick={() => {
+            if (snapshot.shop.alcoholCount > 0 && !drunkActive) setDrinkChoiceOpen(true);
+            else void giveWater();
+          }}>
             <span className={styles.bottle} aria-hidden="true"><i /><Droplets size={23} /></span>
-            <span><strong>{api.busy ? "小林にお届け中…" : noWaterWindow.isResting ? "今は水いらないよ！" : exclusiveForOther ? `今日は${snapshot.state.exclusivePlayerName ?? "メンバー"}だけ！` : dailyLimitReached ? "今日は10回給水しました" : waitMs > 0 ? "おなかいっぱい！" : "小林に水をあげる！"}</strong><small>{api.busy ? "給水を確認しています" : noWaterWindow.isResting ? `${japanTimeLabel(noWaterWindow.endsAt)}から給水できます` : exclusiveForOther ? "日付が変わると、みんなが給水できます" : dailyLimitReached ? "日付が変わるとまた給水できます" : waitMs > 0 ? `あと ${Math.ceil(waitMs / 1000)} 秒で、また給水できます` : `目安 ${liters(availableMl)} L で、走りを応援`}</small></span>
+            <span><strong>{api.busy ? "小林にお届け中…" : stoppedDrunk ? "泥酔して給水停止中" : noWaterWindow.isResting ? "今は水いらないよ！" : exclusiveForOther ? `今日は${snapshot.state.exclusivePlayerName ?? "メンバー"}だけ！` : dailyLimitReached ? "今日は10回給水しました" : waitMs > 0 ? "おなかいっぱい！" : "小林に水をあげる！"}</strong><small>{api.busy ? "給水を確認しています" : stoppedDrunk ? "回復するまで水は増えず、給水もできません" : noWaterWindow.isResting ? `${japanTimeLabel(noWaterWindow.endsAt)}から給水できます` : exclusiveForOther ? "日付が変わると、みんなが給水できます" : dailyLimitReached ? "日付が変わるとまた給水できます" : waitMs > 0 ? `あと ${Math.ceil(waitMs / 1000)} 秒で、また給水できます` : `目安 ${liters(availableMl)} L で、走りを応援`}</small></span>
             <ArrowUpRight size={24} aria-hidden="true" />
           </button>
+          {drinkChoiceOpen && <div className={styles.drinkChoice} role="group" aria-label="小林にあげる飲み物">
+            <strong>酒をあげますか？</strong>
+            <p>所持数 {snapshot.shop.alcoholCount}本 · 酒をあげると通常の給水後、小林が30分泥酔します。</p>
+            <div>
+              <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void giveWater(true); }}>酒をあげる</button>
+              <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void giveWater(); }}>水をあげる</button>
+              <button type="button" disabled={api.busy || api.refreshing} onClick={() => { setDrinkChoiceOpen(false); }}>やめる</button>
+            </div>
+          </div>}
+          {drunkActive && <div className={styles.drunkStatus} role="status">
+            <strong>泥酔中：{drunkEffect ? marathonDrunkEffectLabel(drunkEffect) : ""}</strong>
+            {drunkEffect && <p className={styles.drunkDescription}>{drunkEffectDescription(drunkEffect)}</p>}
+            {showGachaResult && gachaReceipt && <span>今回の給水量：{liters(gachaReceipt.amountMl)} L</span>}
+            <span>あと {Math.floor(drunkRemainingSeconds / 60)}分{drunkRemainingSeconds % 60}秒 · 酒の追加はできません</span>
+          </div>}
 
           <div className={styles.stealQuota}><span>今日のあなたの強奪</span><strong>{dailyStealCount} / {dailyStealLimit} 回</strong></div>
           <button type="button" className={styles.stealButton} disabled={stealDisabled} onClick={() => { void stealWater(); }}>
@@ -302,6 +342,7 @@ export function MarathonPage() {
             <span>強奪ガード <b>{snapshot.shop.stealGuardCharges}回分</b></span>
             <span>強奪カウンター <b>{snapshot.shop.stealCounterCharges}回分</b></span>
             <span>強奪強化グローブ <b>{snapshot.shop.stealGloveCount}個</b></span>
+            <span>酒 <b>{snapshot.shop.alcoholCount}本（本日 {alcoholPurchasesToday}/3回購入）</b></span>
             <span>設置中の毒トラップ <b>{snapshot.shop.pendingTrapCount}個</b></span>
             <span>貯水池 <b>{snapshot.shop.reservoirOwned ? `${liters(snapshot.shop.reservoirMl)} L` : "未購入"}</b></span>
             <span>貯水池の神 <b>{snapshot.shop.reservoirGodCount}体（+{snapshot.shop.reservoirGodCount * 5}%/日）</b></span>
@@ -317,7 +358,7 @@ export function MarathonPage() {
               <button type="button" disabled={api.busy || api.refreshing || !reservoirCanDeposit || !reservoirDepositValid || api.reservoirRetryPending} onClick={() => { void api.depositReservoir(reservoirDepositMl).then((next) => { if (next) setDepositLiters(""); }); }}>預け入れる</button>
             </div>
           </section>}
-          {shopReceipt && <p className={styles.shopSuccess} role="status" aria-live="polite">購入しました：{shopReceipt.item === "mini-kobayashi" ? "ミニ小林" : shopReceipt.item === "steal-guard" ? "強奪ガード" : shopReceipt.item === "steal-counter" ? "強奪カウンター" : shopReceipt.item === "poison-trap" ? "毒給水トラップ" : shopReceipt.item === "steal-glove" ? "強奪強化グローブ" : shopReceipt.item === "reservoir" ? "貯水池" : "貯水池の神"}（{liters(shopReceipt.costMl)} L消費）</p>}
+          {shopReceipt && <p className={styles.shopSuccess} role="status" aria-live="polite">購入しました：{shopReceipt.item === "mini-kobayashi" ? "ミニ小林" : shopReceipt.item === "steal-guard" ? "強奪ガード" : shopReceipt.item === "steal-counter" ? "強奪カウンター" : shopReceipt.item === "poison-trap" ? "毒給水トラップ" : shopReceipt.item === "steal-glove" ? "強奪強化グローブ" : shopReceipt.item === "reservoir" ? "貯水池" : shopReceipt.item === "alcohol" ? "酒" : "貯水池の神"}（{liters(shopReceipt.costMl)} L消費）</p>}
           {api.error && <div className={shared.error} role="alert"><p>{api.error}</p>{api.shopRetryPending && <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void api.shopBuy("mini-kobayashi"); }}>同じ購入を再試行</button>}{api.reservoirRetryPending && <button type="button" disabled={api.busy || api.refreshing} onClick={() => { void api.depositReservoir(reservoirDepositMl); }}>同じ預け入れを再試行</button>}</div>}
           <div className={styles.shopGrid}>
             {([
@@ -326,6 +367,7 @@ export function MarathonPage() {
               { item: "steal-counter", name: "強奪カウンター", icon: <Swords size={18} />, effect: "次に受ける強奪を1回カウンターし、相手に給水量を返します。1日1回まで。", owned: `残り ${snapshot.shop.stealCounterCharges}回分・本日 ${counterPurchasesToday}/1個`, disabled: counterPurchasesToday >= 1 },
               { item: "poison-trap", name: "毒給水トラップ", icon: <Droplets size={18} />, effect: "次に給水する他のメンバーの累計給水量を減らします（自分には発動しません）。1日2個まで設置可能。", owned: `設置中 ${snapshot.shop.pendingTrapCount}個・本日 ${trapPurchasesToday}/2個`, disabled: trapPurchasesToday >= 2 },
               { item: "steal-glove", name: "強奪強化グローブ", icon: <Swords size={18} />, effect: "1日の強奪回数が+1。何個でも購入でき、価格は1個ごとに50%上昇。", owned: `${snapshot.shop.stealGloveCount}個所持・本日上限 ${dailyStealLimit}回`, disabled: false },
+              { item: "alcohol", name: "酒", icon: <Wine size={18} />, effect: "5Lで購入。小林にあげると通常の給水効果に加え、全員に影響する泥酔状態が30分続きます。1日3回まで購入可能。", owned: `${snapshot.shop.alcoholCount}本所持・本日 ${alcoholPurchasesToday}/3回購入`, disabled: alcoholPurchasesToday >= 3, disabledLabel: "本日3回購入済み" },
               { item: "reservoir", name: "貯水池", icon: <Waves size={18} />, effect: "200Lで1度だけ購入。手持ちの水を7日に1度預けられ、池の水は強奪されません。買い物では手持ちから先に使い、不足分を池から使います。", owned: snapshot.shop.reservoirOwned ? "購入済み" : "未購入", disabled: snapshot.shop.reservoirOwned, disabledLabel: "購入済み" },
               { item: "reservoir-god", name: "貯水池の神", icon: <Sparkles size={18} />, effect: "貯水池が必要です。所持数1体ごとに、池の水が毎日5%ずつ増えます。何度でも購入でき、価格は1体ごとに5%上昇。", owned: `${snapshot.shop.reservoirGodCount}体（+${snapshot.shop.reservoirGodCount * 5}%/日）`, disabled: !snapshot.shop.reservoirOwned, disabledLabel: "先に貯水池を購入" },
             ] satisfies { item: MarathonShopItem; name: string; icon: ReactNode; effect: string; owned: string; disabled: boolean; disabledLabel?: string }[]).map((product) => {
@@ -337,7 +379,7 @@ export function MarathonPage() {
                 <p>{product.effect}</p>
                 <button type="button" disabled={cannotBuy} onClick={() => { void api.shopBuy(product.item); }}>
                   <span>{product.disabled ? product.disabledLabel ?? "購入できません" : insufficient ? "手持ちと貯水池の残高が足りません" : "購入する"}</span>
-                  <strong>{liters(price)} L</strong>
+                  <strong>{liters(price)} L{drunkEffect === "generous" && drunkActive ? "（20%OFF）" : ""}</strong>
                 </button>
               </article>;
             })}
@@ -353,6 +395,7 @@ export function MarathonPage() {
           <p>毎日 02:00〜06:48（日本時間）は「今は水いらないよ！」の休憩時間です。水をあげるたびに抽選があり、3倍（10%）、0.5倍（10%）、2倍（20%）、ランキング1位の手持ち給水量の10%を移す（5%）、今日1人だけ給水できる（1%）、通常（54%）のいずれかになります。結果は小林の吹き出しにも表示されます。</p>
           <p>強奪ボタンでは通常1日2回まで、自分の手持ち給水量の10%を消費して、ランキング上位のメンバーから手持ち給水量を移せます。貯水池の水は強奪できません。移す割合は5%（50%）、10%（30%）、15%（15%）、20%（5%）の抽選です。1位の場合は対象がランダムに選ばれます。強奪された人には次回ゲームを開いたときに通知します。強化グローブで1日上限を増やせます。</p>
           <p>ショップでは自分の手持ち給水量と貯水池の水を消費して購入します。ミニ小林は給水量+5%（20Lから、所持数ごとに価格+5%）、強奪ガードは3回防御（60L・1日2個）、カウンターは1回反撃（40L・1日1個）、毒給水トラップは次の給水をマイナスに（25L・1日2個）、強奪強化グローブは1日上限+1回（50Lから、所持数ごとに価格+50%）です。</p>
+          <p>酒は5Lで購入でき、1日3回までです。所持していると給水時に「酒をあげる」か「水をあげる」を選べます。酒をあげると通常の給水効果に加えて、全員に影響する泥酔状態が30分続きます。効果は「超脱水」（給水量10倍）、「大暴れ」（全体ランキングに合計5〜20Lを加算）、「停止」（走行停止）、「大奮発」（ショップ全商品20%OFF）のいずれかです。泥酔中は酒をあげられません。</p>
           <p>たまに「ちょうのどかわいた！！」で給水量が 2 倍。「ランナーズハイ中！！」は半分に。同時に誰かが給水したときは最新の様子に変わるので、ひと息おいて応援しましょう。</p>
         </div>
       </details>

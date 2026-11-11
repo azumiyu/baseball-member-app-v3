@@ -39,11 +39,11 @@ function snapshot(patch = {}) {
     shop: {
       walletMl: 1250, handMl: 1250, reservoirMl: 0, reservoirOwned: false, reservoirGodCount: 0,
       reservoirLastDepositAt: null, reservoirNextDepositAt: null, miniKobayashiCount: 0,
-      stealGuardCharges: 0, stealCounterCharges: 0, stealGloveCount: 0, guardPurchasesToday: 0,
+      stealGuardCharges: 0, stealCounterCharges: 0, stealGloveCount: 0, alcoholCount: 0, alcoholPurchasesToday: 0, guardPurchasesToday: 0,
       counterPurchasesToday: 0, trapPurchasesToday: 0, pendingTrapCount: 0,
       pricesMl: {
         "mini-kobayashi": 20_000, "steal-guard": 60_000, "steal-counter": 40_000,
-        "poison-trap": 25_000, "steal-glove": 50_000, reservoir: 200_000, "reservoir-god": 200_000,
+        "poison-trap": 25_000, "steal-glove": 50_000, reservoir: 200_000, "reservoir-god": 200_000, alcohol: 5_000,
       },
     },
     ...patch,
@@ -253,7 +253,7 @@ async function check(name, task) {
 
   await check("network failure retries the identical request ID and expected revision", async () => {
     const h = harness(); await h.enter(snapshot({ state: { revision: 7 } }));
-    const first = h.api.water();
+    const first = h.api.water(true);
     const original = h.requests[1].body;
     h.requests[1].reject(Error("回線が切れました"));
     await first; await h.settle();
@@ -413,6 +413,77 @@ async function check(name, task) {
     h.advance(60_000);
     assert.match(h.text(h.nodes().find(node => node.props?.className === "distance")), /3\.300km/);
     assert.equal(h.requests.length, 1);
+    h.unmount();
+  });
+
+  await check("page offers the alcohol-or-water choice and sends alcohol selection", async () => {
+    const h = harness(true);
+    await h.enter(snapshot({ shop: { ...snapshot().shop, alcoholCount: 1 } }));
+    h.nodes().find(node => node.props?.className === "waterButton").props.onClick();
+    h.render();
+    const choice = h.nodes().find(node => node.props?.role === "group" && node.props?.["aria-label"] === "小林にあげる飲み物");
+    assert.ok(choice);
+    assert.match(h.text(choice), /酒をあげますか/);
+    assert.match(h.text(choice), /水をあげる/);
+    h.nodes().find(node => node.type === "button" && h.text(node) === "酒をあげる").props.onClick();
+    assert.equal(h.requests[1].body.alcohol, true);
+    h.requests[1].respond(200, snapshot({
+      state: { revision: 1, drunkEffect: "stopped", drunkUntil: NOW + 1_800_000 },
+      lastWater: { requestId: h.requests[1].body.requestId, amountMl: 300, wateredAt: NOW, alcoholGiven: true, drunkEffect: "stopped", mood: "normal", multiplier: 1 },
+      shop: { ...snapshot().shop, alcoholCount: 0 },
+    }));
+    await h.settle();
+    assert.match(h.text(), /泥酔中：停止/);
+    assert.match(h.text(), /走行距離と給水量が一時停止します/);
+    h.unmount();
+  });
+
+  await check("stopped drunkenness freezes the visible water amount and disables watering", async () => {
+    const h = harness(true);
+    await h.enter(snapshot({
+      state: {
+        drunkEffect: "stopped", drunkStartedAt: NOW,
+        drunkUntil: NOW + 1_800_000, lastWateredAt: NOW - 60_000,
+      },
+    }));
+    h.advance(16);
+    const amount = h.nodes().find(node => node.props?.className === "waterHeading");
+    const button = h.nodes().find(node => node.props?.className === "waterButton");
+    assert.equal(button.props.disabled, true);
+    assert.match(h.text(button), /泥酔して給水停止中/);
+    assert.match(h.text(amount), /0\.060L/);
+    const thirstBefore = h.text(h.nodes().find(node => node.props?.className === "thirstCopy"));
+    h.advance(60_000);
+    assert.match(h.text(h.nodes().find(node => node.props?.className === "waterHeading")), /0\.060L/);
+    assert.equal(h.text(h.nodes().find(node => node.props?.className === "thirstCopy")), thirstBefore);
+    assert.equal(h.requests.length, 1);
+    h.unmount();
+  });
+
+  await check("ordinary water during drunkenness displays the actual accepted amount", async () => {
+    const h = harness(true);
+    await h.enter(snapshot({
+      state: {
+        drunkEffect: "rampage", drunkStartedAt: NOW - 60_000,
+        drunkUntil: NOW + 1_740_000,
+      },
+      shop: { ...snapshot().shop, alcoholCount: 0 },
+    }));
+    h.nodes().find(node => node.props?.className === "waterButton").props.onClick();
+    assert.equal(h.requests[1].body.alcohol, undefined);
+    h.requests[1].respond(200, snapshot({
+      state: {
+        revision: 1, drunkEffect: "rampage", drunkStartedAt: NOW - 60_000,
+        drunkUntil: NOW + 1_740_000,
+      },
+      lastWater: {
+        requestId: h.requests[1].body.requestId, amountMl: 300, wateredAt: NOW,
+        mood: "normal", multiplier: 1, gachaLabel: "通常給水",
+      },
+      shop: { ...snapshot().shop, alcoholCount: 0 },
+    }));
+    await h.settle();
+    assert.match(h.text(h.nodes().find(node => node.props?.className === "drunkStatus")), /今回の給水量：0\.300 L/);
     h.unmount();
   });
 

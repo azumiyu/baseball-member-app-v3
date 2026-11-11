@@ -50,6 +50,15 @@
 .runnerSprite { width: 100%; height: 100%; position: relative; background: url("/game/kobayashi-runner.png") 0 0 / 200% 200% no-repeat; animation: runnerFrames .62s steps(1, end) infinite; filter: drop-shadow(2px 4px 0 #3852400f); }
 .runnerShadow { width: 112px; height: 16px; position: absolute; z-index: -1; left: 79px; bottom: -1px; border-radius: 50%; background: #6b4c3645; filter: blur(2px); animation: shadow .31s ease-in-out infinite alternate; }
 .runnerPhoto { width: 175px; height: 226px; position: absolute; bottom: 10px; left: 45px; border: 5px solid #fff7e0; border-radius: 100px 100px 24px 24px; object-fit: cover; object-position: 50% 20%; transform: rotate(4deg); box-shadow: 4px 7px 0 #254e3026; animation: photoRun .31s ease-in-out infinite alternate; }
+.scene[data-drunk="true"] .runner { animation: drunkSway .72s ease-in-out infinite; transform-origin: 50% 100%; }
+.scene[data-drunk="true"] .runnerPhoto { animation-duration: .53s; }
+.scene[data-drunk-effect="stopped"] .runner { animation: none; transform: translateX(-50%); }
+.scene[data-drunk-effect="stopped"] .runnerSprite,
+.scene[data-drunk-effect="stopped"] .runnerPhoto,
+.scene[data-drunk-effect="stopped"] .runnerShadow { animation: none; }
+.scene[data-drunk-effect="stopped"] .runnerSprite { background-position: 0 0; }
+.scene[data-drunk-effect="stopped"] .runnerPhoto { transform: rotate(0); }
+.scene[data-drunk-effect="stopped"] .track::after { animation-play-state: paused; }
 .spritePreload { width: 1px; height: 1px; position: absolute; opacity: 0; pointer-events: none; }
 .runnerTag { display: flex; align-items: center; justify-content: center; gap: 6px; position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%); min-width: 123px; padding: 5px 8px; border: 1px solid #f2d0a4; border-radius: 4px; background: #86593e; color: #ffedc5; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
 .station { position: absolute; right: 5%; bottom: 111px; z-index: 2; display: flex; align-items: center; flex-direction: column; transform: rotate(4deg); }
@@ -84,6 +93,17 @@
 .waterButton small { display: block; margin-top: 5px; font-size: 10px; color: #cce9d6; }
 .waterButton:disabled small { color: #f5ffed; }
 .waterButton > svg { margin-left: auto; flex-shrink: 0; opacity: .8; }
+.drinkChoice, .drunkStatus { margin-top: 10px; padding: 13px 15px; border: 1px solid #d5bd79; border-radius: 8px; background: #fff5d5; color: #715729; }
+.drinkChoice > strong, .drunkStatus > strong { display: block; font-size: 12px; font-weight: 900; }
+.drinkChoice > p { margin: 5px 0 10px; color: #80734e; font-size: 9px; line-height: 1.6; }
+.drinkChoice > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.drinkChoice button { flex: 1 1 90px; min-height: 36px; padding: 7px 10px; border: 1px solid #a87b36; border-radius: 5px; background: #b88237; color: #fffbed; font-size: 10px; font-weight: 800; cursor: pointer; }
+.drinkChoice button:nth-child(2) { border-color: #40826b; background: #347a67; }
+.drinkChoice button:last-child { border-color: #c4c6b5; background: #e4e6d9; color: #66745f; }
+.drinkChoice button:disabled { opacity: .55; cursor: default; }
+.drunkStatus { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 10px; border-color: #c99e6e; background: #f7e6d3; color: #864f38; }
+.drunkStatus > span { color: #916d58; font-size: 9px; }
+.drunkStatus > .drunkDescription { flex-basis: 100%; margin: 0; color: #864f38; font-size: 10px; font-weight: 700; }
 .bottle { position: relative; flex-shrink: 0; width: 34px; height: 43px; display: grid; place-items: center; border: 2px solid #d5f4e4; border-radius: 8px 8px 10px 10px; background: linear-gradient(0deg, #85c5be99 67%, #fff1 67%); transform: rotate(-8deg); }
 .bottle::after { content: ""; position: absolute; inset: 9px auto auto 3px; height: 22px; width: 3px; border-radius: 10px; background: #e0ffdf80; }
 .bottle > i { position: absolute; top: -8px; height: 7px; width: 18px; border: 2px solid #d5f4e4; border-radius: 3px 3px 1px 1px; background: #cee8c7; }
@@ -148,6 +168,7 @@
 .shopInventory { display: flex; flex-wrap: wrap; gap: 7px; padding: 13px 0 15px; }
 .shopInventory > span { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid #d5dfca; border-radius: 5px; background: #f0f2e4; color: #74826e; font-size: 9px; }
 .shopInventory b { color: #42684f; font-weight: 800; }
+.saleNotice { margin: 0 0 12px; padding: 10px 12px; border: 1px solid #d8b15f; border-radius: 6px; background: #fff0be; color: #8a6422; font-size: 10px; font-weight: 900; }
 .reservoirPanel { display: grid; gap: 9px; margin: 0 0 13px; padding: 12px; border: 1px solid #b9d1bb; border-radius: 8px; background: #edf4e8; }
 .reservoirPanel > div:first-child > strong { color: #315e48; font-size: 11px; font-weight: 900; }
 .reservoirPanel p { margin: 3px 0 0; color: #71806b; font-size: 9px; line-height: 1.6; }
@@ -172,11 +193,13 @@
 .shopCard > button > span { font-size: 9px; font-weight: 800; text-align: left; }
 .shopCard > button > strong { flex-shrink: 0; font: 900 12px/1 Arial, sans-serif; font-variant-numeric: tabular-nums; }
 .scene[data-paused="true"] *, .scene[data-paused="true"] *::after { animation-play-state: paused !important; }
+.scene[data-drunk-effect="stopped"] .track::after { animation-play-state: paused !important; }
 @keyframes runnerFrames { 0% { background-position: 0 0; } 25% { background-position: 100% 0; } 50% { background-position: 0 100%; } 75% { background-position: 100% 100%; } 100% { background-position: 0 0; } }
 @keyframes road { to { background-position-x: -240px; } }
 @keyframes clouds { from { transform: translateX(0); } to { transform: translateX(-790px); } }
 @keyframes shadow { to { transform: scaleX(.8); opacity: .7; } }
 @keyframes photoRun { to { transform: translateY(-5px) rotate(-3deg); } }
+@keyframes drunkSway { 0%, 100% { transform: translateX(-50%) rotate(-7deg); } 50% { transform: translateX(-50%) rotate(7deg); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 480px) {
   .distancePanel { padding: 19px 19px 18px; }

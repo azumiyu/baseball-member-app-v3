@@ -3,7 +3,9 @@ import { db, digest, random, token, validToken } from "../server";
 import type { LeaderboardEntry } from "./api-types";
 import { MARATHON, marathonAvailableWaterMl, marathonJapanDate, marathonJapanDayEnd,
   marathonReservoirBalance,
-  marathonMood, marathonNoWaterWindow, marathonShopPrice, marathonWaitMs, rollMarathonGacha,
+  marathonMood, marathonNoWaterWindow, marathonShopPrice, marathonDiscountedShopPrice,
+  marathonWaitMs, rollMarathonGacha,
+  MARATHON_DRUNK_DURATION_MS, rollMarathonDrunkEffect,
   type MarathonSnapshot, type MarathonState, type MarathonSteal, type MarathonStealNotification,
   type MarathonReservoirDepositRequest, type MarathonShopItem, type MarathonShopPurchase, type MarathonShopRequest, type MarathonShopState,
   type MarathonStealRequest, type MarathonWater, type MarathonWaterRequest } from "./marathon";
@@ -27,10 +29,14 @@ type ContextRow = {
   pending_trap_count: number; own_pending_trap_count: number | null;
   reservoir_owned: number | null; reservoir_ml: number | null; reservoir_growth_japan_date: string | null;
   reservoir_last_deposit_at: number | null; reservoir_god_count: number | null;
+  alcohol_count: number | null; alcohol_purchases: number | null;
   mini_kobayashi_count: number | null; steal_guard_charges: number | null;
   steal_counter_charges: number | null; steal_glove_count: number | null; shop_japan_date: string | null;
   guard_purchases: number | null; counter_purchases: number | null; trap_purchases: number | null;
   last_shop_purchase_json: string | null; scores_json: string;
+  drunk_effect: string | null; drunk_started_at: number | null; drunk_until: number;
+  drunk_rampage_goal_ml: number; drunk_rampage_awarded_ml: number;
+  drunk_rampage_player_ids: string; distance_paused_ms: number;
 };
 export type MarathonContext = {
   member: AuthMember; sessionHash: string; state: MarathonState;
@@ -51,9 +57,11 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     SELECT p.id,p.name,p.number,p.is_admin,p.can_edit_lineup,
       m.started_at,m.last_watered_at,m.revision,m.total_water_ml,m.last_giver_name,
       m.exclusive_player_id,(SELECT name FROM players WHERE id=m.exclusive_player_id) AS exclusive_player_name,
-      m.exclusive_until,m.pending_trap_count,shop.pending_trap_count AS own_pending_trap_count,
+      m.exclusive_until,m.pending_trap_count,m.drunk_effect,m.drunk_started_at,m.drunk_until,
+      m.drunk_rampage_goal_ml,m.drunk_rampage_awarded_ml,m.drunk_rampage_player_ids,m.distance_paused_ms,
+      shop.pending_trap_count AS own_pending_trap_count,
       shop.reservoir_owned,shop.reservoir_ml,shop.reservoir_growth_japan_date,
-      shop.reservoir_last_deposit_at,shop.reservoir_god_count,
+      shop.reservoir_last_deposit_at,shop.reservoir_god_count,shop.alcohol_count,shop.alcohol_purchases,
       g.japan_date,g.water_count AS daily_water_count,g.steal_count AS daily_steal_count,
       g.last_steal_request_id,g.last_steal_result_json,
       g.pending_steal_count,g.pending_steal_ml,g.pending_steal_last_giver_name,g.pending_steal_version,
@@ -84,6 +92,39 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     WHERE session.hash=? AND (session.expires=0 OR session.expires>?)
   `).bind(MARATHON.gameId, MARATHON.gameId, sessionHash, now).first<ContextRow>();
   if (!row) return null;
+  if (row.drunk_effect === "rampage" && row.drunk_started_at !== null && row.drunk_until > row.drunk_started_at) {
+    const elapsed = Math.max(0, Math.min(now, row.drunk_until) - row.drunk_started_at);
+    const earnedMl = Math.floor(row.drunk_rampage_goal_ml * elapsed / MARATHON_DRUNK_DURATION_MS);
+    if (earnedMl > row.drunk_rampage_awarded_ml) {
+      const playerIds = JSON.parse(row.drunk_rampage_player_ids) as string[];
+      const deltaMl = earnedMl - row.drunk_rampage_awarded_ml;
+      const writeToken = random();
+      const database = db();
+      const statements = [database.prepare(`
+        UPDATE marathon_state SET revision=revision+1,total_water_ml=total_water_ml+?,
+          drunk_rampage_awarded_ml=?,write_token=?
+        WHERE id=1 AND revision=? AND drunk_effect='rampage'
+          AND drunk_started_at=? AND drunk_rampage_awarded_ml=?
+      `).bind(deltaMl, earnedMl, writeToken, row.revision, row.drunk_started_at, row.drunk_rampage_awarded_ml)];
+      const count = playerIds.length;
+      for (let index = 0; index < count; index++) {
+        const before = Math.floor(row.drunk_rampage_awarded_ml * (index + 1) / count)
+          - Math.floor(row.drunk_rampage_awarded_ml * index / count);
+        const after = Math.floor(earnedMl * (index + 1) / count)
+          - Math.floor(earnedMl * index / count);
+        const playerDelta = after - before;
+        const playerId = playerIds[index];
+        if (playerDelta <= 0 || !playerId) continue;
+        statements.push(database.prepare(`
+          UPDATE mini_game_scores SET score=score+?,achieved_at=?
+          WHERE game_id=? AND player_id=?
+            AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+        `).bind(playerDelta, now, MARATHON.gameId, playerId, writeToken));
+      }
+      const result = await database.batch(statements);
+      if (result[0]?.meta.changes === 1) return readMarathonContext(req);
+    }
+  }
   const scores: Score[] = (JSON.parse(row.scores_json) as StoredScore[]).map((stored) => {
     const handMl = stored.score;
     const reservoirMl = stored.reservoirOwned === 1 ? marathonReservoirBalance(
@@ -109,6 +150,8 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
   const stealGuardCharges = row.steal_guard_charges ?? 0;
   const stealCounterCharges = row.steal_counter_charges ?? 0;
   const stealGloveCount = row.steal_glove_count ?? 0;
+  const alcoholCount = row.alcohol_count ?? 0;
+  const alcoholPurchasesToday = row.shop_japan_date === today ? row.alcohol_purchases ?? 0 : 0;
   const reservoirOwned = row.reservoir_owned === 1;
   const reservoirGodCount = row.reservoir_god_count ?? 0;
   const reservoirMl = reservoirOwned ? marathonReservoirBalance(
@@ -118,21 +161,25 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
   const reservoirNextDepositAt = reservoirLastDepositAt === null
     ? null : reservoirLastDepositAt + MARATHON.reservoirDepositIntervalMs;
   const inventory = { miniKobayashiCount, stealGuardCharges, stealCounterCharges, stealGloveCount, reservoirGodCount };
+  const drunkEffect = row.drunk_effect as MarathonState["drunkEffect"];
+  const activeDrunkEffect = row.drunk_until > now ? drunkEffect : null;
   const shop: MarathonShopState = {
     walletMl: Math.min(Number.MAX_SAFE_INTEGER, ownScore + reservoirMl), handMl: ownScore, reservoirMl, reservoirOwned,
     reservoirLastDepositAt, reservoirNextDepositAt, ...inventory,
+    alcoholCount, alcoholPurchasesToday,
     guardPurchasesToday: row.shop_japan_date === today ? row.guard_purchases ?? 0 : 0,
     counterPurchasesToday: row.shop_japan_date === today ? row.counter_purchases ?? 0 : 0,
     trapPurchasesToday: row.shop_japan_date === today ? row.trap_purchases ?? 0 : 0,
     pendingTrapCount: row.own_pending_trap_count ?? 0,
     pricesMl: {
-      "mini-kobayashi": marathonShopPrice("mini-kobayashi", inventory),
-      "steal-guard": marathonShopPrice("steal-guard", inventory),
-      "steal-counter": marathonShopPrice("steal-counter", inventory),
-      "poison-trap": marathonShopPrice("poison-trap", inventory),
-      "steal-glove": marathonShopPrice("steal-glove", inventory),
-      reservoir: marathonShopPrice("reservoir", inventory),
-      "reservoir-god": marathonShopPrice("reservoir-god", inventory),
+      "mini-kobayashi": marathonDiscountedShopPrice(marathonShopPrice("mini-kobayashi", inventory), activeDrunkEffect, row.drunk_until, now),
+      "steal-guard": marathonDiscountedShopPrice(marathonShopPrice("steal-guard", inventory), activeDrunkEffect, row.drunk_until, now),
+      "steal-counter": marathonDiscountedShopPrice(marathonShopPrice("steal-counter", inventory), activeDrunkEffect, row.drunk_until, now),
+      "poison-trap": marathonDiscountedShopPrice(marathonShopPrice("poison-trap", inventory), activeDrunkEffect, row.drunk_until, now),
+      "steal-glove": marathonDiscountedShopPrice(marathonShopPrice("steal-glove", inventory), activeDrunkEffect, row.drunk_until, now),
+      reservoir: marathonDiscountedShopPrice(marathonShopPrice("reservoir", inventory), activeDrunkEffect, row.drunk_until, now),
+      "reservoir-god": marathonDiscountedShopPrice(marathonShopPrice("reservoir-god", inventory), activeDrunkEffect, row.drunk_until, now),
+      alcohol: marathonDiscountedShopPrice(marathonShopPrice("alcohol", inventory), activeDrunkEffect, row.drunk_until, now),
     },
   };
   return {
@@ -142,7 +189,12 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     state: { startedAt: row.started_at, lastWateredAt: row.last_watered_at, revision: row.revision,
       totalWaterMl: row.total_water_ml, pendingTrapCount: row.pending_trap_count, lastGiverName: row.last_giver_name,
       exclusivePlayerId: row.exclusive_player_id, exclusivePlayerName: row.exclusive_player_name,
-      exclusiveUntil: row.exclusive_until },
+      exclusiveUntil: row.exclusive_until, drunkEffect,
+      drunkStartedAt: row.drunk_started_at, drunkUntil: row.drunk_until,
+      drunkRampageGoalMl: row.drunk_rampage_goal_ml,
+      drunkRampageAwardedMl: row.drunk_rampage_awarded_ml,
+      drunkRampagePlayerIds: JSON.parse(row.drunk_rampage_player_ids) as string[],
+      distancePausedMs: row.distance_paused_ms },
     scores,
     dailyWaterCount: row.japan_date === today ? row.daily_water_count ?? 0 : 0,
     lastWater: row.receipt_json ? JSON.parse(row.receipt_json) as MarathonWater : null,
@@ -197,10 +249,11 @@ function rollStealPercent(): number {
 
 export function parseMarathonRequest(value: unknown): MarathonWaterRequest | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const { requestId, expectedRevision } = value as Record<string, unknown>;
+  const { requestId, expectedRevision, alcohol } = value as Record<string, unknown>;
   return typeof requestId === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(requestId)
     && Number.isSafeInteger(expectedRevision) && (expectedRevision as number) >= 0
-    ? { requestId, expectedRevision: expectedRevision as number } : null;
+    && (alcohol === undefined || typeof alcohol === "boolean")
+    ? { requestId, expectedRevision: expectedRevision as number, ...(alcohol === true ? { alcohol: true } : {}) } : null;
 }
 
 export function parseMarathonStealRequest(value: unknown): MarathonStealRequest | null {
@@ -213,7 +266,7 @@ export function parseMarathonStealRequest(value: unknown): MarathonStealRequest 
 
 const marathonShopItems = new Set<MarathonShopItem>([
   "mini-kobayashi", "steal-guard", "steal-counter", "poison-trap", "steal-glove",
-  "reservoir", "reservoir-god",
+  "reservoir", "reservoir-god", "alcohol",
 ]);
 
 export function parseMarathonShopRequest(value: unknown): MarathonShopRequest | null {
@@ -240,7 +293,11 @@ export function parseMarathonNotificationVersion(value: unknown): number | null 
   return Number.isSafeInteger(version) && (version as number) > 0 ? version as number : null;
 }
 
-export type MarathonWaterResult = { status: "accepted" | "duplicate" | "conflict" | "waiting" | "resting" | "daily-limit" | "exclusive" | "unauthorized"; context: MarathonContext | null };
+export type MarathonWaterResult = {
+  status: "accepted" | "duplicate" | "conflict" | "waiting" | "resting" | "daily-limit"
+    | "exclusive" | "drunk" | "stopped" | "no-alcohol" | "unauthorized";
+  context: MarathonContext | null;
+};
 
 /** D1 serializes the transactional batch. Exactly one CAS can consume the
  * shared thirst; a new server token guards both credit and receipt writes.
@@ -249,6 +306,9 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
   if (context.lastWater?.requestId === request.requestId) return { status: "duplicate", context };
   if (context.state.revision !== request.expectedRevision) return { status: "conflict", context };
   const now = Date.now();
+  if (request.alcohol && context.state.drunkUntil > now) return { status: "drunk", context };
+  if (request.alcohol && context.shop.alcoholCount <= 0) return { status: "no-alcohol", context };
+  if (context.state.drunkEffect === "stopped" && context.state.drunkUntil > now) return { status: "stopped", context };
   if (marathonNoWaterWindow(now).isResting) return { status: "resting", context };
   if (marathonWaitMs(context.state, now) > 0) return { status: "waiting", context };
   if (context.dailyWaterCount >= MARATHON.dailyWaterLimit) return { status: "daily-limit", context };
@@ -289,11 +349,19 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
   const multiplier = didSteal ? 1 : mood.multiplier * regularWaterMultiplier;
   const receipt: MarathonWater = {
     requestId: request.requestId, amountMl, wateredAt: now, mood: mood.kind, multiplier,
+    alcoholGiven: request.alcohol === true,
     moodMultiplier: mood.multiplier, gacha: gacha.kind, gachaLabel,
     gachaMultiplier: didSteal ? 1 : regularWaterMultiplier,
     stolenFromName: didSteal ? leader?.name ?? null : null,
     trapTriggered,
   };
+  const drunkEffect = request.alcohol ? rollMarathonDrunkEffect() : null;
+  const drunkUntil = request.alcohol ? now + MARATHON_DRUNK_DURATION_MS : null;
+  const rampageGoalMl = drunkEffect === "rampage" ? 5_000 + secureIndex(15_001) : 0;
+  const rampagePlayerIds = request.alcohol
+    ? [...new Set([...context.scores.map((score) => score.playerId), context.member.id])]
+    : [];
+  receipt.drunkEffect = drunkEffect;
   const writeToken = random();
   const database = db();
   const japanDate = marathonJapanDate(now);
@@ -303,9 +371,19 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
       pending_trap_count=CASE WHEN ?>0 THEN pending_trap_count-1 ELSE pending_trap_count END,
       last_giver_name=?,write_token=?,
       exclusive_player_id=CASE WHEN ?=1 THEN ? ELSE exclusive_player_id END,
-      exclusive_until=CASE WHEN ?=1 THEN ? ELSE exclusive_until END
+      exclusive_until=CASE WHEN ?=1 THEN ? ELSE exclusive_until END,
+      drunk_effect=COALESCE(?,drunk_effect),drunk_started_at=COALESCE(?,drunk_started_at),
+      drunk_until=COALESCE(?,drunk_until),
+      drunk_rampage_goal_ml=CASE WHEN ? IS NOT NULL THEN ? ELSE drunk_rampage_goal_ml END,
+      drunk_rampage_awarded_ml=CASE WHEN ? IS NOT NULL THEN 0 ELSE drunk_rampage_awarded_ml END,
+      drunk_rampage_player_ids=CASE WHEN ? IS NOT NULL THEN ? ELSE drunk_rampage_player_ids END,
+      distance_paused_ms=distance_paused_ms+CASE
+        WHEN ? IS NOT NULL AND drunk_effect='stopped' AND drunk_started_at IS NOT NULL
+        THEN MAX(0,MIN(drunk_until,drunk_started_at+?)-drunk_started_at) ELSE 0 END
     WHERE id=1 AND revision=? AND last_watered_at<=? AND ?=1
       AND (exclusive_until<=? OR exclusive_player_id=?)
+      AND (?=0 OR (drunk_until<=? AND COALESCE(
+        (SELECT alcohol_count FROM marathon_shop_inventory WHERE player_id=?),0)>0))
       AND COALESCE((SELECT water_count FROM marathon_giver_limits WHERE player_id=? AND japan_date=?),0)<?
       AND EXISTS (SELECT 1 FROM sessions s JOIN member_devices d ON d.hash=s.device_hash
         JOIN players p ON p.id=d.player_id WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
@@ -313,7 +391,11 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
       AND NOT EXISTS (SELECT 1 FROM mini_game_runs WHERE game_id=? AND player_id=? AND last_request_id=?)
   `).bind(now, didSteal ? 0 : amountMl, trapTriggered ? 1 : 0, context.member.name, writeToken,
     exclusive ? 1 : 0, context.member.id, exclusive ? 1 : 0, marathonJapanDayEnd(now),
+    drunkEffect, request.alcohol ? now : null, drunkUntil,
+    drunkEffect, rampageGoalMl, drunkEffect, drunkEffect, JSON.stringify(rampagePlayerIds),
+    drunkEffect, MARATHON_DRUNK_DURATION_MS,
     request.expectedRevision, now - MARATHON.minWaterIntervalMs, notResting, now, context.member.id,
+    request.alcohol ? 1 : 0, now, context.member.id,
     context.member.id, japanDate, MARATHON.dailyWaterLimit, context.sessionHash, now,
     context.member.id, MARATHON.gameId, context.member.id, request.requestId)];
 
@@ -345,6 +427,13 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
       WHERE player_id=? AND steal_counter_charges>0
         AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
     `).bind(leader.playerId, writeToken));
+  }
+  if (request.alcohol) {
+    statements.push(database.prepare(`
+      UPDATE marathon_shop_inventory SET alcohol_count=alcohol_count-1
+      WHERE player_id=? AND alcohol_count>0
+        AND EXISTS (SELECT 1 FROM marathon_state WHERE id=1 AND write_token=?)
+    `).bind(context.member.id, writeToken));
   }
   statements.push(database.prepare(`
     INSERT INTO mini_game_scores(game_id,player_id,score,achieved_at)
@@ -498,31 +587,47 @@ export async function buyMarathonShopItem(
 ): Promise<MarathonShopBuyResult> {
   if (context.lastShopPurchase?.requestId === request.requestId) return { status: "duplicate", context };
   if (context.state.revision !== request.expectedRevision) return { status: "conflict", context };
+  const now = Date.now();
+  const inventory = context.shop;
+  const normalCostMl = marathonShopPrice(request.item, {
+    miniKobayashiCount: inventory.miniKobayashiCount,
+    stealGuardCharges: inventory.stealGuardCharges,
+    stealCounterCharges: inventory.stealCounterCharges,
+    stealGloveCount: inventory.stealGloveCount,
+    reservoirGodCount: inventory.reservoirGodCount,
+  });
+  if (context.state.drunkEffect === "generous" && context.state.drunkUntil <= now
+    && context.shop.pricesMl[request.item] !== normalCostMl) {
+    const fresh = await readMarathonContext(req);
+    return { status: fresh ? "conflict" : "unauthorized", context: fresh };
+  }
   if ((request.item === "reservoir" && context.shop.reservoirOwned)
     || (request.item === "reservoir-god" && !context.shop.reservoirOwned)) return { status: "unavailable", context };
 
   const caps: Partial<Record<MarathonShopItem, number>> = {
-    "steal-guard": 2, "steal-counter": 1, "poison-trap": 2,
+    "steal-guard": 2, "steal-counter": 1, "poison-trap": 2, alcohol: 3,
   };
   const boughtToday: Partial<Record<MarathonShopItem, number>> = {
     "steal-guard": context.shop.guardPurchasesToday,
     "steal-counter": context.shop.counterPurchasesToday,
     "poison-trap": context.shop.trapPurchasesToday,
+    alcohol: context.shop.alcoholPurchasesToday,
   };
   const cap = caps[request.item];
   if (cap !== undefined && (boughtToday[request.item] ?? 0) >= cap) return { status: "daily-limit", context };
 
   const costMl = context.shop.pricesMl[request.item];
   if (context.shop.walletMl < costMl) return { status: "insufficient", context };
-  const now = Date.now();
   const japanDate = marathonJapanDate(now);
+  const discounted = context.state.drunkEffect === "generous" && context.state.drunkUntil > now;
+  if (discounted && costMl !== Math.floor(normalCostMl * 0.8)) return { status: "conflict", context };
   const handSpentMl = Math.min(context.shop.handMl, costMl);
   const reservoirSpentMl = costMl - handSpentMl;
   const purchase: MarathonShopPurchase = { requestId: request.requestId, item: request.item, costMl, purchasedAt: now };
-  const inventory = context.shop;
   const guardPurchases = (inventory.guardPurchasesToday) + (request.item === "steal-guard" ? 1 : 0);
   const counterPurchases = (inventory.counterPurchasesToday) + (request.item === "steal-counter" ? 1 : 0);
   const trapPurchases = (inventory.trapPurchasesToday) + (request.item === "poison-trap" ? 1 : 0);
+  const alcoholPurchases = inventory.alcoholPurchasesToday + (request.item === "alcohol" ? 1 : 0);
   const nextInventory = {
     miniKobayashiCount: inventory.miniKobayashiCount + (request.item === "mini-kobayashi" ? 1 : 0),
     stealGuardCharges: inventory.stealGuardCharges + (request.item === "steal-guard" ? 3 : 0),
@@ -534,6 +639,8 @@ export async function buyMarathonShopItem(
     reservoirGrowthJapanDate: japanDate,
     reservoirLastDepositAt: inventory.reservoirLastDepositAt,
     reservoirGodCount: inventory.reservoirGodCount + (request.item === "reservoir-god" ? 1 : 0),
+    alcoholCount: inventory.alcoholCount + (request.item === "alcohol" ? 1 : 0),
+    alcoholPurchases,
   };
   const writeToken = random();
   const database = db();
@@ -553,12 +660,18 @@ export async function buyMarathonShopItem(
         FROM marathon_shop_inventory WHERE player_id=?),0)<?)
       AND (?<0 OR COALESCE((SELECT CASE WHEN japan_date=? THEN trap_purchases ELSE 0 END
         FROM marathon_shop_inventory WHERE player_id=?),0)<?)
+      AND (?<0 OR COALESCE((SELECT CASE WHEN japan_date=? THEN alcohol_purchases ELSE 0 END
+        FROM marathon_shop_inventory WHERE player_id=?),0)<?)
+      AND (?=0 OR EXISTS (SELECT 1 FROM marathon_state
+        WHERE id=1 AND drunk_effect='generous' AND drunk_until>?))
   `).bind(writeToken, request.expectedRevision, MARATHON.gameId, context.member.id, handSpentMl,
     context.member.id, request.requestId, request.item, context.member.id, request.item, context.member.id,
     context.sessionHash, now, context.member.id,
     request.item === "steal-guard" ? guardPurchases - 1 : -1, japanDate, context.member.id, 2,
     request.item === "steal-counter" ? counterPurchases - 1 : -1, japanDate, context.member.id, 1,
-    request.item === "poison-trap" ? trapPurchases - 1 : -1, japanDate, context.member.id, 2),
+    request.item === "poison-trap" ? trapPurchases - 1 : -1, japanDate, context.member.id, 2,
+    request.item === "alcohol" ? alcoholPurchases - 1 : -1, japanDate, context.member.id, 3,
+    discounted ? 1 : 0, now),
     database.prepare(`
       UPDATE mini_game_scores SET score=score-?,achieved_at=?
       WHERE game_id=? AND player_id=? AND score>=?
@@ -567,9 +680,9 @@ export async function buyMarathonShopItem(
     database.prepare(`
       INSERT INTO marathon_shop_inventory(player_id,mini_kobayashi_count,steal_guard_charges,
         steal_counter_charges,steal_glove_count,pending_trap_count,reservoir_owned,reservoir_ml,
-        reservoir_growth_japan_date,reservoir_last_deposit_at,reservoir_god_count,japan_date,
+        reservoir_growth_japan_date,reservoir_last_deposit_at,reservoir_god_count,alcohol_count,alcohol_purchases,japan_date,
         guard_purchases,counter_purchases,trap_purchases,last_purchase_request_id,last_purchase_result_json)
-      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? FROM marathon_state WHERE id=1 AND write_token=?
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? FROM marathon_state WHERE id=1 AND write_token=?
       ON CONFLICT(player_id) DO UPDATE SET
         mini_kobayashi_count=excluded.mini_kobayashi_count,
         steal_guard_charges=excluded.steal_guard_charges,
@@ -581,6 +694,8 @@ export async function buyMarathonShopItem(
         reservoir_growth_japan_date=excluded.reservoir_growth_japan_date,
         reservoir_last_deposit_at=excluded.reservoir_last_deposit_at,
         reservoir_god_count=excluded.reservoir_god_count,
+        alcohol_count=excluded.alcohol_count,
+        alcohol_purchases=excluded.alcohol_purchases,
         japan_date=excluded.japan_date,
         guard_purchases=excluded.guard_purchases,
         counter_purchases=excluded.counter_purchases,
@@ -590,7 +705,8 @@ export async function buyMarathonShopItem(
     `).bind(context.member.id, nextInventory.miniKobayashiCount, nextInventory.stealGuardCharges,
       nextInventory.stealCounterCharges, nextInventory.stealGloveCount, nextInventory.pendingTrapCount,
       Number(nextInventory.reservoirOwned), nextInventory.reservoirMl, nextInventory.reservoirGrowthJapanDate,
-      nextInventory.reservoirLastDepositAt, nextInventory.reservoirGodCount, japanDate,
+      nextInventory.reservoirLastDepositAt, nextInventory.reservoirGodCount,
+      nextInventory.alcoholCount, nextInventory.alcoholPurchases, japanDate,
       guardPurchases, counterPurchases, trapPurchases, request.requestId, JSON.stringify(purchase), writeToken),
   ];
   if (request.item === "poison-trap") {

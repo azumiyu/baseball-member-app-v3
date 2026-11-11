@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createEntityId } from "@/lib/entity-id";
 import type { MarathonShopItem, MarathonSnapshot } from "@/lib/games/marathon";
 
-type WaterRequest = { requestId: string; expectedRevision: number };
+type WaterRequest = { requestId: string; expectedRevision: number; alcohol?: boolean };
 type MarathonResponse = MarathonSnapshot & {
   error?: string;
   snapshot?: MarathonSnapshot;
@@ -103,11 +103,12 @@ export function useMarathonApi() {
     };
   }, [read]);
 
-  const water = useCallback(async (): Promise<MarathonSnapshot | null> => {
+  const water = useCallback(async (alcohol = false): Promise<MarathonSnapshot | null> => {
     if (mutating.current || reading.current || !current.current) return null;
     const request = pending.current ?? {
       requestId: createEntityId(),
       expectedRevision: current.current.state.revision,
+      ...(alcohol ? { alcohol: true } : {}),
     };
     pending.current = request;
     mutating.current = true;

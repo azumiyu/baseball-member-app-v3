@@ -256,11 +256,20 @@ export const marathonState = sqliteTable("marathon_state", {
     exclusivePlayerId: text("exclusive_player_id"),
     exclusiveUntil: integer("exclusive_until").notNull().default(0),
     pendingTrapCount: integer("pending_trap_count").notNull().default(0),
+    drunkEffect: text("drunk_effect"),
+    drunkStartedAt: integer("drunk_started_at"),
+    drunkUntil: integer("drunk_until").notNull().default(0),
+    drunkRampageGoalMl: integer("drunk_rampage_goal_ml").notNull().default(0),
+    drunkRampageAwardedMl: integer("drunk_rampage_awarded_ml").notNull().default(0),
+    drunkRampagePlayerIds: text("drunk_rampage_player_ids").notNull().default("[]"),
+    distancePausedMs: integer("distance_paused_ms").notNull().default(0),
 }, (table) => [
     check("marathon_state_singleton_check", sql`${table.id} = 1`),
     check("marathon_state_revision_check", sql`${table.revision} >= 0`),
     check("marathon_state_total_check", sql`${table.totalWaterMl} >= 0`),
     check("marathon_state_pending_trap_check", sql`${table.pendingTrapCount} >= 0`),
+    check("marathon_state_drunk_effect_check", sql`${table.drunkEffect} IS NULL OR ${table.drunkEffect} IN ('super-dehydrated', 'rampage', 'stopped', 'generous')`),
+    check("marathon_state_drunk_rampage_check", sql`${table.drunkRampageGoalMl} >= 0 AND ${table.drunkRampageAwardedMl} BETWEEN 0 AND ${table.drunkRampageGoalMl} AND ${table.distancePausedMs} >= 0`),
 ]);
 
 // Keep only each member's current JST-day count; the row count stays bounded
@@ -295,6 +304,8 @@ export const marathonShopInventory = sqliteTable("marathon_shop_inventory", {
     reservoirGrowthJapanDate: text("reservoir_growth_japan_date").notNull().default("1970-01-01"),
     reservoirLastDepositAt: integer("reservoir_last_deposit_at"),
     reservoirGodCount: integer("reservoir_god_count").notNull().default(0),
+    alcoholCount: integer("alcohol_count").notNull().default(0),
+    alcoholPurchases: integer("alcohol_purchases").notNull().default(0),
     japanDate: text("japan_date").notNull(),
     guardPurchases: integer("guard_purchases").notNull().default(0),
     counterPurchases: integer("counter_purchases").notNull().default(0),
@@ -302,8 +313,8 @@ export const marathonShopInventory = sqliteTable("marathon_shop_inventory", {
     lastPurchaseRequestId: text("last_purchase_request_id"),
     lastPurchaseResultJson: text("last_purchase_result_json"),
 }, (table) => [
-    check("marathon_shop_inventory_counts_check", sql`${table.miniKobayashiCount} >= 0 AND ${table.stealGuardCharges} >= 0 AND ${table.stealCounterCharges} >= 0 AND ${table.stealGloveCount} >= 0 AND ${table.pendingTrapCount} >= 0 AND ${table.reservoirOwned} BETWEEN 0 AND 1 AND ${table.reservoirMl} >= 0 AND ${table.reservoirGodCount} >= 0`),
-    check("marathon_shop_inventory_daily_check", sql`${table.guardPurchases} BETWEEN 0 AND 2 AND ${table.counterPurchases} BETWEEN 0 AND 1 AND ${table.trapPurchases} BETWEEN 0 AND 2`),
+    check("marathon_shop_inventory_counts_check", sql`${table.miniKobayashiCount} >= 0 AND ${table.stealGuardCharges} >= 0 AND ${table.stealCounterCharges} >= 0 AND ${table.stealGloveCount} >= 0 AND ${table.pendingTrapCount} >= 0 AND ${table.reservoirOwned} BETWEEN 0 AND 1 AND ${table.reservoirMl} >= 0 AND ${table.reservoirGodCount} >= 0 AND ${table.alcoholCount} >= 0`),
+    check("marathon_shop_inventory_daily_check", sql`${table.guardPurchases} BETWEEN 0 AND 2 AND ${table.counterPurchases} BETWEEN 0 AND 1 AND ${table.trapPurchases} BETWEEN 0 AND 2 AND ${table.alcoholPurchases} BETWEEN 0 AND 3`),
 ]);
 
 export const accountingEntries = sqliteTable("accounting_entries", {

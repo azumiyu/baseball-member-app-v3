@@ -69,7 +69,8 @@ export async function POST(req: Request) {
       const headers = renewSessionHeaders(req);
       if (result.status === 'unavailable') return json({ error: '貯水池の購入状況を確認してください。', snapshot }, 409, headers);
       if (result.status === "conflict") return json({ error: "小林の様子が更新されました。残高を確認してください。", snapshot }, 409, headers);
-      if (result.status === "daily-limit") return json({ error: "このアイテムは今日の購入上限に達しています。", snapshot }, 409, headers);
+      if (result.status === "daily-limit") return json({ error: request.item === "alcohol"
+        ? "酒は1日3回まで購入できます。" : "このアイテムは今日の購入上限に達しています。", snapshot }, 409, headers);
       if (result.status === "insufficient") return json({ error: "累計給水量が足りません。", snapshot }, 409, headers);
       return json(snapshot, 200, headers);
     }
@@ -99,6 +100,9 @@ export async function POST(req: Request) {
     if (result.status === "resting") return json({ error: "今は水いらないよ！給水できる時間になったら、またお願いします。", snapshot }, 409, headers);
     if (result.status === "daily-limit") return json({ error: "今日は10回給水しました。また明日お願いします。", snapshot }, 409, headers);
     if (result.status === "exclusive") return json({ error: `${result.context.state.exclusivePlayerName ?? "メンバー"}だけが今日の給水をできます。`, snapshot }, 409, headers);
+    if (result.status === "drunk") return json({ error: "小林はまだ泥酔しています。酒は泥酔が終わってからあげてください。", snapshot }, 409, headers);
+    if (result.status === "stopped") return json({ error: "小林は泥酔して停止中です。回復するまで給水できません。", snapshot }, 409, headers);
+    if (result.status === "no-alcohol") return json({ error: "酒を持っていません。ショップで購入してください。", snapshot }, 409, headers);
     return json(snapshot, 200, headers);
   } catch (error) {
     console.error("[marathon:POST]", error);

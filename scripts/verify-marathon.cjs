@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports, @next/next/no-assign-module-variable -- Standalone Node CommonJS verification harness. */
 // Isolated D1 regression: no application database, credentials or remote writes.
 // Miniflare starts workerd, so Windows may require approval for that subprocess.
 const assert = require('node:assert/strict');
@@ -45,7 +46,40 @@ const realNow = Date.now;
 (async () => {
   const actualDB = await mf.getD1Database('DB');
   for (const file of fs.readdirSync(path.join(root, 'drizzle')).filter(file => /^\d{4}_.*\.sql$/.test(file)).sort()) {
+    const migrationFixtureId = '00000000-0000-4000-8000-000000000099';
+    const runnerBefore = file === '0028_tiresome_paper_doll.sql'
+      ? await actualDB.prepare('SELECT started_at,last_watered_at,total_water_ml FROM marathon_state WHERE id=1').first()
+      : null;
+    if (runnerBefore) {
+      await actualDB.prepare('INSERT INTO players(id,name,number,kana,sort_order) VALUES(?,?,?,?,NULL)')
+        .bind(migrationFixtureId, 'Migration fixture', '99', '').run();
+      await actualDB.prepare(`INSERT INTO marathon_shop_inventory(
+        player_id,mini_kobayashi_count,reservoir_owned,reservoir_ml,reservoir_growth_japan_date,
+        reservoir_last_deposit_at,reservoir_god_count,japan_date,last_purchase_request_id,last_purchase_result_json
+      ) VALUES(?,2,1,1234,'2026-03-01',42,1,'2026-03-02','migration-preserve','{"item":"mini-kobayashi"}')`)
+        .bind(migrationFixtureId).run();
+    }
     await actualDB.batch(statements(fs.readFileSync(path.join(root, 'drizzle', file), 'utf8')).map(sql => actualDB.prepare(sql)));
+    if (runnerBefore) {
+      await check('alcohol migration preserves existing marathon and shop data', async () => {
+        const runnerAfter = await actualDB.prepare('SELECT started_at,last_watered_at,total_water_ml,drunk_effect FROM marathon_state WHERE id=1').first();
+        const inventory = await actualDB.prepare(`SELECT mini_kobayashi_count,reservoir_owned,reservoir_ml,
+          reservoir_growth_japan_date,reservoir_last_deposit_at,reservoir_god_count,alcohol_count,
+          alcohol_purchases,last_purchase_request_id,last_purchase_result_json
+          FROM marathon_shop_inventory WHERE player_id=?`).bind(migrationFixtureId).first();
+        assert.deepEqual(
+          [runnerAfter.started_at, runnerAfter.last_watered_at, runnerAfter.total_water_ml, runnerAfter.drunk_effect],
+          [runnerBefore.started_at, runnerBefore.last_watered_at, runnerBefore.total_water_ml, null],
+        );
+        assert.deepEqual(
+          [inventory.mini_kobayashi_count, inventory.reservoir_owned, inventory.reservoir_ml,
+            inventory.reservoir_growth_japan_date, inventory.reservoir_last_deposit_at, inventory.reservoir_god_count,
+            inventory.alcohol_count, inventory.alcohol_purchases, inventory.last_purchase_request_id, inventory.last_purchase_result_json],
+          [2, 1, 1234, '2026-03-01', 42, 1, 0, 0, 'migration-preserve', '{"item":"mini-kobayashi"}'],
+        );
+      });
+      await actualDB.prepare('DELETE FROM players WHERE id=?').bind(migrationFixtureId).run();
+    }
   }
   const instrument = (statement, sql, values = []) => ({
     bind(...bindings) { return instrument(statement.bind(...bindings), sql, bindings); },
@@ -101,6 +135,31 @@ const realNow = Date.now;
     assert.equal(rules.marathonAvailableWaterMl(state, startedAt + 120_000), 120);
     assert.equal(rules.marathonAvailableWaterMl({ ...state, lastWateredAt: now }, now), 0);
     assert.equal(rules.marathonWaitMs({ lastWateredAt: now }, now), 10_000);
+  });
+  await check('drunken outcomes are equally addressable and generous pricing is exactly twenty percent off', async () => {
+    assert.deepEqual([0, 1, 2, 3].map(rules.marathonDrunkEffectForRoll), [
+      'super-dehydrated', 'rampage', 'stopped', 'generous',
+    ]);
+    assert.deepEqual(['super-dehydrated', 'rampage', 'stopped', 'generous'].map(rules.marathonDrunkEffectLabel), [
+      '超脱水', '大暴れ', '停止', '大奮発',
+    ]);
+    assert.equal(rules.marathonDiscountedShopPrice(60_000, 'generous', now + 1, now), 48_000);
+    assert.equal(rules.marathonDiscountedShopPrice(60_000, 'generous', now, now), 60_000);
+  });
+  await check('stopped drunkenness freezes accumulated water and resumes after the event', async () => {
+    const state = {
+      startedAt: 0, lastWateredAt: 30_000, drunkEffect: 'stopped',
+      drunkStartedAt: 90_000, drunkUntil: 270_000,
+    };
+    const atStopStart = rules.marathonAvailableWaterMl(state, state.drunkStartedAt);
+    assert.equal(rules.marathonAvailableWaterMl(state, state.drunkStartedAt + 30_000), atStopStart);
+    assert.equal(rules.marathonWaterElapsedMs(state, state.drunkStartedAt + 30_000),
+      state.drunkStartedAt - state.lastWateredAt);
+    const afterStop = state.drunkUntil + 10_000;
+    const activeSeconds = (afterStop - state.lastWateredAt - (state.drunkUntil - state.drunkStartedAt)) / 1_000;
+    assert.equal(rules.marathonWaterElapsedMs(state, afterStop), activeSeconds * 1_000);
+    assert.equal(rules.marathonAvailableWaterMl(state, afterStop),
+      Math.floor(activeSeconds * rules.marathonMood(state, afterStop).multiplier));
   });
   await check('GET authenticates in one SELECT and never writes or advances stored state', async () => {
     await payload(await route.GET(new Request('http://localhost/api/games/marathon')), 401);
@@ -255,6 +314,99 @@ const realNow = Date.now;
     assert.equal(snapshot.personalBest.score, 1050);
     assert.equal(snapshot.leaderboard[0].rank, 1);
     assert.ok(snapshot.leaderboard.every((entry, index, entries) => index === 0 || entries[index - 1].score >= entry.score));
+  });
+  await check('alcohol costs five liters, is capped at three daily purchases and starts a shared effect', async () => {
+    await execute(`INSERT INTO mini_game_scores(game_id,player_id,score,achieved_at) VALUES(?,?,?,?)
+      ON CONFLICT(game_id,player_id) DO UPDATE SET score=excluded.score,achieved_at=excluded.achieved_at`,
+    rules.MARATHON.gameId, playerIds[0], 100_000, now);
+    for (let index = 0; index < 3; index++) {
+      const context = await store.readMarathonContext(request());
+      const purchased = await payload(await route.POST(request({
+        action: 'shop-buy', requestId: `alcohol-buy-${index}`, expectedRevision: context.state.revision, item: 'alcohol',
+      })));
+      assert.equal(purchased.lastShopPurchase.costMl, 5_000);
+      assert.equal(purchased.shop.alcoholCount, index + 1);
+      assert.equal(purchased.shop.alcoholPurchasesToday, index + 1);
+    }
+    const cappedContext = await store.readMarathonContext(request());
+    const capped = await payload(await route.POST(request({
+      action: 'shop-buy', requestId: 'alcohol-buy-capped', expectedRevision: cappedContext.state.revision, item: 'alcohol',
+    })), 409);
+    assert.match(capped.error, /1日3回まで/);
+    rules.rollMarathonDrunkEffect = () => 'super-dehydrated';
+    now += 90_000;
+    const context = await store.readMarathonContext(request());
+    const expectedAmount = rules.marathonAvailableWaterMl(context.state, now);
+    const watered = await payload(await route.POST(request({
+      requestId: 'alcohol-water', expectedRevision: context.state.revision, alcohol: true,
+    })));
+    assert.equal(watered.lastWater.alcoholGiven, true);
+    assert.equal(watered.lastWater.amountMl, expectedAmount);
+    assert.equal(watered.lastWater.drunkEffect, 'super-dehydrated');
+    assert.equal(watered.state.drunkUntil, now + rules.MARATHON_DRUNK_DURATION_MS);
+    assert.equal(watered.shop.alcoholCount, 2);
+    assert.equal(watered.shop.pricesMl.alcohol, 5_000);
+    const boostedAt = now + 60_000;
+    assert.equal(rules.marathonAvailableWaterMl({ ...watered.state, lastWateredAt: now }, boostedAt),
+      Math.floor(60 * rules.marathonMood(watered.state, boostedAt).multiplier * 10));
+    const blockedContext = await store.readMarathonContext(request(undefined, 1));
+    await payload(await route.POST(request({
+      requestId: 'alcohol-water-blocked', expectedRevision: blockedContext.state.revision, alcohol: true,
+    }, 1)), 409);
+  });
+  await check('expired stopped event remains excluded from cumulative distance and rampage settles exactly once', async () => {
+    const stoppedStart = 60_000;
+    const stoppedEnd = stoppedStart + rules.MARATHON_DRUNK_DURATION_MS;
+    assert.equal(rules.marathonDistanceKm({
+      startedAt: 0, distancePausedMs: 0, drunkEffect: 'stopped',
+      drunkStartedAt: stoppedStart, drunkUntil: stoppedEnd,
+    }, stoppedEnd + 60_000), 0.6);
+    now += rules.MARATHON_DRUNK_DURATION_MS + 60_000;
+    rules.rollMarathonDrunkEffect = () => 'rampage';
+    const beforeContext = await store.readMarathonContext(request());
+    const started = await payload(await route.POST(request({
+      requestId: 'rampage-water', expectedRevision: beforeContext.state.revision, alcohol: true,
+    })));
+    const totalBeforeRampage = started.state.totalWaterMl;
+    const goal = started.state.drunkRampageGoalMl;
+    const scoresBefore = await Promise.all(playerIds.map(score));
+    assert.ok(goal >= 5_000 && goal <= 20_000);
+    assert.equal(started.state.drunkEffect, 'rampage');
+    now = started.state.drunkUntil;
+    const settled = await payload(await route.GET(request()));
+    assert.equal(settled.state.drunkRampageAwardedMl, goal);
+    assert.equal(settled.state.totalWaterMl, totalBeforeRampage + goal);
+    const scoresAfter = await Promise.all(playerIds.map(score));
+    assert.equal(scoresAfter.reduce((sum, value, index) => sum + value - scoresBefore[index], 0), goal);
+    const readAgain = await payload(await route.GET(request()));
+    assert.equal(readAgain.state.totalWaterMl, settled.state.totalWaterMl);
+    assert.deepEqual(await Promise.all(playerIds.map(score)), scoresAfter);
+    now += 15_000;
+    rules.rollMarathonDrunkEffect = () => 'generous';
+    const generousContext = await store.readMarathonContext(request());
+    const saleStarted = await payload(await route.POST(request({
+      requestId: 'generous-water', expectedRevision: generousContext.state.revision, alcohol: true,
+    })));
+    assert.equal(saleStarted.shop.pricesMl['steal-guard'], 48_000);
+    const saleBought = await payload(await route.POST(request({
+      action: 'shop-buy', requestId: 'discounted-guard-buy',
+      expectedRevision: saleStarted.state.revision, item: 'steal-guard',
+    })));
+    assert.equal(saleBought.lastShopPurchase.costMl, 48_000);
+    assert.equal(saleBought.shop.stealGuardCharges, 3);
+    const stoppedAt = now + 30_000;
+    await execute(`UPDATE marathon_state SET revision=revision+1,drunk_effect='stopped',
+      drunk_started_at=?,drunk_until=? WHERE id=1`, stoppedAt, stoppedAt + rules.MARATHON_DRUNK_DURATION_MS);
+    const stoppedContext = await store.readMarathonContext(request(undefined, 1));
+    const frozenAmount = rules.marathonAvailableWaterMl(stoppedContext.state, stoppedAt);
+    assert.equal(rules.marathonAvailableWaterMl(stoppedContext.state, stoppedAt + 60_000), frozenAmount);
+    const stateBeforeBlockedWater = await shared();
+    now = stoppedAt + 60_000;
+    const blockedWater = await payload(await route.POST(request({
+      requestId: 'water-during-stop', expectedRevision: stoppedContext.state.revision,
+    }, 1)), 409);
+    assert.match(blockedWater.error, /停止中/);
+    assert.deepEqual(await shared(), stateBeforeBlockedWater);
   });
   await check('every statement remains within D1 bounds', async () => {
     assert.ok(queries.every(query => query.values.length <= 100));

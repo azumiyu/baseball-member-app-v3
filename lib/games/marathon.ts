@@ -35,9 +35,11 @@ export const MARATHON_SHOP_PRICE = {
   stealGloveBaseMl: 50_000,
   reservoirMl: 200_000,
   reservoirGodBaseMl: 200_000,
+  alcoholMl: 5_000,
 } as const;
 
-export type MarathonShopItem = "mini-kobayashi" | "steal-guard" | "steal-counter" | "poison-trap" | "steal-glove" | "reservoir" | "reservoir-god";
+export type MarathonShopItem = "mini-kobayashi" | "steal-guard" | "steal-counter" | "poison-trap" | "steal-glove" | "reservoir" | "reservoir-god" | "alcohol";
+export type MarathonDrunkEffect = "super-dehydrated" | "rampage" | "stopped" | "generous";
 export type MarathonShopCounts = Pick<MarathonShopState,
   "miniKobayashiCount" | "stealGuardCharges" | "stealCounterCharges" | "stealGloveCount" | "reservoirGodCount">;
 
@@ -50,8 +52,38 @@ export function marathonShopPrice(item: MarathonShopItem, counts: MarathonShopCo
   if (item === "steal-glove") return Math.min(Number.MAX_SAFE_INTEGER,
     Math.ceil(MARATHON_SHOP_PRICE.stealGloveBaseMl * 1.5 ** counts.stealGloveCount));
   if (item === "reservoir") return MARATHON_SHOP_PRICE.reservoirMl;
-  return Math.min(Number.MAX_SAFE_INTEGER,
+  if (item === "reservoir-god") return Math.min(Number.MAX_SAFE_INTEGER,
     Math.ceil(MARATHON_SHOP_PRICE.reservoirGodBaseMl * 1.05 ** counts.reservoirGodCount));
+  return MARATHON_SHOP_PRICE.alcoholMl;
+}
+
+export const MARATHON_DRUNK_DURATION_MS = 30 * 60 * 1_000;
+
+export function marathonDrunkEffectForRoll(roll: number): MarathonDrunkEffect {
+  if (!Number.isInteger(roll) || roll < 0 || roll > 3) throw new RangeError("Invalid drunken effect roll");
+  return (["super-dehydrated", "rampage", "stopped", "generous"] as const)[roll]!;
+}
+
+export function rollMarathonDrunkEffect(): MarathonDrunkEffect {
+  const limit = Math.floor(0x1_0000_0000 / 4) * 4;
+  let value = 0;
+  do {
+    value = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+  } while (value >= limit);
+  return marathonDrunkEffectForRoll(value % 4);
+}
+
+export function marathonDrunkEffectLabel(effect: MarathonDrunkEffect): string {
+  switch (effect) {
+    case "super-dehydrated": return "超脱水";
+    case "rampage": return "大暴れ";
+    case "stopped": return "停止";
+    case "generous": return "大奮発";
+  }
+}
+
+export function marathonDiscountedShopPrice(priceMl: number, effect: MarathonDrunkEffect | null, until: number, now: number): number {
+  return effect === "generous" && until > now ? Math.floor(priceMl * 0.8) : priceMl;
 }
 
 export function marathonReservoirBalance(balanceMl: number, growthJapanDate: string | null, godCount: number, now: number): number {
@@ -74,6 +106,13 @@ export type MarathonState = {
   exclusivePlayerId: string | null;
   exclusivePlayerName: string | null;
   exclusiveUntil: number;
+  drunkEffect: MarathonDrunkEffect | null;
+  drunkStartedAt: number | null;
+  drunkUntil: number;
+  drunkRampageGoalMl: number;
+  drunkRampageAwardedMl: number;
+  drunkRampagePlayerIds: string[];
+  distancePausedMs: number;
 };
 export type MarathonMoodKind = "normal" | "parched" | "runners-high";
 export type MarathonMood = {
@@ -86,6 +125,8 @@ export type MarathonWater = {
   requestId: string;
   amountMl: number;
   wateredAt: number;
+  alcoholGiven?: boolean;
+  drunkEffect?: MarathonDrunkEffect | null;
   mood: MarathonMoodKind;
   multiplier: number;
   moodMultiplier: MarathonMood["multiplier"];
@@ -127,7 +168,7 @@ export type MarathonSnapshot = Omit<GameSnapshot, "gameId" | "run"> & {
   shop: MarathonShopState;
   lastShopPurchase: MarathonShopPurchase | null;
 };
-export type MarathonWaterRequest = { requestId: string; expectedRevision: number };
+export type MarathonWaterRequest = { requestId: string; expectedRevision: number; alcohol?: boolean };
 export type MarathonStealRequest = { requestId: string; expectedRevision: number };
 export type MarathonShopRequest = { requestId: string; expectedRevision: number; item: MarathonShopItem };
 export type MarathonShopState = {
@@ -142,9 +183,11 @@ export type MarathonShopState = {
   stealGuardCharges: number;
   stealCounterCharges: number;
   stealGloveCount: number;
+  alcoholCount: number;
   guardPurchasesToday: number;
   counterPurchasesToday: number;
   trapPurchasesToday: number;
+  alcoholPurchasesToday: number;
   pendingTrapCount: number;
   pricesMl: Record<MarathonShopItem, number>;
 };
@@ -196,8 +239,17 @@ export function rollMarathonGacha(): MarathonGacha {
   return marathonGachaForRoll(value % 100);
 }
 
-export function marathonDistanceKm(state: Pick<MarathonState, "startedAt">, now: number): number {
-  return Math.max(0, now - state.startedAt) / 1_000 * MARATHON.speedMetersPerSecond / 1_000;
+export function marathonDistanceKm(
+  state: Pick<MarathonState, "startedAt"> & Partial<Pick<MarathonState,
+    "distancePausedMs" | "drunkEffect" | "drunkStartedAt" | "drunkUntil">>,
+  now: number,
+): number {
+  const elapsed = Math.max(0, now - state.startedAt);
+  const stoppedDuringEvent = state.drunkEffect === "stopped" && state.drunkStartedAt !== null && state.drunkStartedAt !== undefined
+    ? Math.max(0, Math.min(now, state.drunkUntil ?? 0) - state.drunkStartedAt)
+    : 0;
+  return Math.max(0, elapsed - (state.distancePausedMs ?? 0) - stoppedDuringEvent)
+    / 1_000 * MARATHON.speedMetersPerSecond / 1_000;
 }
 
 export function marathonMood(state: Pick<MarathonState, "startedAt">, now: number): MarathonMood {
@@ -218,9 +270,28 @@ export function marathonMood(state: Pick<MarathonState, "startedAt">, now: numbe
   return { kind: "normal", label: "今日も走り続ける！", multiplier: 1, endsAt: slotStart + MARATHON.eventSlotMs };
 }
 
-export function marathonAvailableWaterMl(state: Pick<MarathonState, "startedAt" | "lastWateredAt">, now: number): number {
-  const elapsedSeconds = Math.max(0, now - state.lastWateredAt) / 1_000;
-  return Math.min(Number.MAX_SAFE_INTEGER, Math.floor(elapsedSeconds * marathonMood(state, now).multiplier));
+export function marathonAvailableWaterMl(
+  state: Pick<MarathonState, "startedAt" | "lastWateredAt"> & Partial<Pick<MarathonState,
+    "drunkEffect" | "drunkStartedAt" | "drunkUntil">>,
+  now: number,
+): number {
+  const elapsedSeconds = marathonWaterElapsedMs(state, now) / 1_000;
+  const drunkMultiplier = state.drunkEffect === "super-dehydrated" && (state.drunkUntil ?? 0) > now ? 10 : 1;
+  return Math.min(Number.MAX_SAFE_INTEGER,
+    Math.floor(elapsedSeconds * marathonMood(state, now).multiplier * drunkMultiplier));
+}
+
+export function marathonWaterElapsedMs(
+  state: Pick<MarathonState, "lastWateredAt"> & Partial<Pick<MarathonState,
+    "drunkEffect" | "drunkStartedAt" | "drunkUntil">>,
+  now: number,
+): number {
+  const elapsedMs = Math.max(0, now - state.lastWateredAt);
+  const stoppedMs = state.drunkEffect === "stopped" && state.drunkStartedAt !== null
+    && state.drunkStartedAt !== undefined
+    ? Math.max(0, Math.min(now, state.drunkUntil ?? 0) - Math.max(state.lastWateredAt, state.drunkStartedAt))
+    : 0;
+  return Math.max(0, elapsedMs - stoppedMs);
 }
 
 export function marathonWaitMs(state: Pick<MarathonState, "lastWateredAt">, now: number): number {

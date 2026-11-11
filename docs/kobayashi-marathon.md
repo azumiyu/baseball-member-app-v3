@@ -16,6 +16,7 @@
 - 有効な給水ごとにサーバーでガチャを抽選します。給水量3倍10%、0.5倍10%、2倍20%、ランキング1位から手持ち給水量の10%を移す5%、その日ひとりだけ給水できる1%、通常給水54%です。1位自身が当選した場合や移せる量がない場合は通常給水になります。給水した本人には直近の結果を小林の吹き出しにも表示します。
 - 「その日ひとりだけ」の効果が出ると、当選したメンバーは日本時間の当日終了まで給水でき、ほかのメンバーは翌日まで待ちます。日ごとの10回上限も適用されます。
 - 「ちょうのどかわいた！！」は給水量2倍、「ランナーズハイ中！！」は半分です。
+- 酒はショップで5Lを使って購入でき、日本時間の日付ごとに3回までです。所持している状態で給水ボタンを押すと、酒か水を選べます。酒をあげると通常の給水後、全員共通の泥酔状態が30分続き、超脱水（給水量10倍）・大暴れ（全ランキング対象者に合計5〜20Lを均等加算）・停止（走行距離と給水量の蓄積を停止し、給水操作も不可）・大奮発（全商品の20%引き）のいずれかが発生します。泥酔中は酒を追加できません。
 - ランキング表示値は手持ち給水量と現在の貯水池残高の合計です。強奪やショップ利用は手持ち給水量から差し引きます。DBにはmLの整数、画面にはLで表示します。通常のゲームの自己ベストとは別のランキングです。
 
 初回の走行開始時点では5分ぶんの渇きがあるため、最初の訪問者も給水できます。状態の抽選は3分の時間枠ごとで、6分の1で渇き2倍、6分の1でランナーズハイとなり、その枠の最初の1分間だけ有効です。同じ開始時刻と経過時間から全員に同じ状態を返し、再読み込みでは抽選し直しません。
@@ -59,6 +60,14 @@ npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --
 
 本番でも、アプリの `DB` バインディングが指すD1へ同じSQLを一度適用してからアプリを更新してください。この実装作業では既存DB・本番DBへ移行を実行していません。
 
+酒と泥酔イベントを有効にするには、0027まで適用済みのD1へ `drizzle/0028_tiresome_paper_doll.sql` を一度適用してください。既存のショップ在庫と共有マラソン状態を引き継いで、新しい状態列を追加します。
+
+```powershell
+npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --file="./drizzle/0028_tiresome_paper_doll.sql" --config="./dist/server/wrangler.json"
+```
+
+本番でも、アプリの `DB` バインディングが指すD1へ同じSQLを一度適用してからアプリを更新してください。この実装作業では既存DB・本番DBへ移行を実行していません。
+
 ローカルDBに適用する場合のコマンドです。
 
 ```powershell
@@ -71,11 +80,11 @@ npx wrangler d1 execute yg_member_db --local --persist-to="./.wrangler/state" --
 
 | 場所 | 役割 |
 | --- | --- |
-| `lib/games/marathon.ts` | 距離・給水量・休憩時間・抽選結果の計算とAPI型 |
-| `lib/games/marathon-store.ts` | 認証・共有状態・累計・給水/強奪結果・未読通知の取得と保存 |
-| `app/api/games/marathon/route.ts` | 専用のGET / 給水・強奪・通知確認POST |
-| `components/games/MarathonPage.tsx` / `Marathon.module.css` | 給水所、強奪、被害通知、走行演出、ランキング |
-| `components/games/useMarathonApi.ts` | 通信、給水/強奪の再試行、通知確認、状態取得、サーバー時刻補正 |
+| `lib/games/marathon.ts` | 距離・給水量・休憩時間・泥酔効果・価格計算とAPI型 |
+| `lib/games/marathon-store.ts` | 認証・共有状態・給水/強奪/ショップ結果と泥酔状態の取得・保存 |
+| `app/api/games/marathon/route.ts` | 専用のGET / 給水・強奪・ショップ・通知確認POST |
+| `components/games/MarathonPage.tsx` / `Marathon.module.css` | 給水所、酒の選択、泥酔表示・走行演出、ショップ、ランキング |
+| `components/games/useMarathonApi.ts` | 通信、給水/強奪/購入の再試行、通知確認、状態取得、サーバー時刻補正 |
 | `scripts/verify-marathon.cjs` | 隔離したD1でのルール・保存の回帰検証 |
 | `scripts/verify-marathon-ui.cjs` | 時計・通信回数・再送・画面表示の回帰検証 |
 
