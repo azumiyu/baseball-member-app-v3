@@ -403,7 +403,7 @@ async function check(name, task) {
     assert.equal(ranking.props.scoreScale, 1000);
     assert.equal(ranking.props.precision, 3);
     assert.equal(ranking.props.rankingNote, "手持ちの給水量と貯水池残高の合計で競います。貯水池の水は強奪されません。");
-    assert.equal(ranking.props.personalScoreLabel, "あなたのランキング合計");
+    assert.equal(ranking.props.personalScoreLabel, "あなたの累計給水");
     assert.match(h.text(h.nodes().find(node => node.props?.className === "totals")), /1\.250L/);
     assert.ok(h.nodes().find(node => node.type === "img" && node.props.src === "/homepage/introduce/4.JPEG"));
     const preload = h.nodes().find(node => node.type === "img" && node.props.src === "/game/kobayashi-runner.png");

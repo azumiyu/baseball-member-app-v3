@@ -358,7 +358,7 @@ export function MarathonPage() {
       </details>
       <GameLeaderboard entries={snapshot.leaderboard} personalBest={snapshot.personalBest} memberId={snapshot.member.id} scoreUnit="L" scoreScale={1000} precision={3} cumulative
         rankingNote="手持ちの給水量と貯水池残高の合計で競います。貯水池の水は強奪されません。"
-        personalScoreLabel="あなたのランキング合計" />
+        personalScoreLabel="あなたの累計給水" />
     </GameShell>
   );
 }

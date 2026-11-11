@@ -29,6 +29,9 @@ export type LeaderboardEntry = {
   number: string;
   score: number;
   achievedAt: number;
+  handMl?: number;
+  reservoirMl?: number;
+  reservoirOwned?: boolean;
 };
 
 export type GameSnapshot<TResult = TurnResult> = {

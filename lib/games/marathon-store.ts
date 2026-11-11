@@ -9,9 +9,10 @@ import { MARATHON, marathonAvailableWaterMl, marathonJapanDate, marathonJapanDay
   type MarathonStealRequest, type MarathonWater, type MarathonWaterRequest } from "./marathon";
 
 type Score = Omit<LeaderboardEntry, "rank"> & {
-  handMl: number; reservoirMl: number; guardCharges: number; counterCharges: number;
+  handMl: number; reservoirMl: number; reservoirOwned: boolean;
+  guardCharges: number; counterCharges: number;
 };
-type StoredScore = Omit<LeaderboardEntry, "rank"> & {
+type StoredScore = Omit<LeaderboardEntry, "rank" | "reservoirMl" | "reservoirOwned"> & {
   reservoirOwned: number; reservoirMl: number; reservoirGrowthJapanDate: string | null;
   reservoirGodCount: number; guardCharges: number; counterCharges: number;
 };
@@ -92,6 +93,7 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
       ...stored,
       handMl,
       reservoirMl,
+      reservoirOwned: stored.reservoirOwned === 1,
       score: Math.min(Number.MAX_SAFE_INTEGER, handMl + reservoirMl),
     };
   }).sort((a, b) => b.score - a.score || a.achievedAt - b.achievedAt || a.playerId.localeCompare(b.playerId));
@@ -159,6 +161,7 @@ export function marathonSnapshot(context: MarathonContext, serverNow = Date.now(
   const publicRanked: LeaderboardEntry[] = ranked.map((score) => ({
     playerId: score.playerId, name: score.name, number: score.number,
     score: score.score, achievedAt: score.achievedAt, rank: score.rank,
+    handMl: score.handMl, reservoirMl: score.reservoirMl, reservoirOwned: score.reservoirOwned,
   }));
   return { member: context.member, gameId: MARATHON.gameId, run: null, serverNow,
     state: context.state, dailyWaterCount: context.dailyWaterCount, lastWater: context.lastWater,

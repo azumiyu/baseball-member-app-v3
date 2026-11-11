@@ -134,6 +134,7 @@
 .personalBest > span { flex-basis: 100%; font-size: 10px; color: #b3c6a3; }
 .personalBest strong { font-size: 17px; color: #e1e8bd; font-variant-numeric: tabular-nums; letter-spacing: -.04em; overflow-wrap: anywhere; }
 .personalBest small { margin-left: auto; font-size: 11px; color: #c5d098; }
+.personalComposition { flex-basis: 100%; font-size: 10px !important; color: #b3c6a3 !important; font-variant-numeric: tabular-nums; }
 .rankingList { list-style: none; padding: 0; margin: 16px 0 0; }
 .rankingList li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 51px; border-bottom: 1px solid #374b39; padding: 8px 0; }
 .rankingList li:last-child { border-bottom: 0; }
@@ -141,6 +142,7 @@
 .rankingList li:first-child .rank { color: #f1c969; }
 .rankingName { min-width: 0; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
 .rankingName > small { margin-left: 5px; color: #dfcc8a; font-size: 8px; }
+.rankingName > .rankingComposition { display: block; margin: 3px 0 0; color: #b3c6a3; font-size: 9px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .rankingList li > strong { font-size: 13px; font-variant-numeric: tabular-nums; letter-spacing: -.055em; white-space: nowrap; }
 .rankingList li[data-self="true"] { color: #f0d992; }
 .empty { text-align: center; color: #aec2a5; padding-top: 7px; font-size: 12px; }
