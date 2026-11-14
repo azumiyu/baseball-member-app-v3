@@ -92,9 +92,9 @@ export async function readMarathonContext(req: Request): Promise<MarathonContext
     WHERE session.hash=? AND (session.expires=0 OR session.expires>?)
   `).bind(MARATHON.gameId, MARATHON.gameId, sessionHash, now).first<ContextRow>();
   if (!row) return null;
+  // Finish any event persisted by the earlier gradual-award implementation.
   if (row.drunk_effect === "rampage" && row.drunk_started_at !== null && row.drunk_until > row.drunk_started_at) {
-    const elapsed = Math.max(0, Math.min(now, row.drunk_until) - row.drunk_started_at);
-    const earnedMl = Math.floor(row.drunk_rampage_goal_ml * elapsed / MARATHON_DRUNK_DURATION_MS);
+    const earnedMl = row.drunk_rampage_goal_ml;
     if (earnedMl > row.drunk_rampage_awarded_ml) {
       const playerIds = JSON.parse(row.drunk_rampage_player_ids) as string[];
       const deltaMl = earnedMl - row.drunk_rampage_awarded_ml;
@@ -367,7 +367,7 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
   const japanDate = marathonJapanDate(now);
   const notResting = marathonNoWaterWindow(now).isResting ? 0 : 1;
   const statements = [database.prepare(`
-    UPDATE marathon_state SET last_watered_at=?,revision=revision+1,total_water_ml=MAX(0,total_water_ml+?),
+    UPDATE marathon_state SET last_watered_at=?,revision=revision+1,total_water_ml=MAX(0,total_water_ml+?+?),
       pending_trap_count=CASE WHEN ?>0 THEN pending_trap_count-1 ELSE pending_trap_count END,
       last_giver_name=?,write_token=?,
       exclusive_player_id=CASE WHEN ?=1 THEN ? ELSE exclusive_player_id END,
@@ -375,7 +375,7 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
       drunk_effect=COALESCE(?,drunk_effect),drunk_started_at=COALESCE(?,drunk_started_at),
       drunk_until=COALESCE(?,drunk_until),
       drunk_rampage_goal_ml=CASE WHEN ? IS NOT NULL THEN ? ELSE drunk_rampage_goal_ml END,
-      drunk_rampage_awarded_ml=CASE WHEN ? IS NOT NULL THEN 0 ELSE drunk_rampage_awarded_ml END,
+      drunk_rampage_awarded_ml=CASE WHEN ? IS NOT NULL THEN ? ELSE drunk_rampage_awarded_ml END,
       drunk_rampage_player_ids=CASE WHEN ? IS NOT NULL THEN ? ELSE drunk_rampage_player_ids END,
       distance_paused_ms=distance_paused_ms+CASE
         WHEN ? IS NOT NULL AND drunk_effect='stopped' AND drunk_started_at IS NOT NULL
@@ -389,10 +389,10 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
         JOIN players p ON p.id=d.player_id WHERE s.hash=? AND (s.expires=0 OR s.expires>?)
           AND p.id=? AND p.sort_order IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM mini_game_runs WHERE game_id=? AND player_id=? AND last_request_id=?)
-  `).bind(now, didSteal ? 0 : amountMl, trapTriggered ? 1 : 0, context.member.name, writeToken,
+  `).bind(now, didSteal ? 0 : amountMl, rampageGoalMl, trapTriggered ? 1 : 0, context.member.name, writeToken,
     exclusive ? 1 : 0, context.member.id, exclusive ? 1 : 0, marathonJapanDayEnd(now),
     drunkEffect, request.alcohol ? now : null, drunkUntil,
-    drunkEffect, rampageGoalMl, drunkEffect, drunkEffect, JSON.stringify(rampagePlayerIds),
+    drunkEffect, rampageGoalMl, drunkEffect, rampageGoalMl, drunkEffect, JSON.stringify(rampagePlayerIds),
     drunkEffect, MARATHON_DRUNK_DURATION_MS,
     request.expectedRevision, now - MARATHON.minWaterIntervalMs, notResting, now, context.member.id,
     request.alcohol ? 1 : 0, now, context.member.id,
@@ -440,6 +440,21 @@ export async function waterMarathon(req: Request, context: MarathonContext, requ
     SELECT ?,?,MAX(0,?),? FROM marathon_state WHERE id=1 AND write_token=?
     ON CONFLICT(game_id,player_id) DO UPDATE SET score=MAX(0,mini_game_scores.score+?),achieved_at=excluded.achieved_at
   `).bind(MARATHON.gameId, context.member.id, amountMl, now, writeToken, amountMl));
+  if (drunkEffect === "rampage") {
+    const count = rampagePlayerIds.length;
+    for (let index = 0; index < count; index++) {
+      const shareMl = Math.floor(rampageGoalMl * (index + 1) / count)
+        - Math.floor(rampageGoalMl * index / count);
+      const playerId = rampagePlayerIds[index];
+      if (shareMl <= 0 || !playerId) continue;
+      statements.push(database.prepare(`
+        INSERT INTO mini_game_scores(game_id,player_id,score,achieved_at)
+        SELECT ?,?,?,? FROM marathon_state WHERE id=1 AND write_token=?
+        ON CONFLICT(game_id,player_id) DO UPDATE SET
+          score=mini_game_scores.score+excluded.score,achieved_at=excluded.achieved_at
+      `).bind(MARATHON.gameId, playerId, shareMl, now, writeToken));
+    }
+  }
   statements.push(database.prepare(`
     INSERT INTO marathon_giver_limits(player_id,japan_date,water_count,steal_count)
     SELECT ?,?,1,0 FROM marathon_state WHERE id=1 AND write_token=?

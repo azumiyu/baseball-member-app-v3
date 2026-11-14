@@ -337,11 +337,12 @@ const realNow = Date.now;
     now += 90_000;
     const context = await store.readMarathonContext(request());
     const expectedAmount = rules.marathonAvailableWaterMl(context.state, now);
+    const regularAmountBeforeDrink = expectedAmount;
     const watered = await payload(await route.POST(request({
       requestId: 'alcohol-water', expectedRevision: context.state.revision, alcohol: true,
     })));
     assert.equal(watered.lastWater.alcoholGiven, true);
-    assert.equal(watered.lastWater.amountMl, expectedAmount);
+    assert.equal(watered.lastWater.amountMl, regularAmountBeforeDrink);
     assert.equal(watered.lastWater.drunkEffect, 'super-dehydrated');
     assert.equal(watered.state.drunkUntil, now + rules.MARATHON_DRUNK_DURATION_MS);
     assert.equal(watered.shop.alcoholCount, 2);
@@ -354,7 +355,7 @@ const realNow = Date.now;
       requestId: 'alcohol-water-blocked', expectedRevision: blockedContext.state.revision, alcohol: true,
     }, 1)), 409);
   });
-  await check('expired stopped event remains excluded from cumulative distance and rampage settles exactly once', async () => {
+  await check('expired stopped event is excluded from distance and rampage is awarded all at once', async () => {
     const stoppedStart = 60_000;
     const stoppedEnd = stoppedStart + rules.MARATHON_DRUNK_DURATION_MS;
     assert.equal(rules.marathonDistanceKm({
@@ -364,20 +365,32 @@ const realNow = Date.now;
     now += rules.MARATHON_DRUNK_DURATION_MS + 60_000;
     rules.rollMarathonDrunkEffect = () => 'rampage';
     const beforeContext = await store.readMarathonContext(request());
+    const totalBeforeRampage = beforeContext.state.totalWaterMl;
+    const scoresBefore = await Promise.all(playerIds.map(score));
     const started = await payload(await route.POST(request({
       requestId: 'rampage-water', expectedRevision: beforeContext.state.revision, alcohol: true,
     })));
-    const totalBeforeRampage = started.state.totalWaterMl;
     const goal = started.state.drunkRampageGoalMl;
-    const scoresBefore = await Promise.all(playerIds.map(score));
     assert.ok(goal >= 5_000 && goal <= 20_000);
     assert.equal(started.state.drunkEffect, 'rampage');
+    assert.equal(started.state.drunkRampageAwardedMl, goal);
+    assert.equal(started.state.totalWaterMl, totalBeforeRampage + started.lastWater.amountMl + goal);
+    const scoresAtStart = await Promise.all(playerIds.map(score));
+    assert.equal(scoresAtStart.reduce((sum, value, index) => sum + value - scoresBefore[index], 0),
+      started.lastWater.amountMl + goal, JSON.stringify({ goal, amountMl: started.lastWater.amountMl, scoresBefore, scoresAtStart }));
+    const shares = new Map(started.state.drunkRampagePlayerIds.map((playerId, index, ids) => [
+      playerId, Math.floor(goal * (index + 1) / ids.length) - Math.floor(goal * index / ids.length),
+    ]));
+    for (let index = 0; index < playerIds.length; index++) {
+      assert.equal(scoresAtStart[index] - scoresBefore[index],
+        (shares.get(playerIds[index]) ?? 0) + (playerIds[index] === playerIds[0] ? started.lastWater.amountMl : 0));
+    }
     now = started.state.drunkUntil;
     const settled = await payload(await route.GET(request()));
     assert.equal(settled.state.drunkRampageAwardedMl, goal);
-    assert.equal(settled.state.totalWaterMl, totalBeforeRampage + goal);
     const scoresAfter = await Promise.all(playerIds.map(score));
-    assert.equal(scoresAfter.reduce((sum, value, index) => sum + value - scoresBefore[index], 0), goal);
+    assert.equal(settled.state.totalWaterMl, started.state.totalWaterMl);
+    assert.deepEqual(scoresAfter, scoresAtStart);
     const readAgain = await payload(await route.GET(request()));
     assert.equal(readAgain.state.totalWaterMl, settled.state.totalWaterMl);
     assert.deepEqual(await Promise.all(playerIds.map(score)), scoresAfter);
@@ -398,8 +411,8 @@ const realNow = Date.now;
     await execute(`UPDATE marathon_state SET revision=revision+1,drunk_effect='stopped',
       drunk_started_at=?,drunk_until=? WHERE id=1`, stoppedAt, stoppedAt + rules.MARATHON_DRUNK_DURATION_MS);
     const stoppedContext = await store.readMarathonContext(request(undefined, 1));
-    const frozenAmount = rules.marathonAvailableWaterMl(stoppedContext.state, stoppedAt);
-    assert.equal(rules.marathonAvailableWaterMl(stoppedContext.state, stoppedAt + 60_000), frozenAmount);
+    const frozenElapsed = rules.marathonWaterElapsedMs(stoppedContext.state, stoppedAt);
+    assert.equal(rules.marathonWaterElapsedMs(stoppedContext.state, stoppedAt + 60_000), frozenElapsed);
     const stateBeforeBlockedWater = await shared();
     now = stoppedAt + 60_000;
     const blockedWater = await payload(await route.POST(request({
